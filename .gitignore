@@ -9,10 +9,16 @@
 *.pem
 
 # Results and Output Directories
-/data/**
+/data/*
 !/data/.gitkeep
-/outputs/**
+/data/**/*
+!/data/**/
+!/data/**/.gitkeep
+/outputs/*
 !/outputs/.gitkeep
+/outputs/**/*
+!/outputs/**/
+!/outputs/**/.gitkeep
 
 # Documents and tabular data
 *.pdf
