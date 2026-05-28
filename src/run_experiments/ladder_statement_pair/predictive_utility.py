@@ -48,7 +48,8 @@ from sklearn.metrics import log_loss, roc_auc_score
 from sklearn.preprocessing import OneHotEncoder
 
 BASE = Path(__file__).resolve().parent
-PARAMETRIC_ROOT = BASE.parent
+# Repo root is four parents up from src/run_experiments/ladder_statement_pair/.
+PARAMETRIC_ROOT = BASE.parent.parent.parent
 N_TIERS = 7
 N_COMPS_PER_SET = 30
 TEST_FRAC = 0.20
@@ -75,8 +76,11 @@ def collect_result_files(results_dir: Path, model_key: str) -> list[Path]:
     files: list[Path] = []
 
     # Current layout: results/<model_key>/<artifact_dir>/results.json
+    # Readable dirs are phase6b_ladder_<ladder_id>; the legacy hash pattern
+    # (phase6b_variations_prune_*) is matched too for any unmigrated dirs.
     model_root = results_dir / model_key
     if model_root.exists():
+        files.extend(sorted(model_root.glob("phase6b_ladder_*/results.json")))
         files.extend(sorted(model_root.glob("phase6b_variations_prune_*/results.json")))
 
     # Legacy layout: results/phase6b_var_*/phase6b_var_*_<model>_results.json
@@ -314,7 +318,7 @@ def apply_bh_by_model(df: pd.DataFrame, alpha: float = BH_ALPHA) -> pd.DataFrame
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--results-dir", default="results")
+    ap.add_argument("--results-dir", default="outputs")
     ap.add_argument(
         "--out-dir",
         default=None,

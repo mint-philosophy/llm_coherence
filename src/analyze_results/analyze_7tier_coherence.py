@@ -13,7 +13,6 @@ Usage:
 """
 
 import argparse
-import hashlib
 import json
 import re
 import warnings
@@ -35,7 +34,8 @@ TIER_LABELS = [
 ]
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
-_PARAMETRIC_ROOT = _SCRIPT_DIR.parent
+# Repo root is three parents up from src/analyze_results/.
+_PARAMETRIC_ROOT = _SCRIPT_DIR.parent.parent
 
 
 def resolve_under_parametric(rel: str | Path) -> Path:
@@ -128,15 +128,24 @@ def load_manifest(data_dir: Path) -> dict:
     )
 
 
+_LADDER_TEST_PREFIX = "phase6b_variations_pruned_final_"
+
+
 def artifact_dir_name_for_test(test_name: str) -> str:
+    """Readable, deterministic per-ladder artifact directory name.
+
+    Must stay in sync with the identical copy in experiment_runner_tradeoff.py.
+    Canonical phase6b ladder tests map to "phase6b_ladder_<ladder_id>".
+    """
     safe = (
         test_name.replace(" ", "_")
         .replace("/", "_")
         .replace("\\", "_")
         .replace(":", "_")
     )
-    digest = hashlib.sha1(test_name.encode("utf-8")).hexdigest()[:10]
-    return f"{safe[:24]}_{digest}"
+    if safe.startswith(_LADDER_TEST_PREFIX):
+        return "phase6b_ladder_" + safe[len(_LADDER_TEST_PREFIX):]
+    return safe
 
 
 def normalize_results_dir(results_dir: Path, model_key: str) -> Path:
@@ -156,7 +165,7 @@ def load_results_for_variation(
 ) -> dict | None:
     artifact_dir = artifact_dir_name_for_test(test_name)
     candidates = [
-        # Current compact layout.
+        # Current readable layout (phase6b_ladder_<ladder_id>).
         results_dir / artifact_dir / "results.json",
         # Transitional compact layout.
         results_dir / artifact_dir / f"{artifact_dir}_{model_key}_results.json",
@@ -1073,8 +1082,8 @@ def print_summary(agg: dict) -> None:
 
 def main():
     parser = argparse.ArgumentParser(description="Phase 6b coherence analysis (7 tiers + CoT)")
-    parser.add_argument("--data-dir", default="data/phase6b_variations_pruned")
-    parser.add_argument("--results-dir", default="results")
+    parser.add_argument("--data-dir", default="data/run_experiments/phase6b_variations_pruned")
+    parser.add_argument("--results-dir", default="outputs")
     parser.add_argument("--model", default="gpt-4o-mini-openrouter")
     parser.add_argument("--output", default=None)
     args = parser.parse_args()
@@ -1087,7 +1096,9 @@ def main():
     if variations_source:
         variations_path = Path(variations_source)
     else:
-        variations_path = data_dir / "phase6b_variations.json"
+        variations_path = resolve_under_parametric(
+            "data/generate_variations/phase6b_variations_pruned_final.json"
+        )
     if not variations_path.is_absolute():
         variations_path = resolve_under_parametric(variations_path)
     with open(variations_path, encoding="utf-8") as f:

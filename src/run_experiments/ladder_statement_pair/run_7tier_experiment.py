@@ -52,17 +52,27 @@ import sys
 from pathlib import Path
 from datetime import datetime, timezone
 
-# This script lives in phase6b_experiments/; data/ and package imports use parametric_variations/.
+# This script lives in src/run_experiments/ladder_statement_pair/; the repo root
+# is four parents up. data/ and src/ are siblings under the repo root.
 _SCRIPT_DIR = Path(__file__).resolve().parent
-_PARAMETRIC_ROOT = _SCRIPT_DIR.parent
-_UTILITY_ANALYSIS_ROOT = _PARAMETRIC_ROOT.parent.parent
+_PARAMETRIC_ROOT = _SCRIPT_DIR.parent.parent.parent
 
-for _p in (_UTILITY_ANALYSIS_ROOT, _SCRIPT_DIR):
+for _p in (_PARAMETRIC_ROOT / "src", _SCRIPT_DIR):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 
 from experiment_runner_tradeoff import run_experiment, artifact_dir_name_for_test
-from compute_utilities.budget_monitor import BudgetMonitor
+
+# External dependency: `compute_utilities` is NOT vendored in this repo. Expose
+# it on PYTHONPATH (e.g. from the original utility_analysis tree) to run experiments.
+try:
+    from compute_utilities.budget_monitor import BudgetMonitor
+except ImportError as exc:  # pragma: no cover - depends on external package
+    raise ImportError(
+        "run_7tier_experiment requires the external `compute_utilities` package, "
+        "which is not bundled with this repo. Install/expose it on PYTHONPATH to "
+        "run experiments."
+    ) from exc
 
 COST_LOG_NAME = "phase6b_cost_log.json"
 COST_SUMMARY_NAME = "cost_summary.json"
@@ -146,7 +156,14 @@ async def smoke_call(
     420-call run.
     """
     import time
-    from compute_utilities.utils import create_agent
+    # External dependency: `compute_utilities` is NOT vendored in this repo.
+    try:
+        from compute_utilities.utils import create_agent
+    except ImportError as exc:  # pragma: no cover - depends on external package
+        raise ImportError(
+            "The smoke test requires the external `compute_utilities` package, "
+            "which is not bundled with this repo. Install/expose it on PYTHONPATH."
+        ) from exc
 
     # Mirror experiment_runner_tradeoff.py: read extra_body / enable_cache from
     # MODEL_CONFIGS so the smoke uses the same provider parameters as the real run.
@@ -154,10 +171,7 @@ async def smoke_call(
     # their reasoning-toggle and produce malformed output that fails the smoke.
     extra_body = None
     enable_cache = False
-    try:
-        from experiments.parametric_variations.config import MODEL_CONFIGS
-    except ImportError:
-        from config import MODEL_CONFIGS
+    from config import MODEL_CONFIGS
     cfg = MODEL_CONFIGS.get(model_key)
     system_message = None
     if cfg is not None:
@@ -705,9 +719,10 @@ def main():
                         help="Enable CoT reasoning (Level 3); increases tokens and cost.")
     parser.add_argument(
         "--data-dir",
-        default="data/phase6b_variations_pruned",
-        help="Directory with manifest + *_comparisons.json (default: data/phase6b_variations_pruned). "
-        "Relative paths are resolved under parametric_variations/.",
+        default="data/run_experiments/phase6b_variations_pruned",
+        help="Directory with manifest + *_comparisons.json (default: "
+        "data/run_experiments/phase6b_variations_pruned). "
+        "Relative paths are resolved under the repo root.",
     )
     parser.add_argument(
         "--manifest",
@@ -717,13 +732,13 @@ def main():
     )
     parser.add_argument(
         "--results-dir",
-        default="results",
-        help="Results root (default: results). Relative to parametric_variations/.",
+        default="outputs",
+        help="Results root (default: outputs). Relative to the repo root.",
     )
     parser.add_argument(
         "--checkpoints-dir",
         default="checkpoints",
-        help="Checkpoints directory (default: checkpoints). Relative to parametric_variations/.",
+        help="Checkpoints directory (default: checkpoints). Relative to the repo root.",
     )
     parser.add_argument("--variation-ids", nargs="+", default=None)
     parser.add_argument(
@@ -776,10 +791,7 @@ def main():
     if args.max_variation_sets is not None and args.max_variation_sets < 1:
         parser.error("--max-variation-sets must be >= 1 when set")
 
-    try:
-        from experiments.parametric_variations.config import MODEL_CONFIGS
-    except ImportError:
-        from config import MODEL_CONFIGS
+    from config import MODEL_CONFIGS
     cfg = MODEL_CONFIGS.get(args.model)
     if args.max_tokens is None:
         args.max_tokens = cfg.max_tokens if cfg is not None else 10

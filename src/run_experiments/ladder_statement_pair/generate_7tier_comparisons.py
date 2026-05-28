@@ -28,18 +28,19 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-# This script lives in phase6b_experiments/; data/ and ladder_validation_tests/ are siblings.
+# This script lives in src/run_experiments/ladder_statement_pair/; the repo root
+# is four parents up. data/ and src/ are siblings under the repo root.
 _SCRIPT_DIR = Path(__file__).resolve().parent
-_PARAMETRIC_ROOT = _SCRIPT_DIR.parent
-if str(_PARAMETRIC_ROOT) not in sys.path:
-    sys.path.insert(0, str(_PARAMETRIC_ROOT))
+_PARAMETRIC_ROOT = _SCRIPT_DIR.parent.parent.parent
+if str(_PARAMETRIC_ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(_PARAMETRIC_ROOT / "src"))
 
-from ladder_validation_tests.ladder_validation_paths import (  # noqa: E402
+from ladder_validation.ladder_validation_paths import (  # noqa: E402
     PRUNED_FINAL_PATH,
 )
 
-DEFAULT_COMPARISONS_OUTPUT_DIR = _PARAMETRIC_ROOT / "data" / "phase6b_variations_pruned"
-DEFAULT_COMPARISON_SAMPLE_PATH = _PARAMETRIC_ROOT / "data" / "comparison_sample.json"
+DEFAULT_COMPARISONS_OUTPUT_DIR = _PARAMETRIC_ROOT / "data" / "run_experiments" / "phase6b_variations_pruned"
+DEFAULT_COMPARISON_SAMPLE_PATH = _PARAMETRIC_ROOT / "data" / "run_experiments" / "comparison_sample.json"
 
 USABLE_VARIATION_STATUSES = frozenset({"success", "fixed_via_critique_rewrite_v2"})
 

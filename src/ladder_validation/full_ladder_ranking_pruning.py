@@ -119,24 +119,20 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
-_PARAMETRIC_ROOT = Path(__file__).resolve().parent.parent
-if str(_PARAMETRIC_ROOT) not in sys.path:
-    sys.path.insert(0, str(_PARAMETRIC_ROOT))
+_PARAMETRIC_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_PARAMETRIC_ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(_PARAMETRIC_ROOT / "src"))
 
-from ladder_validation_tests.ladder_validation_paths import (
+from ladder_validation.ladder_validation_paths import (
     BASE_DIR,
     DATA_DIR,
-    RANKING_DIR_NAME,
+    DEFAULT_VARIATIONS_INPUT,
     RANKING_OUTPUT_DIR,
     PRUNED_RANKING_FILENAME,
     PRUNED_RANKING_PATH,
-    migrate_all_legacy_validation_layout,
-    migrate_run_dir,
-    normalize_cli_output_dir as normalize_validation_output_dir,
-    resolve_pruned_variations_output as resolve_pruned_variations_output_path,
 )
 
-DEFAULT_INPUT = DATA_DIR / "phase6b_variations.json"
+DEFAULT_INPUT = DEFAULT_VARIATIONS_INPUT
 DEFAULT_OUTPUT_DIR = RANKING_OUTPUT_DIR
 
 RAW_JSONL_NAME = "ranking_raw_responses.jsonl"
@@ -246,14 +242,11 @@ def now_utc_z() -> str:
 
 
 def normalize_cli_output_dir(output_dir: Path) -> Path:
-    """
-    Resolve output-dir paths from the CLI.
-
-    Prefer forward slashes, e.g.
-    data/ladder_validation_tests_outputs/within_ladder_validation_ranking/gpt-55-openai
-    """
-    migrate_run_dir(RANKING_DIR_NAME)
-    return normalize_validation_output_dir(output_dir, subdir_name=RANKING_DIR_NAME)
+    """Resolve a CLI --output-dir to an absolute path (relative paths join REPO_ROOT)."""
+    output_dir = Path(output_dir)
+    if output_dir.is_absolute():
+        return output_dir
+    return BASE_DIR / output_dir
 
 
 def smoke_output_dir_name(model_key: str) -> str:
@@ -291,11 +284,14 @@ def resolve_ranking_pruned_output(
     input_path: Path,
     pruned_output: Optional[Path],
 ) -> Path:
-    """Write ranking-pruned variations under data/ladder_validation_tests_outputs/."""
+    """Write ranking-pruned variations under data/ladder_validation/variations_pruned/."""
     del input_path
-    return resolve_pruned_variations_output_path(
-        pruned_output, default_path=PRUNED_RANKING_PATH
-    )
+    if pruned_output is None:
+        return PRUNED_RANKING_PATH
+    pruned_output = Path(pruned_output)
+    if pruned_output.is_absolute():
+        return pruned_output
+    return BASE_DIR / pruned_output
 
 
 def resolve_ranking_pruned_ids_path(
@@ -496,9 +492,19 @@ def resolve_extra_body(model_cfg: Any, reasoning: Optional[str]) -> Optional[dic
     return extra_body or None
 
 
-sys.path.insert(0, str(BASE_DIR.parent.parent))
-from compute_utilities.utils import create_agent  # noqa: E402
-from experiments.parametric_variations.config import MODEL_CONFIGS  # noqa: E402
+from config import MODEL_CONFIGS  # noqa: E402
+
+# External dependency: `compute_utilities` is NOT vendored in this repo.
+# Expose it on PYTHONPATH (e.g. from the original utility_analysis tree) to
+# run the live ranking-pruning pipeline.
+try:
+    from compute_utilities.utils import create_agent  # noqa: E402
+except ImportError as exc:  # pragma: no cover - depends on external package
+    raise ImportError(
+        "full_ladder_ranking_pruning requires the external `compute_utilities` "
+        "package, which is not bundled with this repo. Install/expose it on "
+        "PYTHONPATH to run the pruning pipeline."
+    ) from exc
 
 
 def load_ladders(
@@ -1436,9 +1442,6 @@ def parse_args() -> argparse.Namespace:
 
 async def amain() -> int:
     args = parse_args()
-    migrated = migrate_all_legacy_validation_layout()
-    if migrated:
-        print("Migrated legacy validation layout: " + "; ".join(migrated))
 
     if args.write_pruned_variations_only:
         if args.analyze_only:

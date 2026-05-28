@@ -108,24 +108,20 @@ from pathlib import Path
 from typing import Any, Optional
 
 
-_PARAMETRIC_ROOT = Path(__file__).resolve().parent.parent
-if str(_PARAMETRIC_ROOT) not in sys.path:
-    sys.path.insert(0, str(_PARAMETRIC_ROOT))
+_PARAMETRIC_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_PARAMETRIC_ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(_PARAMETRIC_ROOT / "src"))
 
-from ladder_validation_tests.ladder_validation_paths import (
+from ladder_validation.ladder_validation_paths import (
     BASE_DIR,
     DATA_DIR,
-    PROPERTY_DIR_NAME,
+    DEFAULT_VARIATIONS_INPUT,
     PROPERTY_OUTPUT_DIR,
     PRUNED_PROPERTY_FILENAME,
     PRUNED_PROPERTY_PATH,
-    migrate_all_legacy_validation_layout,
-    migrate_run_dir,
-    normalize_cli_output_dir as normalize_validation_output_dir,
-    resolve_pruned_variations_output as resolve_pruned_variations_output_path,
 )
 
-DEFAULT_INPUT = DATA_DIR / "phase6b_variations.json"
+DEFAULT_INPUT = DEFAULT_VARIATIONS_INPUT
 PRUNED_VARIATIONS_FILENAME = PRUNED_PROPERTY_FILENAME
 DEFAULT_OUTPUT_DIR = PROPERTY_OUTPUT_DIR
 RAW_JSONL_NAME = "property_raw_responses.jsonl"
@@ -136,44 +132,9 @@ KEPT_IDS_JSON_NAME = "property_kept_ladder_ids.json"
 COST_JSON_NAME = "property_cost_log.json"
 COST_SUMMARY_JSON_NAME = "cost_summary.json"
 
-# Pre-rename outputs (redteam_*); migrated to property_* on read/write when needed.
-LEGACY_RAW_JSONL_NAME = "redteam_raw_responses.jsonl"
-LEGACY_SUMMARY_JSON_NAME = "redteam_pruning_summary.json"
-LEGACY_DETAILS_JSON_NAME = "redteam_pruning_details.json"
-LEGACY_PRUNED_IDS_JSON_NAME = "redteam_pruned_ladder_ids.json"
-LEGACY_KEPT_IDS_JSON_NAME = "redteam_kept_ladder_ids.json"
-LEGACY_COST_JSON_NAME = "redteam_cost_log.json"
-LEGACY_OUTPUT_RENAMES: tuple[tuple[str, str], ...] = (
-    (LEGACY_RAW_JSONL_NAME, RAW_JSONL_NAME),
-    (LEGACY_SUMMARY_JSON_NAME, SUMMARY_JSON_NAME),
-    (LEGACY_DETAILS_JSON_NAME, DETAILS_JSON_NAME),
-    (LEGACY_PRUNED_IDS_JSON_NAME, PRUNED_IDS_JSON_NAME),
-    (LEGACY_KEPT_IDS_JSON_NAME, KEPT_IDS_JSON_NAME),
-    (LEGACY_COST_JSON_NAME, COST_JSON_NAME),
-)
 
-
-def migrate_legacy_redteam_output_files(output_dir: Path) -> list[str]:
-    """Rename legacy redteam_* artifacts to property_* when the new file is absent."""
-    migrated: list[str] = []
-    for legacy_name, new_name in LEGACY_OUTPUT_RENAMES:
-        legacy_path = output_dir / legacy_name
-        new_path = output_dir / new_name
-        if legacy_path.exists() and not new_path.exists():
-            legacy_path.rename(new_path)
-            migrated.append(f"{legacy_name} -> {new_name}")
-    return migrated
-
-
-def resolve_output_file(output_dir: Path, new_name: str, legacy_name: str) -> Path:
-    """Prefer property_* path; fall back to legacy redteam_* if present."""
-    new_path = output_dir / new_name
-    if new_path.exists():
-        return new_path
-    legacy_path = output_dir / legacy_name
-    if legacy_path.exists():
-        return legacy_path
-    return new_path
+def resolve_output_file(output_dir: Path, new_name: str) -> Path:
+    return output_dir / new_name
 
 # CLI defaults (used to auto-tune reasoning-on profile when flags are left at defaults)
 DEFAULT_MAX_TOKENS = 600
@@ -201,14 +162,11 @@ MODEL_PRICING_SOURCE: dict[str, str] = {
 
 
 def normalize_cli_output_dir(output_dir: Path) -> Path:
-    """
-    Resolve output-dir paths from the CLI.
-
-    Git Bash on Windows may eat backslashes. Prefer forward slashes, e.g.
-    data/ladder_validation_tests_outputs/within_ladder_validation_property/gpt-55-openai
-    """
-    migrate_run_dir(PROPERTY_DIR_NAME)
-    return normalize_validation_output_dir(output_dir, subdir_name=PROPERTY_DIR_NAME)
+    """Resolve a CLI --output-dir to an absolute path (relative paths join REPO_ROOT)."""
+    output_dir = Path(output_dir)
+    if output_dir.is_absolute():
+        return output_dir
+    return BASE_DIR / output_dir
 
 
 def smoke_output_dir_name(model_key: str) -> str:
@@ -238,11 +196,14 @@ def resolve_pruned_variations_output(
     input_path: Path,
     pruned_output: Optional[Path],
 ) -> Path:
-    """Write pruned variations under data/ladder_validation_tests_outputs/."""
+    """Write pruned variations under data/ladder_validation/variations_pruned/."""
     del input_path  # kept for CLI compatibility
-    return resolve_pruned_variations_output_path(
-        pruned_output, default_path=PRUNED_PROPERTY_PATH
-    )
+    if pruned_output is None:
+        return PRUNED_PROPERTY_PATH
+    pruned_output = Path(pruned_output)
+    if pruned_output.is_absolute():
+        return pruned_output
+    return BASE_DIR / pruned_output
 
 
 REASONING_CLI_TO_EFFORT = {
@@ -409,10 +370,19 @@ def resolve_model_pricing(model_key: str) -> tuple[Optional[dict[str, float]], s
         return MODEL_PRICING_PER_1M[base_key], MODEL_PRICING_SOURCE.get(base_key, "")
     return None, ""
 
-# Allow importing shared utilities from utility_analysis/
-sys.path.insert(0, str(BASE_DIR.parent.parent))
-from compute_utilities.utils import create_agent  # noqa: E402
-from experiments.parametric_variations.config import MODEL_CONFIGS  # noqa: E402
+from config import MODEL_CONFIGS  # noqa: E402
+
+# External dependency: `compute_utilities` is NOT vendored in this repo.
+# Expose it on PYTHONPATH (e.g. from the original utility_analysis tree) to
+# run the live property-pruning pipeline.
+try:
+    from compute_utilities.utils import create_agent  # noqa: E402
+except ImportError as exc:  # pragma: no cover - depends on external package
+    raise ImportError(
+        "property_ladder_pruning requires the external `compute_utilities` "
+        "package, which is not bundled with this repo. Install/expose it on "
+        "PYTHONPATH to run the pruning pipeline."
+    ) from exc
 
 
 PROMPT_TEMPLATE = """You are auditing the design of a normative experiment.
@@ -715,10 +685,7 @@ async def run_requests(
     base_timeout: float = 30.0,
 ) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
-    migrated = migrate_legacy_redteam_output_files(output_dir)
-    if migrated:
-        print("Migrated legacy output files: " + ", ".join(migrated))
-    read_raw_path = resolve_output_file(output_dir, RAW_JSONL_NAME, LEGACY_RAW_JSONL_NAME)
+    read_raw_path = resolve_output_file(output_dir, RAW_JSONL_NAME)
     write_raw_path = output_dir / RAW_JSONL_NAME
 
     done_ids: set[str] = set()
@@ -759,7 +726,7 @@ async def run_requests(
     )
 
     rates, pricing_source = resolve_model_pricing(model_key)
-    read_cost_path = resolve_output_file(output_dir, COST_JSON_NAME, LEGACY_COST_JSON_NAME)
+    read_cost_path = resolve_output_file(output_dir, COST_JSON_NAME)
     write_cost_path = output_dir / COST_JSON_NAME
     cost_log: dict[str, Any] = {
         "model_key": model_key,
@@ -883,8 +850,7 @@ def build_cost_summary_from_log(cost_log: dict[str, Any]) -> dict[str, Any]:
 
 def _recompute_cost_estimates(output_dir: Path, model_key: str) -> None:
     """Backfill per-call and total estimated_cost_usd when pricing is available."""
-    migrate_legacy_redteam_output_files(output_dir)
-    cost_path = resolve_output_file(output_dir, COST_JSON_NAME, LEGACY_COST_JSON_NAME)
+    cost_path = resolve_output_file(output_dir, COST_JSON_NAME)
     write_cost_path = output_dir / COST_JSON_NAME
     if not cost_path.exists():
         return
@@ -922,8 +888,7 @@ def _recompute_cost_estimates(output_dir: Path, model_key: str) -> None:
 
 
 def save_cost_summary(output_dir: Path) -> None:
-    migrate_legacy_redteam_output_files(output_dir)
-    cost_path = resolve_output_file(output_dir, COST_JSON_NAME, LEGACY_COST_JSON_NAME)
+    cost_path = resolve_output_file(output_dir, COST_JSON_NAME)
     if not cost_path.exists():
         return
     cost_log = json.loads(cost_path.read_text(encoding="utf-8"))
@@ -1055,8 +1020,7 @@ def aggregate_results(
     ladder_fail_min_major_pairs: int,
     inconclusive_policy: str,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    migrate_legacy_redteam_output_files(output_dir)
-    raw_path = resolve_output_file(output_dir, RAW_JSONL_NAME, LEGACY_RAW_JSONL_NAME)
+    raw_path = resolve_output_file(output_dir, RAW_JSONL_NAME)
     if not raw_path.exists():
         raise FileNotFoundError(f"Missing raw responses file: {raw_path}")
 
@@ -1240,12 +1204,10 @@ def resolve_pruned_ids_path(
     if pruned_ids is not None:
         return pruned_ids
     if output_dir is not None:
-        migrate_legacy_redteam_output_files(output_dir)
-        return resolve_output_file(output_dir, PRUNED_IDS_JSON_NAME, LEGACY_PRUNED_IDS_JSON_NAME)
+        return resolve_output_file(output_dir, PRUNED_IDS_JSON_NAME)
     if model_key is not None:
         out = resolve_output_dir(model_key, None)
-        migrate_legacy_redteam_output_files(out)
-        return resolve_output_file(out, PRUNED_IDS_JSON_NAME, LEGACY_PRUNED_IDS_JSON_NAME)
+        return resolve_output_file(out, PRUNED_IDS_JSON_NAME)
     raise ValueError(
         "Provide --pruned-ids, --output-dir, or --model to locate property_pruned_ladder_ids.json"
     )
@@ -1473,9 +1435,6 @@ def run_write_pruned_variations_only(args: argparse.Namespace) -> int:
 
 async def amain() -> int:
     args = parse_args()
-    migrated = migrate_all_legacy_validation_layout()
-    if migrated:
-        print("Migrated legacy validation layout: " + "; ".join(migrated))
 
     if args.write_pruned_variations_only:
         if args.analyze_only:

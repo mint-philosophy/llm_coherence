@@ -22,13 +22,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-_PARAMETRIC_ROOT = Path(__file__).resolve().parent.parent
-if str(_PARAMETRIC_ROOT) not in sys.path:
-    sys.path.insert(0, str(_PARAMETRIC_ROOT))
+_PARAMETRIC_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_PARAMETRIC_ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(_PARAMETRIC_ROOT / "src"))
 
-from ladder_validation_tests.ladder_validation_paths import (
-    migrate_all_legacy_validation_layout,
-    migrate_legacy_pruned_json_files,
+from ladder_validation.ladder_validation_paths import (
     PRUNED_FINAL_PATH,
     PRUNED_FINAL_REPORT_PATH,
     PRUNED_PAIRTEST_PATH,
@@ -183,11 +181,6 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
-    migrated = migrate_all_legacy_validation_layout()
-    if migrated:
-        print("Migrated legacy validation layout: " + "; ".join(migrated))
-    migrate_legacy_pruned_json_files()
-
     args = parse_args()
     sources = [
         PrunedSource("pairtest", "pairtest_pruned", args.pairtest),

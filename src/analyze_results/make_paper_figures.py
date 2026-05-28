@@ -35,7 +35,8 @@ from matplotlib.lines import Line2D
 import numpy as np
 
 SCRIPT_DIR = pathlib.Path(__file__).resolve().parent
-PARAM_VAR = SCRIPT_DIR.parent
+# Repo root is three parents up from src/analyze_results/.
+PARAM_VAR = SCRIPT_DIR.parent.parent
 
 N_TIERS = 7
 
@@ -1307,11 +1308,17 @@ def fig7b_category_breakdown_on(all_data: dict, models: list) -> plt.Figure:
 # Fig 8: Ladder shape curves
 # ============================================================
 def _find_raw_results(results_dir: pathlib.Path, model_key: str) -> list[pathlib.Path]:
-    """Collect raw results.json files under the model-scoped layout."""
+    """Collect raw results.json files under the model-scoped layout.
+
+    Readable per-ladder dirs are phase6b_ladder_<ladder_id>; the legacy hash
+    pattern (phase6b_variations_prune_*) is matched too for any unmigrated dirs.
+    """
     model_root = results_dir / model_key
     if not model_root.exists():
         return []
-    return sorted(model_root.glob("phase6b_variations_prune_*/results.json"))
+    found = sorted(model_root.glob("phase6b_ladder_*/results.json"))
+    found += sorted(model_root.glob("phase6b_variations_prune_*/results.json"))
+    return found
 
 
 def fig8_ladder_shapes(all_data: dict, models: list, results_dir: pathlib.Path) -> plt.Figure:
@@ -1765,15 +1772,15 @@ def main():
              "all models under --results-dir that have a coherence JSON.",
     )
     ap.add_argument("--results-dir",
-                    default=str(PARAM_VAR / "results"),
+                    default=str(PARAM_VAR / "outputs"),
                     help="Results root containing model-scoped subdirs "
-                         "(default: parametric_variations/results)")
+                         "(default: outputs/)")
     ap.add_argument("--output-dir",
-                    default=str(SCRIPT_DIR / "figures"),
-                    help="Directory for output figures (default: phase6b_experiments/figures/)")
+                    default=str(PARAM_VAR / "outputs" / "figures"),
+                    help="Directory for output figures (default: outputs/figures/)")
     ap.add_argument("--tables-dir",
-                    default=str(SCRIPT_DIR / "tables"),
-                    help="Directory for output tables (default: phase6b_experiments/tables/)")
+                    default=str(PARAM_VAR / "outputs" / "tables"),
+                    help="Directory for output tables (default: outputs/tables/)")
     args = ap.parse_args()
 
     results_dir = pathlib.Path(args.results_dir)

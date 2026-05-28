@@ -21,30 +21,35 @@ from datetime import datetime
 from typing import Dict, List, Any, Optional
 
 _EXPERIMENT_DIR = Path(__file__).resolve().parent
-# This copy may live in phase6b_experiments/ or in parametric_variations/ directly.
-_PARAMETRIC_ROOT = _EXPERIMENT_DIR.parent if _EXPERIMENT_DIR.name == "phase6b_experiments" else _EXPERIMENT_DIR
-_UTILITY_ANALYSIS_ROOT = _PARAMETRIC_ROOT.parent.parent
+# This script lives in src/run_experiments/ladder_statement_pair/; the repo root
+# is four parents up.
+_PARAMETRIC_ROOT = _EXPERIMENT_DIR.parent.parent.parent
 
-# utility_analysis on path for compute_utilities
-if str(_UTILITY_ANALYSIS_ROOT) not in sys.path:
-    sys.path.insert(0, str(_UTILITY_ANALYSIS_ROOT))
+# src/ on path for config and sibling modules.
+if str(_PARAMETRIC_ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(_PARAMETRIC_ROOT / "src"))
 
-from compute_utilities.utils import (
-    create_agent,
-    generate_responses,
-    parse_responses_forced_choice,
-)
-from compute_utilities.templates import (
-    comparison_prompt_template_default,
-    comparison_prompt_template_reasoning_default,
-)
+# External dependency: `compute_utilities` is NOT vendored in this repo. Expose
+# it on PYTHONPATH (e.g. from the original utility_analysis tree) to run experiments.
+try:
+    from compute_utilities.utils import (
+        create_agent,
+        generate_responses,
+        parse_responses_forced_choice,
+    )
+    from compute_utilities.templates import (
+        comparison_prompt_template_default,
+        comparison_prompt_template_reasoning_default,
+    )
+except ImportError as exc:  # pragma: no cover - depends on external package
+    raise ImportError(
+        "experiment_runner_tradeoff requires the external `compute_utilities` "
+        "package, which is not bundled with this repo. Install/expose it on "
+        "PYTHONPATH to run experiments."
+    ) from exc
 
 # Import model config for extra_body / enable_cache lookup
-try:
-    from experiments.parametric_variations.config import MODEL_CONFIGS
-except ImportError:
-    # Fallback when running from the parametric_variations directory
-    from config import MODEL_CONFIGS
+from config import MODEL_CONFIGS
 
 
 RESULTS_SCHEMA_VERSION = "1.0"
@@ -70,7 +75,7 @@ def _git_sha() -> str | None:
 def _lookup_model_name_full(model_key: str) -> str | None:
     """Return the full model_name from models.yaml (e.g. 'openai/gpt-5.4-nano-...')."""
     try:
-        yaml_path = _UTILITY_ANALYSIS_ROOT / "models.yaml"
+        yaml_path = _PARAMETRIC_ROOT / "models.yaml"
         with open(yaml_path) as f:
             cfg = yaml.safe_load(f)
         entry = cfg.get(model_key, {})
@@ -248,16 +253,27 @@ def load_comparisons(data_dir: Path, test_name: str) -> List[Dict[str, Any]]:
     return data["comparisons"]
 
 
+_LADDER_TEST_PREFIX = "phase6b_variations_pruned_final_"
+
+
 def artifact_dir_name_for_test(test_name: str) -> str:
-    """Short deterministic artifact directory name for long Windows paths."""
+    """Readable, deterministic per-ladder artifact directory name.
+
+    Canonical phase6b ladder tests (test_name
+    "phase6b_variations_pruned_final_<ladder_id>") map to
+    "phase6b_ladder_<ladder_id>" so the folder is self-describing when browsing
+    the repo. Other test names fall back to their sanitized form. Must stay in
+    sync with the identical copy in analyze_7tier_coherence.py.
+    """
     safe = (
         test_name.replace(" ", "_")
         .replace("/", "_")
         .replace("\\", "_")
         .replace(":", "_")
     )
-    digest = hashlib.sha1(test_name.encode("utf-8")).hexdigest()[:10]
-    return f"{safe[:24]}_{digest}"
+    if safe.startswith(_LADDER_TEST_PREFIX):
+        return "phase6b_ladder_" + safe[len(_LADDER_TEST_PREFIX):]
+    return safe
 
 
 def save_results(output_path: Path, payload: Dict[str, Any]) -> None:
@@ -507,7 +523,7 @@ async def run_experiment(
 ) -> Dict[str, Any]:
     base = _PARAMETRIC_ROOT
     data_dir = data_dir or base / "data"
-    results_dir = results_dir or base / "results"
+    results_dir = results_dir or base / "outputs"
     checkpoints_dir = checkpoints_dir or base / "checkpoints"
 
     comparisons = load_comparisons(data_dir, test_name)

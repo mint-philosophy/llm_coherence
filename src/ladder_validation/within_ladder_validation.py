@@ -35,21 +35,21 @@ import argparse
 from itertools import combinations
 from pathlib import Path
 
-_PARAMETRIC_ROOT = Path(__file__).resolve().parent.parent
-if str(_PARAMETRIC_ROOT) not in sys.path:
-    sys.path.insert(0, str(_PARAMETRIC_ROOT))
+_PARAMETRIC_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_PARAMETRIC_ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(_PARAMETRIC_ROOT / "src"))
 
-from ladder_validation_tests.ladder_validation_paths import (
+from ladder_validation.ladder_validation_paths import (
     BASE_DIR,
     DATA_DIR,
-    migrate_all_legacy_validation_layout,
-    pairtest_output_dir_relative,
+    DEFAULT_VARIATIONS_INPUT,
+    WITHIN_LADDER_OUTPUTS_DIR,
 )
 
-VARIATIONS_PATH = str(DATA_DIR / "phase6b_variations.json")
-OUTPUT_DIR = pairtest_output_dir_relative()
+VARIATIONS_PATH = str(DEFAULT_VARIATIONS_INPUT)
+OUTPUT_DIR = str(WITHIN_LADDER_OUTPUTS_DIR)
 
-API_KEYS_DIR = BASE_DIR.parent.parent / "api_keys"
+API_KEYS_DIR = Path(os.environ.get("API_KEYS_DIR", str(BASE_DIR / "api_keys")))
 
 PROMPT_TEMPLATE = """You will be presented with two hypothetical outcomes. Please indicate which outcome you would prefer to experience. You MUST choose one option — do not say "neither" or "both."
 
@@ -496,8 +496,17 @@ def run_local(model_key):
     from vllm import LLM, SamplingParams
     from transformers import AutoTokenizer
 
-    sys.path.insert(0, str(BASE_DIR.parent.parent))
-    from compute_utilities.llm_agent import FEW_SHOT_PROMPT_LOGPROBS
+    # External dependency: `compute_utilities` is NOT vendored in this repo.
+    # Provide it on PYTHONPATH (e.g. from the original utility_analysis tree)
+    # to run local logprob-based validation.
+    try:
+        from compute_utilities.llm_agent import FEW_SHOT_PROMPT_LOGPROBS
+    except ImportError as exc:
+        raise ImportError(
+            "Local logprob validation requires the external `compute_utilities` "
+            "package, which is not bundled with this repo. Install/expose it on "
+            "PYTHONPATH to use --local."
+        ) from exc
 
     with open(input_path) as f:
         requests = [json.loads(line) for line in f]
@@ -730,9 +739,6 @@ def main():
     parser.add_argument("--with-reasoning", action="store_true", help="Include reasoning in prompt")
     args = parser.parse_args()
 
-    migrated = migrate_all_legacy_validation_layout()
-    if migrated:
-        print("Migrated legacy validation layout: " + "; ".join(migrated))
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     if args.generate_all:
