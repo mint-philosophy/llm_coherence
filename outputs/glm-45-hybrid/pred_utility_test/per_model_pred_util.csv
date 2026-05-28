@@ -1,0 +1,2 @@
+model_key,label,n_sets,mean_test_auc,median_test_auc,mean_null_auc,mean_test_logloss,mean_p_value,mean_p_value_bh,frac_sig_at_p05,frac_sig_at_bh_fdr05
+glm-45-hybrid,glm-45-hybrid,100,0.9423492653026819,0.9454886380187852,0.6979392201472241,0.2635315332218568,0.01761194029850746,0.01795671076694068,0.98,0.98
