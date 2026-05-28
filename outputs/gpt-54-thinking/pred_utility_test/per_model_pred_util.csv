@@ -1,0 +1,2 @@
+model_key,label,n_sets,mean_test_auc,median_test_auc,mean_null_auc,mean_test_logloss,mean_p_value,mean_p_value_bh,frac_sig_at_p05,frac_sig_at_bh_fdr05
+gpt-54-thinking,gpt-54-thinking,99,0.9385012441820688,0.9477364892824629,0.7173651325334252,0.23342287719802104,0.0428664757022966,0.04460987462198927,0.9191919191919192,0.9191919191919192
