@@ -1,0 +1,16 @@
+{
+  "model": "mistral-small-2603-openrouter-thinking",
+  "n_recorded": 410720,
+  "n_priced_files": 98,
+  "estimated_cost_usd": 150.422073,
+  "actual_cost_usd": 150.422073,
+  "tokens": {
+    "prompt_tokens_total": 52425300,
+    "completion_tokens_total": 243938339,
+    "reasoning_tokens_total": 312281573,
+    "cache_creation_input_tokens_total": 0,
+    "cache_read_input_tokens_total": 0,
+    "openai_cached_tokens_total": 28183152
+  },
+  "notes": "Modeled after property_ladder_pruning cost artifacts. estimated_cost_usd uses MODEL_COST_ESTIMATES and observed token totals."
+}
