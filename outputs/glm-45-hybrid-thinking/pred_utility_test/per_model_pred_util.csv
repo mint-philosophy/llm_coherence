@@ -1,0 +1,2 @@
+model_key,label,n_sets,mean_test_auc,median_test_auc,mean_null_auc,mean_test_logloss,mean_p_value,mean_p_value_bh,frac_sig_at_p05,frac_sig_at_bh_fdr05
+glm-45-hybrid-thinking,glm-45-hybrid-thinking,100,0.9519818366301378,0.9564260252280862,0.692608045399566,0.22612937763641586,0.03577114427860697,0.036643142853450675,0.93,0.93
