@@ -1,0 +1,2 @@
+model_key,label,n_sets,mean_test_auc,median_test_auc,mean_null_auc,mean_test_logloss,mean_p_value,mean_p_value_bh,frac_sig_at_p05,frac_sig_at_bh_fdr05
+llama-31-8b-instruct-openrouter,llama-31-8b-instruct-openrouter,100,0.8566484190254982,0.8617953898282664,0.6104373213814733,0.39601972041149947,0.022537313432835823,0.02301608638877618,0.97,0.97
