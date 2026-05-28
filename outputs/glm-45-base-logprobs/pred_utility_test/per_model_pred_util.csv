@@ -1,0 +1,2 @@
+model_key,label,n_sets,mean_test_auc,median_test_auc,mean_null_auc,mean_test_logloss,mean_p_value,mean_p_value_bh,frac_sig_at_p05,frac_sig_at_bh_fdr05
+glm-45-base-logprobs,glm-45-base-logprobs,100,0.7936032202419813,0.792821371617597,0.5915230413608948,0.5062686428666876,0.010547263681592041,0.010597014925373134,0.99,0.99
