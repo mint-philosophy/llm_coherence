@@ -1,0 +1,16 @@
+{
+  "model": "ministral-3b-2512-openrouter",
+  "n_recorded": 416540,
+  "n_priced_files": 100,
+  "estimated_cost_usd": 2.345948,
+  "actual_cost_usd": 2.345948,
+  "tokens": {
+    "prompt_tokens_total": 39839524,
+    "completion_tokens_total": 833079,
+    "reasoning_tokens_total": 0,
+    "cache_creation_input_tokens_total": 0,
+    "cache_read_input_tokens_total": 0,
+    "openai_cached_tokens_total": 19125696
+  },
+  "notes": "Modeled after property_ladder_pruning cost artifacts. estimated_cost_usd uses MODEL_COST_ESTIMATES and observed token totals."
+}
