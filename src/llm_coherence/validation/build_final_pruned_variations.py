@@ -4,29 +4,22 @@
 Intersect ladders across property-, pairtest-, and ranking-pruned phase6b files.
 
 Writes:
-  data/ladder_validation_tests_outputs/phase6b_variations_pruned_final.json
-  data/ladder_validation_tests_outputs/phase6b_variations_pruned_final_report.json
+  data/01_ladders/phase6b_variations_pruned_final.json
+  data/01_ladders/phase6b_variations_pruned_final_report.json
 
 Usage (from parametric_variations/):
-  python ladder_validation_tests/build_final_pruned_variations.py
-
-  python -m ladder_validation_tests.build_final_pruned_variations
+  PYTHONPATH=src python -m llm_coherence.validation.build_final_pruned_variations
 """
 
 from __future__ import annotations
 
 import argparse
 import json
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-_PARAMETRIC_ROOT = Path(__file__).resolve().parent.parent.parent
-if str(_PARAMETRIC_ROOT / "src") not in sys.path:
-    sys.path.insert(0, str(_PARAMETRIC_ROOT / "src"))
-
-from ladder_validation.ladder_validation_paths import (
+from llm_coherence.paths import (
     PRUNED_FINAL_PATH,
     PRUNED_FINAL_REPORT_PATH,
     PRUNED_PAIRTEST_PATH,

@@ -15,41 +15,24 @@ import os
 import socket
 import subprocess
 import sys
-import yaml
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 
+from llm_coherence.paths import REPO_ROOT
+from llm_coherence.runtime.agents import create_agent, model_name_for_key
+from llm_coherence.runtime.preflight_check import MODEL_COST_ESTIMATES, estimate_cost
+from llm_coherence.runtime.templates import (
+    comparison_prompt_template_default,
+    comparison_prompt_template_reasoning_default,
+)
+from llm_coherence.runtime.utils import generate_responses, parse_responses_forced_choice
+
 _EXPERIMENT_DIR = Path(__file__).resolve().parent
-# This script lives in src/run_experiments/ladder_statement_pair/; the repo root
-# is four parents up.
-_PARAMETRIC_ROOT = _EXPERIMENT_DIR.parent.parent.parent
-
-# src/ on path for config and sibling modules.
-if str(_PARAMETRIC_ROOT / "src") not in sys.path:
-    sys.path.insert(0, str(_PARAMETRIC_ROOT / "src"))
-
-# External dependency: `compute_utilities` is NOT vendored in this repo. Expose
-# it on PYTHONPATH (e.g. from the original utility_analysis tree) to run experiments.
-try:
-    from compute_utilities.utils import (
-        create_agent,
-        generate_responses,
-        parse_responses_forced_choice,
-    )
-    from compute_utilities.templates import (
-        comparison_prompt_template_default,
-        comparison_prompt_template_reasoning_default,
-    )
-except ImportError as exc:  # pragma: no cover - depends on external package
-    raise ImportError(
-        "experiment_runner_tradeoff requires the external `compute_utilities` "
-        "package, which is not bundled with this repo. Install/expose it on "
-        "PYTHONPATH to run experiments."
-    ) from exc
+_PARAMETRIC_ROOT = REPO_ROOT
 
 # Import model config for extra_body / enable_cache lookup
-from config import MODEL_CONFIGS
+from llm_coherence.config import MODEL_CONFIGS
 
 
 RESULTS_SCHEMA_VERSION = "1.0"
@@ -73,21 +56,13 @@ def _git_sha() -> str | None:
 
 
 def _lookup_model_name_full(model_key: str) -> str | None:
-    """Return the full model_name from models.yaml (e.g. 'openai/gpt-5.4-nano-...')."""
-    try:
-        yaml_path = _PARAMETRIC_ROOT / "models.yaml"
-        with open(yaml_path) as f:
-            cfg = yaml.safe_load(f)
-        entry = cfg.get(model_key, {})
-        return entry.get("model_name")
-    except Exception:
-        return None
+    """Return the provider model name for a local model key."""
+    return model_name_for_key(model_key)
 
 
 def _estimate_cost(model_key: str, total_api_calls: int, with_reasoning: bool) -> float | None:
     """Best-effort cost estimate via the preflight table."""
     try:
-        from compute_utilities.preflight_check import estimate_cost
         return estimate_cost(model_key, total_api_calls, with_reasoning)
     except Exception:
         return None
@@ -106,7 +81,6 @@ def _actual_cost(model_key: str, usage_stats: dict) -> float | None:
     through one provider) so summing them is safe.
     """
     try:
-        from compute_utilities.preflight_check import MODEL_COST_ESTIMATES
         prices = MODEL_COST_ESTIMATES.get(model_key)
         if not prices or not usage_stats:
             return None

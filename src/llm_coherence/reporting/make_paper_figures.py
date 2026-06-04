@@ -34,9 +34,10 @@ import matplotlib.colors as mcolors
 from matplotlib.lines import Line2D
 import numpy as np
 
+from llm_coherence.paths import MODEL_RUNS_OUTPUT_DIR, REPORT_OUTPUTS_DIR, REPO_ROOT
+
 SCRIPT_DIR = pathlib.Path(__file__).resolve().parent
-# Repo root is three parents up from src/analyze_results/.
-PARAM_VAR = SCRIPT_DIR.parent.parent
+PARAM_VAR = REPO_ROOT
 
 N_TIERS = 7
 
@@ -1772,15 +1773,15 @@ def main():
              "all models under --results-dir that have a coherence JSON.",
     )
     ap.add_argument("--results-dir",
-                    default=str(PARAM_VAR / "outputs"),
+                    default=str(MODEL_RUNS_OUTPUT_DIR),
                     help="Results root containing model-scoped subdirs "
-                         "(default: outputs/)")
+                         "(default: outputs/04_model_runs/)")
     ap.add_argument("--output-dir",
-                    default=str(PARAM_VAR / "outputs" / "figures"),
-                    help="Directory for output figures (default: outputs/figures/)")
+                    default=str(REPORT_OUTPUTS_DIR / "figures"),
+                    help="Directory for output figures (default: outputs/06_figures_tables/figures/)")
     ap.add_argument("--tables-dir",
-                    default=str(PARAM_VAR / "outputs" / "tables"),
-                    help="Directory for output tables (default: outputs/tables/)")
+                    default=str(REPORT_OUTPUTS_DIR / "tables"),
+                    help="Directory for output tables (default: outputs/06_figures_tables/tables/)")
     args = ap.parse_args()
 
     results_dir = pathlib.Path(args.results_dir)

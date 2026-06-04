@@ -31,7 +31,7 @@ Default output location:
         pred_util_outputs/ (under parametric_variations/)
 
 Usage:
-    python phase6b_experiments/predictive_utility.py --model ministral-3b-2512-openrouter
+    PYTHONPATH=src python -m llm_coherence.analysis.predictive_utility --model ministral-3b-2512-openrouter
 """
 
 import argparse
@@ -47,9 +47,10 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import log_loss, roc_auc_score
 from sklearn.preprocessing import OneHotEncoder
 
+from llm_coherence.paths import MODEL_RUNS_OUTPUT_DIR, REPO_ROOT
+
 BASE = Path(__file__).resolve().parent
-# Repo root is four parents up from src/run_experiments/ladder_statement_pair/.
-PARAMETRIC_ROOT = BASE.parent.parent.parent
+PARAMETRIC_ROOT = REPO_ROOT
 N_TIERS = 7
 N_COMPS_PER_SET = 30
 TEST_FRAC = 0.20
@@ -318,7 +319,10 @@ def apply_bh_by_model(df: pd.DataFrame, alpha: float = BH_ALPHA) -> pd.DataFrame
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--results-dir", default="outputs")
+    ap.add_argument(
+        "--results-dir",
+        default=str(MODEL_RUNS_OUTPUT_DIR.relative_to(REPO_ROOT)),
+    )
     ap.add_argument(
         "--out-dir",
         default=None,

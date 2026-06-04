@@ -6,10 +6,10 @@ with justification extraction from CoT responses.
 Extracts reasoning text from raw_responses for non-monotonic pairs.
 
 Usage:
-    python phase6b_experiments/analyze_7tier_coherence.py \
+    python -m llm_coherence.analysis.analyze_7tier_coherence \
     --model ministral-3b-2512-openrouter \
-    --results-dir results \
-    --data-dir data/phase6b_variations_pruned
+    --results-dir outputs/04_model_runs \
+    --data-dir data/03_comparisons/phase6b_variations_pruned
 """
 
 import argparse
@@ -34,8 +34,9 @@ TIER_LABELS = [
 ]
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
-# Repo root is three parents up from src/analyze_results/.
-_PARAMETRIC_ROOT = _SCRIPT_DIR.parent.parent
+from llm_coherence.paths import COMPARISONS_DIR, MODEL_RUNS_OUTPUT_DIR, PRUNED_FINAL_PATH, REPO_ROOT
+
+_PARAMETRIC_ROOT = REPO_ROOT
 
 
 def resolve_under_parametric(rel: str | Path) -> Path:
@@ -1082,8 +1083,8 @@ def print_summary(agg: dict) -> None:
 
 def main():
     parser = argparse.ArgumentParser(description="Phase 6b coherence analysis (7 tiers + CoT)")
-    parser.add_argument("--data-dir", default="data/run_experiments/phase6b_variations_pruned")
-    parser.add_argument("--results-dir", default="outputs")
+    parser.add_argument("--data-dir", default=str(COMPARISONS_DIR.relative_to(REPO_ROOT)))
+    parser.add_argument("--results-dir", default=str(MODEL_RUNS_OUTPUT_DIR.relative_to(REPO_ROOT)))
     parser.add_argument("--model", default="gpt-4o-mini-openrouter")
     parser.add_argument("--output", default=None)
     args = parser.parse_args()
@@ -1096,9 +1097,7 @@ def main():
     if variations_source:
         variations_path = Path(variations_source)
     else:
-        variations_path = resolve_under_parametric(
-            "data/generate_variations/phase6b_variations_pruned_final.json"
-        )
+        variations_path = PRUNED_FINAL_PATH
     if not variations_path.is_absolute():
         variations_path = resolve_under_parametric(variations_path)
     with open(variations_path, encoding="utf-8") as f:

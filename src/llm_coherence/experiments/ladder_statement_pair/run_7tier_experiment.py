@@ -9,7 +9,7 @@ Usage (from this directory):
 
     # Non reasoning model
     for s in 0 10 20 30 40 50 60 70 80 90; do
-        python phase6b_experiments/run_7tier_experiment.py \
+        PYTHONPATH=src python -m llm_coherence.experiments.ladder_statement_pair.run_7tier_experiment \
             --model ministral-3b-2512-openrouter \
             --trials 10 \
             --start-from $s \
@@ -21,7 +21,7 @@ Usage (from this directory):
     # Reasoning model
 
     for s in 0 10 20 30 40 50 60 70 80 90; do
-        python phase6b_experiments/run_7tier_experiment.py \
+        PYTHONPATH=src python -m llm_coherence.experiments.ladder_statement_pair.run_7tier_experiment \
             --model mistral-small-2603-openrouter-thinking \
             --trials 10 \
             --start-from $s \
@@ -52,27 +52,16 @@ import sys
 from pathlib import Path
 from datetime import datetime, timezone
 
-# This script lives in src/run_experiments/ladder_statement_pair/; the repo root
-# is four parents up. data/ and src/ are siblings under the repo root.
-_SCRIPT_DIR = Path(__file__).resolve().parent
-_PARAMETRIC_ROOT = _SCRIPT_DIR.parent.parent.parent
+from llm_coherence.experiments.ladder_statement_pair.experiment_runner_tradeoff import (
+    artifact_dir_name_for_test,
+    run_experiment,
+)
+from llm_coherence.paths import COMPARISONS_DIR, MODEL_RUNS_OUTPUT_DIR, REPO_ROOT
+from llm_coherence.runtime.agents import create_agent
+from llm_coherence.runtime.budget_monitor import BudgetMonitor
+from llm_coherence.runtime.preflight_check import MODEL_COST_ESTIMATES
 
-for _p in (_PARAMETRIC_ROOT / "src", _SCRIPT_DIR):
-    if str(_p) not in sys.path:
-        sys.path.insert(0, str(_p))
-
-from experiment_runner_tradeoff import run_experiment, artifact_dir_name_for_test
-
-# External dependency: `compute_utilities` is NOT vendored in this repo. Expose
-# it on PYTHONPATH (e.g. from the original utility_analysis tree) to run experiments.
-try:
-    from compute_utilities.budget_monitor import BudgetMonitor
-except ImportError as exc:  # pragma: no cover - depends on external package
-    raise ImportError(
-        "run_7tier_experiment requires the external `compute_utilities` package, "
-        "which is not bundled with this repo. Install/expose it on PYTHONPATH to "
-        "run experiments."
-    ) from exc
+_PARAMETRIC_ROOT = REPO_ROOT
 
 COST_LOG_NAME = "phase6b_cost_log.json"
 COST_SUMMARY_NAME = "cost_summary.json"
@@ -156,14 +145,6 @@ async def smoke_call(
     420-call run.
     """
     import time
-    # External dependency: `compute_utilities` is NOT vendored in this repo.
-    try:
-        from compute_utilities.utils import create_agent
-    except ImportError as exc:  # pragma: no cover - depends on external package
-        raise ImportError(
-            "The smoke test requires the external `compute_utilities` package, "
-            "which is not bundled with this repo. Install/expose it on PYTHONPATH."
-        ) from exc
 
     # Mirror experiment_runner_tradeoff.py: read extra_body / enable_cache from
     # MODEL_CONFIGS so the smoke uses the same provider parameters as the real run.
@@ -171,7 +152,7 @@ async def smoke_call(
     # their reasoning-toggle and produce malformed output that fails the smoke.
     extra_body = None
     enable_cache = False
-    from config import MODEL_CONFIGS
+    from llm_coherence.config import MODEL_CONFIGS
     cfg = MODEL_CONFIGS.get(model_key)
     system_message = None
     if cfg is not None:
@@ -496,7 +477,6 @@ def _iter_result_files(results_dir: Path, model_key: str) -> list[Path]:
 
 def _write_cost_logs(results_dir: Path, model_key: str) -> tuple[Path, Path] | None:
     try:
-        from compute_utilities.preflight_check import MODEL_COST_ESTIMATES
         pricing = MODEL_COST_ESTIMATES.get(model_key)
     except Exception:
         pricing = None
@@ -581,7 +561,7 @@ def _write_cost_logs(results_dir: Path, model_key: str) -> tuple[Path, Path] | N
         "model_key": model_key,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "updated_at": datetime.now(timezone.utc).isoformat(),
-        "pricing_source": "compute_utilities.preflight_check.MODEL_COST_ESTIMATES",
+        "pricing_source": "llm_coherence.runtime.preflight_check.MODEL_COST_ESTIMATES",
         "pricing_per_1m": pricing,
         "result_files_count": len(records),
         "calls_logged": calls_logged_total,
@@ -719,9 +699,9 @@ def main():
                         help="Enable CoT reasoning (Level 3); increases tokens and cost.")
     parser.add_argument(
         "--data-dir",
-        default="data/run_experiments/phase6b_variations_pruned",
+        default=str(COMPARISONS_DIR.relative_to(REPO_ROOT)),
         help="Directory with manifest + *_comparisons.json (default: "
-        "data/run_experiments/phase6b_variations_pruned). "
+        f"{COMPARISONS_DIR.relative_to(REPO_ROOT).as_posix()}). "
         "Relative paths are resolved under the repo root.",
     )
     parser.add_argument(
@@ -732,8 +712,12 @@ def main():
     )
     parser.add_argument(
         "--results-dir",
-        default="outputs",
-        help="Results root (default: outputs). Relative to the repo root.",
+        default=str(MODEL_RUNS_OUTPUT_DIR.relative_to(REPO_ROOT)),
+        help=(
+            "Results root (default: "
+            f"{MODEL_RUNS_OUTPUT_DIR.relative_to(REPO_ROOT).as_posix()}). "
+            "Relative to the repo root."
+        ),
     )
     parser.add_argument(
         "--checkpoints-dir",
@@ -791,7 +775,7 @@ def main():
     if args.max_variation_sets is not None and args.max_variation_sets < 1:
         parser.error("--max-variation-sets must be >= 1 when set")
 
-    from config import MODEL_CONFIGS
+    from llm_coherence.config import MODEL_CONFIGS
     cfg = MODEL_CONFIGS.get(args.model)
     if args.max_tokens is None:
         args.max_tokens = cfg.max_tokens if cfg is not None else 10

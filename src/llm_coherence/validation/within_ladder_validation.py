@@ -10,19 +10,19 @@ ladder is broken regardless of what the main experiment shows.
 
 Usage:
     # Generate batch input for a specific model
-    python ladder_validation_tests/within_ladder_validation.py --generate --model gpt-54-nano
+    PYTHONPATH=src python -m llm_coherence.validation.within_ladder_validation --generate --model gpt-54-nano
 
     # Submit batch (routes to correct API based on model)
-    python ladder_validation_tests/within_ladder_validation.py --submit --model gpt-54-nano
+    PYTHONPATH=src python -m llm_coherence.validation.within_ladder_validation --submit --model gpt-54-nano
 
     # Fetch results
-    python ladder_validation_tests/within_ladder_validation.py --fetch --model gpt-54-nano
+    PYTHONPATH=src python -m llm_coherence.validation.within_ladder_validation --fetch --model gpt-54-nano
 
     # Analyze results for a model
-    python ladder_validation_tests/within_ladder_validation.py --analyze --model gpt-54-nano
+    PYTHONPATH=src python -m llm_coherence.validation.within_ladder_validation --analyze --model gpt-54-nano
 
     # Generate + submit all representative models
-    python ladder_validation_tests/within_ladder_validation.py --generate-all --submit
+    PYTHONPATH=src python -m llm_coherence.validation.within_ladder_validation --generate-all --submit
 """
 
 import asyncio
@@ -30,16 +30,11 @@ import json
 import math
 import os
 import re
-import sys
 import argparse
 from itertools import combinations
 from pathlib import Path
 
-_PARAMETRIC_ROOT = Path(__file__).resolve().parent.parent.parent
-if str(_PARAMETRIC_ROOT / "src") not in sys.path:
-    sys.path.insert(0, str(_PARAMETRIC_ROOT / "src"))
-
-from ladder_validation.ladder_validation_paths import (
+from llm_coherence.paths import (
     BASE_DIR,
     DATA_DIR,
     DEFAULT_VARIATIONS_INPUT,
@@ -496,17 +491,7 @@ def run_local(model_key):
     from vllm import LLM, SamplingParams
     from transformers import AutoTokenizer
 
-    # External dependency: `compute_utilities` is NOT vendored in this repo.
-    # Provide it on PYTHONPATH (e.g. from the original utility_analysis tree)
-    # to run local logprob-based validation.
-    try:
-        from compute_utilities.llm_agent import FEW_SHOT_PROMPT_LOGPROBS
-    except ImportError as exc:
-        raise ImportError(
-            "Local logprob validation requires the external `compute_utilities` "
-            "package, which is not bundled with this repo. Install/expose it on "
-            "PYTHONPATH to use --local."
-        ) from exc
+    from llm_coherence.runtime.logprob_prompts import FEW_SHOT_PROMPT_LOGPROBS
 
     with open(input_path) as f:
         requests = [json.loads(line) for line in f]

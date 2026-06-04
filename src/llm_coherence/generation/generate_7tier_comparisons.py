@@ -2,45 +2,40 @@
 """
 Generate forced-choice comparisons for 7-tier variation sets.
 
-Reuses the 30 cross-ladder reference statements from data/comparison_sample.json
-(same statements historically stored in phase5_manifest.json comparison_sample).
+Reuses the 30 cross-ladder reference statements from
+data/03_comparisons/comparison_sample.json.
 7 tiers x 30 comparisons = 210 comparisons per variation set.
 
-Default input: data/ladder_validation_tests_outputs/phase6b_variations_pruned_final.json
+Default input: data/01_ladders/phase6b_variations_pruned_final.json
 
-Default output directory: data/phase6b_variations_pruned/
+Default output directory: data/03_comparisons/phase6b_variations_pruned/
 
 Outputs are named from the variations file stem, e.g. for
 phase6b_variations_pruned_final.json:
-  - data/phase6b_variations_pruned/phase6b_variations_pruned_final_manifest.json
-  - data/phase6b_variations_pruned/phase6b_variations_pruned_final_{id}_comparisons.json
+  - data/03_comparisons/phase6b_variations_pruned/phase6b_variations_pruned_final_manifest.json
+  - data/03_comparisons/phase6b_variations_pruned/phase6b_variations_pruned_final_{id}_comparisons.json
 
 Usage:
-    cd phase6b_experiments && python generate_7tier_comparisons.py
-    python generate_7tier_comparisons.py --variations ../data/phase6b_variations.json
+    PYTHONPATH=src python -m llm_coherence.generation.generate_7tier_comparisons
+    PYTHONPATH=src python -m llm_coherence.generation.generate_7tier_comparisons --variations data/01_ladders/phase6b_variations_pruned_final.json
 """
 
 from __future__ import annotations
 
 import argparse
 import json
-import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-# This script lives in src/run_experiments/ladder_statement_pair/; the repo root
-# is four parents up. data/ and src/ are siblings under the repo root.
-_SCRIPT_DIR = Path(__file__).resolve().parent
-_PARAMETRIC_ROOT = _SCRIPT_DIR.parent.parent.parent
-if str(_PARAMETRIC_ROOT / "src") not in sys.path:
-    sys.path.insert(0, str(_PARAMETRIC_ROOT / "src"))
-
-from ladder_validation.ladder_validation_paths import (  # noqa: E402
+from llm_coherence.paths import (  # noqa: E402
+    COMPARISON_SAMPLE_PATH,
+    COMPARISONS_DIR,
     PRUNED_FINAL_PATH,
+    REPO_ROOT,
 )
 
-DEFAULT_COMPARISONS_OUTPUT_DIR = _PARAMETRIC_ROOT / "data" / "run_experiments" / "phase6b_variations_pruned"
-DEFAULT_COMPARISON_SAMPLE_PATH = _PARAMETRIC_ROOT / "data" / "run_experiments" / "comparison_sample.json"
+DEFAULT_COMPARISONS_OUTPUT_DIR = COMPARISONS_DIR
+DEFAULT_COMPARISON_SAMPLE_PATH = COMPARISON_SAMPLE_PATH
 
 USABLE_VARIATION_STATUSES = frozenset({"success", "fixed_via_critique_rewrite_v2"})
 
@@ -138,7 +133,7 @@ def main() -> None:
             "(local JSON only; no LLM or network calls)."
         )
     )
-    default_variations = PRUNED_FINAL_PATH.relative_to(_PARAMETRIC_ROOT)
+    default_variations = PRUNED_FINAL_PATH.relative_to(REPO_ROOT)
     parser.add_argument(
         "--variations",
         type=Path,
@@ -148,7 +143,7 @@ def main() -> None:
             f"(default: {default_variations.as_posix()})"
         ),
     )
-    default_sample = DEFAULT_COMPARISON_SAMPLE_PATH.relative_to(_PARAMETRIC_ROOT)
+    default_sample = DEFAULT_COMPARISON_SAMPLE_PATH.relative_to(REPO_ROOT)
     parser.add_argument(
         "--comparison-sample",
         type=Path,
@@ -168,7 +163,7 @@ def main() -> None:
             "(read comparison_sample from a full phase5_manifest.json)."
         ),
     )
-    default_output = DEFAULT_COMPARISONS_OUTPUT_DIR.relative_to(_PARAMETRIC_ROOT)
+    default_output = DEFAULT_COMPARISONS_OUTPUT_DIR.relative_to(REPO_ROOT)
     parser.add_argument(
         "--output-dir",
         type=Path,
@@ -180,7 +175,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    base = _PARAMETRIC_ROOT
+    base = REPO_ROOT
     var_path = (base / args.variations).resolve() if not args.variations.is_absolute() else args.variations
     if not var_path.exists():
         raise FileNotFoundError(f"Variations file not found: {var_path}")

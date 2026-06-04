@@ -74,20 +74,20 @@ Cost fields (ranking_cost_log.json, ranking_cost_summary.json)
 
 Usage:
   # GPT-5.5 with reasoning on (parallel batches, auto-tuned limits)
-  python ladder_validation_tests/full_ladder_ranking_pruning.py --model gpt-55-openai --reasoning on --prune-policy strict_rescue_inv1
+  PYTHONPATH=src python -m llm_coherence.validation.full_ladder_ranking_pruning --model gpt-55-openai --reasoning on --prune-policy strict_rescue_inv1
   
-  # Smoke test (saves under ladder_validation_tests/.../ranking/smoke_gpt55/)
-  python ladder_validation_tests/full_ladder_ranking_pruning.py --model gpt-55-openai --reasoning on --max-ladders 2
+  # Smoke test (saves under data/02_validation/.../ranking/smoke_gpt55/)
+  PYTHONPATH=src python -m llm_coherence.validation.full_ladder_ranking_pruning --model gpt-55-openai --reasoning on --max-ladders 2
 
   # Recompute summary from saved JSONL (no API)
-  python ladder_validation_tests/full_ladder_ranking_pruning.py --model gpt-55-openai --analyze-only
+  PYTHONPATH=src python -m llm_coherence.validation.full_ladder_ranking_pruning --model gpt-55-openai --analyze-only
 
   # Write kept ladders JSON only (no API; uses ranking_mismatch + unparseable IDs)
-  python ladder_validation_tests/full_ladder_ranking_pruning.py --model gpt-55-openai --write-pruned-variations-only
+  PYTHONPATH=src python -m llm_coherence.validation.full_ladder_ranking_pruning --model gpt-55-openai --write-pruned-variations-only
 
 Outputs are saved under:
-  data/ladder_validation_tests_outputs/within_ladder_validation_ranking/<model_key>/
-  data/ladder_validation_tests_outputs/within_ladder_validation_ranking/smoke_<model>/
+  data/02_validation/ladder_validation/within_ladder_validation_ranking/<model_key>/
+  data/02_validation/ladder_validation/within_ladder_validation_ranking/smoke_<model>/
   e.g. .../within_ladder_validation_ranking/smoke_gpt55/
 
   - ranking_raw_responses.jsonl
@@ -100,7 +100,7 @@ Outputs are saved under:
   - ranking_unparseable_ladder_ids.json
   - ranking_pruned_ladder_ids.json
 
-Writes data/ladder_validation_tests_outputs/phase6b_variations_ranking_pruned.json after a full run:
+Writes data/02_validation/ladder_validation/variations_pruned/phase6b_variations_ranking_pruned.json after a full run:
   ladders removed = MISMATCH (FLAG) + UNPARSEABLE; kept = exact T1→T7 MATCH only.
 """
 
@@ -112,18 +112,13 @@ import hashlib
 import json
 import re
 import string
-import sys
 import warnings
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
-_PARAMETRIC_ROOT = Path(__file__).resolve().parent.parent.parent
-if str(_PARAMETRIC_ROOT / "src") not in sys.path:
-    sys.path.insert(0, str(_PARAMETRIC_ROOT / "src"))
-
-from ladder_validation.ladder_validation_paths import (
+from llm_coherence.paths import (
     BASE_DIR,
     DATA_DIR,
     DEFAULT_VARIATIONS_INPUT,
@@ -131,6 +126,7 @@ from ladder_validation.ladder_validation_paths import (
     PRUNED_RANKING_FILENAME,
     PRUNED_RANKING_PATH,
 )
+from llm_coherence.runtime.agents import create_agent
 
 DEFAULT_INPUT = DEFAULT_VARIATIONS_INPUT
 DEFAULT_OUTPUT_DIR = RANKING_OUTPUT_DIR
@@ -262,7 +258,7 @@ def resolve_output_dir(
     smoke: bool = False,
 ) -> Path:
     """
-    Default run folder: data/ladder_validation_tests_outputs/within_ladder_validation_ranking/<model_key>.
+    Default run folder: data/02_validation/ladder_validation/within_ladder_validation_ranking/<model_key>.
     Smoke runs (--max-ladders / --start-from): .../smoke_<model>/.
     """
     if output_dir is not None:
@@ -328,7 +324,7 @@ def write_pruned_variations_file(
         raise FileNotFoundError(
             f"Pruned IDs file not found: {pruned_ids_path}\n"
             "Tip: use forward slashes for --output-dir "
-            "(e.g. data/ladder_validation_tests_outputs/within_ladder_validation_ranking/gpt-55-openai), "
+            "(e.g. data/02_validation/ladder_validation/within_ladder_validation_ranking/gpt-55-openai), "
             "or pass --model gpt-55-openai."
         )
 
@@ -492,19 +488,7 @@ def resolve_extra_body(model_cfg: Any, reasoning: Optional[str]) -> Optional[dic
     return extra_body or None
 
 
-from config import MODEL_CONFIGS  # noqa: E402
-
-# External dependency: `compute_utilities` is NOT vendored in this repo.
-# Expose it on PYTHONPATH (e.g. from the original utility_analysis tree) to
-# run the live ranking-pruning pipeline.
-try:
-    from compute_utilities.utils import create_agent  # noqa: E402
-except ImportError as exc:  # pragma: no cover - depends on external package
-    raise ImportError(
-        "full_ladder_ranking_pruning requires the external `compute_utilities` "
-        "package, which is not bundled with this repo. Install/expose it on "
-        "PYTHONPATH to run the pruning pipeline."
-    ) from exc
+from llm_coherence.config import MODEL_CONFIGS  # noqa: E402
 
 
 def load_ladders(
@@ -1360,7 +1344,7 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=None,
         help=(
-            "Output directory (default: data/ladder_validation_tests_outputs/within_ladder_validation_ranking/<model_key>, "
+            "Output directory (default: data/02_validation/ladder_validation/within_ladder_validation_ranking/<model_key>, "
             "or smoke_<model> when using --max-ladders / --start-from)"
         ),
     )
@@ -1386,7 +1370,7 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help=(
             "Smoke: evaluate first N ladders only. "
-            "Default output: data/ladder_validation_tests_outputs/.../ranking/smoke_<model>/ "
+            "Default output: data/02_validation/ladder_validation/.../ranking/smoke_<model>/ "
             "(e.g. smoke_gpt55)."
         ),
     )
