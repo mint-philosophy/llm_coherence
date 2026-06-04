@@ -56,6 +56,8 @@ example `outputs/04_model_runs/gpt-54/` and
 `outputs/04_model_runs/gpt-54-thinking/`.
 
 For the ordered experiment map, see `docs/pipeline.md`.
+For exact rerun commands, see `docs/rerun.md`.
+For current model-run inventory, see `outputs/04_model_runs/model_run_index.json`.
 
 ## Artifact Policy
 

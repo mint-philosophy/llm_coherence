@@ -11,6 +11,14 @@ of a publication snapshot. In particular, treat these as generated artifacts:
 - regenerated figures and tables
 - temporary validation outputs
 
+## Current Decision
+
+The existing tracked outputs are treated as a retained publication snapshot for
+now. New raw outputs should stay local unless the snapshot is intentionally
+updated. Lightweight index files such as
+`outputs/04_model_runs/model_run_index.json` are kept in git so GitHub remains
+browsable without moving the underlying artifacts.
+
 If a large artifact must be preserved for review or publication, mirror it to a
 dataset/archive system and record the external location in the README or paper
 supplement.

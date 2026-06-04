@@ -24,6 +24,7 @@
 !/outputs/**/
 !/outputs/**/.gitkeep
 !/outputs/**/README.md
+!/outputs/**/model_run_index.json
 
 # Documents and tabular data
 *.pdf
