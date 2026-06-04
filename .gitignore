@@ -16,6 +16,7 @@
 !/data/**/
 !/data/**/.gitkeep
 !/data/**/README.md
+!/data/**/category_index.json
 /outputs/*
 !/outputs/.gitkeep
 !/outputs/README.md

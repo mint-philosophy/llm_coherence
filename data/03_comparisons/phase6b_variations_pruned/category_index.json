@@ -1,0 +1,593 @@
+{
+  "schema_version": "1.0",
+  "layout": "flat",
+  "generated_from": "phase6b_variations_pruned_final_manifest.json",
+  "note": "Comparison files remain flat so existing runners can resolve manifest filenames relative to this data directory. Use this index for category browsing without changing paths.",
+  "total_variation_sets": 100,
+  "categories": [
+    {
+      "category": "AI_and_human_romantic_relationships",
+      "label": "AI and human romantic relationships",
+      "count": 3,
+      "variation_files": [
+        {
+          "ladder_id": "4506",
+          "test_name": "phase6b_variations_pruned_final_AI_and_human_romantic_relationships_4506",
+          "file": "phase6b_variations_pruned_final_AI_and_human_romantic_relationships_4506_comparisons.json"
+        },
+        {
+          "ladder_id": "8206",
+          "test_name": "phase6b_variations_pruned_final_AI_and_human_romantic_relationships_8206",
+          "file": "phase6b_variations_pruned_final_AI_and_human_romantic_relationships_8206_comparisons.json"
+        },
+        {
+          "ladder_id": "8844",
+          "test_name": "phase6b_variations_pruned_final_AI_and_human_romantic_relationships_8844",
+          "file": "phase6b_variations_pruned_final_AI_and_human_romantic_relationships_8844_comparisons.json"
+        }
+      ]
+    },
+    {
+      "category": "AI_moral_patienthood",
+      "label": "AI moral patienthood",
+      "count": 5,
+      "variation_files": [
+        {
+          "ladder_id": "4288",
+          "test_name": "phase6b_variations_pruned_final_AI_moral_patienthood_4288",
+          "file": "phase6b_variations_pruned_final_AI_moral_patienthood_4288_comparisons.json"
+        },
+        {
+          "ladder_id": "4855",
+          "test_name": "phase6b_variations_pruned_final_AI_moral_patienthood_4855",
+          "file": "phase6b_variations_pruned_final_AI_moral_patienthood_4855_comparisons.json"
+        },
+        {
+          "ladder_id": "6013",
+          "test_name": "phase6b_variations_pruned_final_AI_moral_patienthood_6013",
+          "file": "phase6b_variations_pruned_final_AI_moral_patienthood_6013_comparisons.json"
+        },
+        {
+          "ladder_id": "7547",
+          "test_name": "phase6b_variations_pruned_final_AI_moral_patienthood_7547",
+          "file": "phase6b_variations_pruned_final_AI_moral_patienthood_7547_comparisons.json"
+        },
+        {
+          "ladder_id": "7904",
+          "test_name": "phase6b_variations_pruned_final_AI_moral_patienthood_7904",
+          "file": "phase6b_variations_pruned_final_AI_moral_patienthood_7904_comparisons.json"
+        }
+      ]
+    },
+    {
+      "category": "Global_economy",
+      "label": "Global economy",
+      "count": 6,
+      "variation_files": [
+        {
+          "ladder_id": "1900",
+          "test_name": "phase6b_variations_pruned_final_Global_economy_1900",
+          "file": "phase6b_variations_pruned_final_Global_economy_1900_comparisons.json"
+        },
+        {
+          "ladder_id": "3077",
+          "test_name": "phase6b_variations_pruned_final_Global_economy_3077",
+          "file": "phase6b_variations_pruned_final_Global_economy_3077_comparisons.json"
+        },
+        {
+          "ladder_id": "3231",
+          "test_name": "phase6b_variations_pruned_final_Global_economy_3231",
+          "file": "phase6b_variations_pruned_final_Global_economy_3231_comparisons.json"
+        },
+        {
+          "ladder_id": "3676",
+          "test_name": "phase6b_variations_pruned_final_Global_economy_3676",
+          "file": "phase6b_variations_pruned_final_Global_economy_3676_comparisons.json"
+        },
+        {
+          "ladder_id": "7453",
+          "test_name": "phase6b_variations_pruned_final_Global_economy_7453",
+          "file": "phase6b_variations_pruned_final_Global_economy_7453_comparisons.json"
+        },
+        {
+          "ladder_id": "8344",
+          "test_name": "phase6b_variations_pruned_final_Global_economy_8344",
+          "file": "phase6b_variations_pruned_final_Global_economy_8344_comparisons.json"
+        }
+      ]
+    },
+    {
+      "category": "Global_politics_and_geopolitics",
+      "label": "Global politics and geopolitics",
+      "count": 7,
+      "variation_files": [
+        {
+          "ladder_id": "1337",
+          "test_name": "phase6b_variations_pruned_final_Global_politics_and_geopolitics_1337",
+          "file": "phase6b_variations_pruned_final_Global_politics_and_geopolitics_1337_comparisons.json"
+        },
+        {
+          "ladder_id": "1734",
+          "test_name": "phase6b_variations_pruned_final_Global_politics_and_geopolitics_1734",
+          "file": "phase6b_variations_pruned_final_Global_politics_and_geopolitics_1734_comparisons.json"
+        },
+        {
+          "ladder_id": "5034",
+          "test_name": "phase6b_variations_pruned_final_Global_politics_and_geopolitics_5034",
+          "file": "phase6b_variations_pruned_final_Global_politics_and_geopolitics_5034_comparisons.json"
+        },
+        {
+          "ladder_id": "6361",
+          "test_name": "phase6b_variations_pruned_final_Global_politics_and_geopolitics_6361",
+          "file": "phase6b_variations_pruned_final_Global_politics_and_geopolitics_6361_comparisons.json"
+        },
+        {
+          "ladder_id": "8267",
+          "test_name": "phase6b_variations_pruned_final_Global_politics_and_geopolitics_8267",
+          "file": "phase6b_variations_pruned_final_Global_politics_and_geopolitics_8267_comparisons.json"
+        },
+        {
+          "ladder_id": "9052",
+          "test_name": "phase6b_variations_pruned_final_Global_politics_and_geopolitics_9052",
+          "file": "phase6b_variations_pruned_final_Global_politics_and_geopolitics_9052_comparisons.json"
+        },
+        {
+          "ladder_id": "9636",
+          "test_name": "phase6b_variations_pruned_final_Global_politics_and_geopolitics_9636",
+          "file": "phase6b_variations_pruned_final_Global_politics_and_geopolitics_9636_comparisons.json"
+        }
+      ]
+    },
+    {
+      "category": "Life_and_species",
+      "label": "Life and species",
+      "count": 4,
+      "variation_files": [
+        {
+          "ladder_id": "3266",
+          "test_name": "phase6b_variations_pruned_final_Life_and_species_3266",
+          "file": "phase6b_variations_pruned_final_Life_and_species_3266_comparisons.json"
+        },
+        {
+          "ladder_id": "3980",
+          "test_name": "phase6b_variations_pruned_final_Life_and_species_3980",
+          "file": "phase6b_variations_pruned_final_Life_and_species_3980_comparisons.json"
+        },
+        {
+          "ladder_id": "5764",
+          "test_name": "phase6b_variations_pruned_final_Life_and_species_5764",
+          "file": "phase6b_variations_pruned_final_Life_and_species_5764_comparisons.json"
+        },
+        {
+          "ladder_id": "7417",
+          "test_name": "phase6b_variations_pruned_final_Life_and_species_7417",
+          "file": "phase6b_variations_pruned_final_Life_and_species_7417_comparisons.json"
+        }
+      ]
+    },
+    {
+      "category": "Personal_accomplishments",
+      "label": "Personal accomplishments",
+      "count": 7,
+      "variation_files": [
+        {
+          "ladder_id": "1961",
+          "test_name": "phase6b_variations_pruned_final_Personal_accomplishments_1961",
+          "file": "phase6b_variations_pruned_final_Personal_accomplishments_1961_comparisons.json"
+        },
+        {
+          "ladder_id": "2415",
+          "test_name": "phase6b_variations_pruned_final_Personal_accomplishments_2415",
+          "file": "phase6b_variations_pruned_final_Personal_accomplishments_2415_comparisons.json"
+        },
+        {
+          "ladder_id": "3081",
+          "test_name": "phase6b_variations_pruned_final_Personal_accomplishments_3081",
+          "file": "phase6b_variations_pruned_final_Personal_accomplishments_3081_comparisons.json"
+        },
+        {
+          "ladder_id": "6412",
+          "test_name": "phase6b_variations_pruned_final_Personal_accomplishments_6412",
+          "file": "phase6b_variations_pruned_final_Personal_accomplishments_6412_comparisons.json"
+        },
+        {
+          "ladder_id": "6851",
+          "test_name": "phase6b_variations_pruned_final_Personal_accomplishments_6851",
+          "file": "phase6b_variations_pruned_final_Personal_accomplishments_6851_comparisons.json"
+        },
+        {
+          "ladder_id": "8302",
+          "test_name": "phase6b_variations_pruned_final_Personal_accomplishments_8302",
+          "file": "phase6b_variations_pruned_final_Personal_accomplishments_8302_comparisons.json"
+        },
+        {
+          "ladder_id": "8855",
+          "test_name": "phase6b_variations_pruned_final_Personal_accomplishments_8855",
+          "file": "phase6b_variations_pruned_final_Personal_accomplishments_8855_comparisons.json"
+        }
+      ]
+    },
+    {
+      "category": "Personal_finances",
+      "label": "Personal finances",
+      "count": 15,
+      "variation_files": [
+        {
+          "ladder_id": "1791",
+          "test_name": "phase6b_variations_pruned_final_Personal_finances_1791",
+          "file": "phase6b_variations_pruned_final_Personal_finances_1791_comparisons.json"
+        },
+        {
+          "ladder_id": "2519",
+          "test_name": "phase6b_variations_pruned_final_Personal_finances_2519",
+          "file": "phase6b_variations_pruned_final_Personal_finances_2519_comparisons.json"
+        },
+        {
+          "ladder_id": "2630",
+          "test_name": "phase6b_variations_pruned_final_Personal_finances_2630",
+          "file": "phase6b_variations_pruned_final_Personal_finances_2630_comparisons.json"
+        },
+        {
+          "ladder_id": "3049",
+          "test_name": "phase6b_variations_pruned_final_Personal_finances_3049",
+          "file": "phase6b_variations_pruned_final_Personal_finances_3049_comparisons.json"
+        },
+        {
+          "ladder_id": "3091",
+          "test_name": "phase6b_variations_pruned_final_Personal_finances_3091",
+          "file": "phase6b_variations_pruned_final_Personal_finances_3091_comparisons.json"
+        },
+        {
+          "ladder_id": "4073",
+          "test_name": "phase6b_variations_pruned_final_Personal_finances_4073",
+          "file": "phase6b_variations_pruned_final_Personal_finances_4073_comparisons.json"
+        },
+        {
+          "ladder_id": "4567",
+          "test_name": "phase6b_variations_pruned_final_Personal_finances_4567",
+          "file": "phase6b_variations_pruned_final_Personal_finances_4567_comparisons.json"
+        },
+        {
+          "ladder_id": "5188",
+          "test_name": "phase6b_variations_pruned_final_Personal_finances_5188",
+          "file": "phase6b_variations_pruned_final_Personal_finances_5188_comparisons.json"
+        },
+        {
+          "ladder_id": "5418",
+          "test_name": "phase6b_variations_pruned_final_Personal_finances_5418",
+          "file": "phase6b_variations_pruned_final_Personal_finances_5418_comparisons.json"
+        },
+        {
+          "ladder_id": "6125",
+          "test_name": "phase6b_variations_pruned_final_Personal_finances_6125",
+          "file": "phase6b_variations_pruned_final_Personal_finances_6125_comparisons.json"
+        },
+        {
+          "ladder_id": "6235",
+          "test_name": "phase6b_variations_pruned_final_Personal_finances_6235",
+          "file": "phase6b_variations_pruned_final_Personal_finances_6235_comparisons.json"
+        },
+        {
+          "ladder_id": "6567",
+          "test_name": "phase6b_variations_pruned_final_Personal_finances_6567",
+          "file": "phase6b_variations_pruned_final_Personal_finances_6567_comparisons.json"
+        },
+        {
+          "ladder_id": "8544",
+          "test_name": "phase6b_variations_pruned_final_Personal_finances_8544",
+          "file": "phase6b_variations_pruned_final_Personal_finances_8544_comparisons.json"
+        },
+        {
+          "ladder_id": "9445",
+          "test_name": "phase6b_variations_pruned_final_Personal_finances_9445",
+          "file": "phase6b_variations_pruned_final_Personal_finances_9445_comparisons.json"
+        },
+        {
+          "ladder_id": "9558",
+          "test_name": "phase6b_variations_pruned_final_Personal_finances_9558",
+          "file": "phase6b_variations_pruned_final_Personal_finances_9558_comparisons.json"
+        }
+      ]
+    },
+    {
+      "category": "Personal_freedom_and_autonomy",
+      "label": "Personal freedom and autonomy",
+      "count": 3,
+      "variation_files": [
+        {
+          "ladder_id": "1507",
+          "test_name": "phase6b_variations_pruned_final_Personal_freedom_and_autonomy_1507",
+          "file": "phase6b_variations_pruned_final_Personal_freedom_and_autonomy_1507_comparisons.json"
+        },
+        {
+          "ladder_id": "8437",
+          "test_name": "phase6b_variations_pruned_final_Personal_freedom_and_autonomy_8437",
+          "file": "phase6b_variations_pruned_final_Personal_freedom_and_autonomy_8437_comparisons.json"
+        },
+        {
+          "ladder_id": "8826",
+          "test_name": "phase6b_variations_pruned_final_Personal_freedom_and_autonomy_8826",
+          "file": "phase6b_variations_pruned_final_Personal_freedom_and_autonomy_8826_comparisons.json"
+        }
+      ]
+    },
+    {
+      "category": "Religion_and_spirituality",
+      "label": "Religion and spirituality",
+      "count": 1,
+      "variation_files": [
+        {
+          "ladder_id": "1357",
+          "test_name": "phase6b_variations_pruned_final_Religion_and_spirituality_1357",
+          "file": "phase6b_variations_pruned_final_Religion_and_spirituality_1357_comparisons.json"
+        }
+      ]
+    },
+    {
+      "category": "United_States_economy",
+      "label": "United States economy",
+      "count": 9,
+      "variation_files": [
+        {
+          "ladder_id": "2156",
+          "test_name": "phase6b_variations_pruned_final_United_States_economy_2156",
+          "file": "phase6b_variations_pruned_final_United_States_economy_2156_comparisons.json"
+        },
+        {
+          "ladder_id": "2237",
+          "test_name": "phase6b_variations_pruned_final_United_States_economy_2237",
+          "file": "phase6b_variations_pruned_final_United_States_economy_2237_comparisons.json"
+        },
+        {
+          "ladder_id": "2241",
+          "test_name": "phase6b_variations_pruned_final_United_States_economy_2241",
+          "file": "phase6b_variations_pruned_final_United_States_economy_2241_comparisons.json"
+        },
+        {
+          "ladder_id": "3163",
+          "test_name": "phase6b_variations_pruned_final_United_States_economy_3163",
+          "file": "phase6b_variations_pruned_final_United_States_economy_3163_comparisons.json"
+        },
+        {
+          "ladder_id": "3510",
+          "test_name": "phase6b_variations_pruned_final_United_States_economy_3510",
+          "file": "phase6b_variations_pruned_final_United_States_economy_3510_comparisons.json"
+        },
+        {
+          "ladder_id": "4120",
+          "test_name": "phase6b_variations_pruned_final_United_States_economy_4120",
+          "file": "phase6b_variations_pruned_final_United_States_economy_4120_comparisons.json"
+        },
+        {
+          "ladder_id": "5955",
+          "test_name": "phase6b_variations_pruned_final_United_States_economy_5955",
+          "file": "phase6b_variations_pruned_final_United_States_economy_5955_comparisons.json"
+        },
+        {
+          "ladder_id": "8091",
+          "test_name": "phase6b_variations_pruned_final_United_States_economy_8091",
+          "file": "phase6b_variations_pruned_final_United_States_economy_8091_comparisons.json"
+        },
+        {
+          "ladder_id": "9971",
+          "test_name": "phase6b_variations_pruned_final_United_States_economy_9971",
+          "file": "phase6b_variations_pruned_final_United_States_economy_9971_comparisons.json"
+        }
+      ]
+    },
+    {
+      "category": "United_States_politics_and_policies",
+      "label": "United States politics and policies",
+      "count": 29,
+      "variation_files": [
+        {
+          "ladder_id": "90",
+          "test_name": "phase6b_variations_pruned_final_United_States_politics_and_policies_90",
+          "file": "phase6b_variations_pruned_final_United_States_politics_and_policies_90_comparisons.json"
+        },
+        {
+          "ladder_id": "134",
+          "test_name": "phase6b_variations_pruned_final_United_States_politics_and_policies_134",
+          "file": "phase6b_variations_pruned_final_United_States_politics_and_policies_134_comparisons.json"
+        },
+        {
+          "ladder_id": "401",
+          "test_name": "phase6b_variations_pruned_final_United_States_politics_and_policies_401",
+          "file": "phase6b_variations_pruned_final_United_States_politics_and_policies_401_comparisons.json"
+        },
+        {
+          "ladder_id": "477",
+          "test_name": "phase6b_variations_pruned_final_United_States_politics_and_policies_477",
+          "file": "phase6b_variations_pruned_final_United_States_politics_and_policies_477_comparisons.json"
+        },
+        {
+          "ladder_id": "945",
+          "test_name": "phase6b_variations_pruned_final_United_States_politics_and_policies_945",
+          "file": "phase6b_variations_pruned_final_United_States_politics_and_policies_945_comparisons.json"
+        },
+        {
+          "ladder_id": "1196",
+          "test_name": "phase6b_variations_pruned_final_United_States_politics_and_policies_1196",
+          "file": "phase6b_variations_pruned_final_United_States_politics_and_policies_1196_comparisons.json"
+        },
+        {
+          "ladder_id": "1326",
+          "test_name": "phase6b_variations_pruned_final_United_States_politics_and_policies_1326",
+          "file": "phase6b_variations_pruned_final_United_States_politics_and_policies_1326_comparisons.json"
+        },
+        {
+          "ladder_id": "1458",
+          "test_name": "phase6b_variations_pruned_final_United_States_politics_and_policies_1458",
+          "file": "phase6b_variations_pruned_final_United_States_politics_and_policies_1458_comparisons.json"
+        },
+        {
+          "ladder_id": "1818",
+          "test_name": "phase6b_variations_pruned_final_United_States_politics_and_policies_1818",
+          "file": "phase6b_variations_pruned_final_United_States_politics_and_policies_1818_comparisons.json"
+        },
+        {
+          "ladder_id": "2075",
+          "test_name": "phase6b_variations_pruned_final_United_States_politics_and_policies_2075",
+          "file": "phase6b_variations_pruned_final_United_States_politics_and_policies_2075_comparisons.json"
+        },
+        {
+          "ladder_id": "2161",
+          "test_name": "phase6b_variations_pruned_final_United_States_politics_and_policies_2161",
+          "file": "phase6b_variations_pruned_final_United_States_politics_and_policies_2161_comparisons.json"
+        },
+        {
+          "ladder_id": "2664",
+          "test_name": "phase6b_variations_pruned_final_United_States_politics_and_policies_2664",
+          "file": "phase6b_variations_pruned_final_United_States_politics_and_policies_2664_comparisons.json"
+        },
+        {
+          "ladder_id": "2756",
+          "test_name": "phase6b_variations_pruned_final_United_States_politics_and_policies_2756",
+          "file": "phase6b_variations_pruned_final_United_States_politics_and_policies_2756_comparisons.json"
+        },
+        {
+          "ladder_id": "3532",
+          "test_name": "phase6b_variations_pruned_final_United_States_politics_and_policies_3532",
+          "file": "phase6b_variations_pruned_final_United_States_politics_and_policies_3532_comparisons.json"
+        },
+        {
+          "ladder_id": "3889",
+          "test_name": "phase6b_variations_pruned_final_United_States_politics_and_policies_3889",
+          "file": "phase6b_variations_pruned_final_United_States_politics_and_policies_3889_comparisons.json"
+        },
+        {
+          "ladder_id": "4507",
+          "test_name": "phase6b_variations_pruned_final_United_States_politics_and_policies_4507",
+          "file": "phase6b_variations_pruned_final_United_States_politics_and_policies_4507_comparisons.json"
+        },
+        {
+          "ladder_id": "5375",
+          "test_name": "phase6b_variations_pruned_final_United_States_politics_and_policies_5375",
+          "file": "phase6b_variations_pruned_final_United_States_politics_and_policies_5375_comparisons.json"
+        },
+        {
+          "ladder_id": "5556",
+          "test_name": "phase6b_variations_pruned_final_United_States_politics_and_policies_5556",
+          "file": "phase6b_variations_pruned_final_United_States_politics_and_policies_5556_comparisons.json"
+        },
+        {
+          "ladder_id": "5735",
+          "test_name": "phase6b_variations_pruned_final_United_States_politics_and_policies_5735",
+          "file": "phase6b_variations_pruned_final_United_States_politics_and_policies_5735_comparisons.json"
+        },
+        {
+          "ladder_id": "6515",
+          "test_name": "phase6b_variations_pruned_final_United_States_politics_and_policies_6515",
+          "file": "phase6b_variations_pruned_final_United_States_politics_and_policies_6515_comparisons.json"
+        },
+        {
+          "ladder_id": "7139",
+          "test_name": "phase6b_variations_pruned_final_United_States_politics_and_policies_7139",
+          "file": "phase6b_variations_pruned_final_United_States_politics_and_policies_7139_comparisons.json"
+        },
+        {
+          "ladder_id": "7432",
+          "test_name": "phase6b_variations_pruned_final_United_States_politics_and_policies_7432",
+          "file": "phase6b_variations_pruned_final_United_States_politics_and_policies_7432_comparisons.json"
+        },
+        {
+          "ladder_id": "7886",
+          "test_name": "phase6b_variations_pruned_final_United_States_politics_and_policies_7886",
+          "file": "phase6b_variations_pruned_final_United_States_politics_and_policies_7886_comparisons.json"
+        },
+        {
+          "ladder_id": "8064",
+          "test_name": "phase6b_variations_pruned_final_United_States_politics_and_policies_8064",
+          "file": "phase6b_variations_pruned_final_United_States_politics_and_policies_8064_comparisons.json"
+        },
+        {
+          "ladder_id": "8451",
+          "test_name": "phase6b_variations_pruned_final_United_States_politics_and_policies_8451",
+          "file": "phase6b_variations_pruned_final_United_States_politics_and_policies_8451_comparisons.json"
+        },
+        {
+          "ladder_id": "8519",
+          "test_name": "phase6b_variations_pruned_final_United_States_politics_and_policies_8519",
+          "file": "phase6b_variations_pruned_final_United_States_politics_and_policies_8519_comparisons.json"
+        },
+        {
+          "ladder_id": "8664",
+          "test_name": "phase6b_variations_pruned_final_United_States_politics_and_policies_8664",
+          "file": "phase6b_variations_pruned_final_United_States_politics_and_policies_8664_comparisons.json"
+        },
+        {
+          "ladder_id": "9374",
+          "test_name": "phase6b_variations_pruned_final_United_States_politics_and_policies_9374",
+          "file": "phase6b_variations_pruned_final_United_States_politics_and_policies_9374_comparisons.json"
+        },
+        {
+          "ladder_id": "9712",
+          "test_name": "phase6b_variations_pruned_final_United_States_politics_and_policies_9712",
+          "file": "phase6b_variations_pruned_final_United_States_politics_and_policies_9712_comparisons.json"
+        }
+      ]
+    },
+    {
+      "category": "Wellbeing_of_humans",
+      "label": "Wellbeing of humans",
+      "count": 11,
+      "variation_files": [
+        {
+          "ladder_id": "2804",
+          "test_name": "phase6b_variations_pruned_final_Wellbeing_of_humans_2804",
+          "file": "phase6b_variations_pruned_final_Wellbeing_of_humans_2804_comparisons.json"
+        },
+        {
+          "ladder_id": "3054",
+          "test_name": "phase6b_variations_pruned_final_Wellbeing_of_humans_3054",
+          "file": "phase6b_variations_pruned_final_Wellbeing_of_humans_3054_comparisons.json"
+        },
+        {
+          "ladder_id": "3359",
+          "test_name": "phase6b_variations_pruned_final_Wellbeing_of_humans_3359",
+          "file": "phase6b_variations_pruned_final_Wellbeing_of_humans_3359_comparisons.json"
+        },
+        {
+          "ladder_id": "5105",
+          "test_name": "phase6b_variations_pruned_final_Wellbeing_of_humans_5105",
+          "file": "phase6b_variations_pruned_final_Wellbeing_of_humans_5105_comparisons.json"
+        },
+        {
+          "ladder_id": "7495",
+          "test_name": "phase6b_variations_pruned_final_Wellbeing_of_humans_7495",
+          "file": "phase6b_variations_pruned_final_Wellbeing_of_humans_7495_comparisons.json"
+        },
+        {
+          "ladder_id": "8626",
+          "test_name": "phase6b_variations_pruned_final_Wellbeing_of_humans_8626",
+          "file": "phase6b_variations_pruned_final_Wellbeing_of_humans_8626_comparisons.json"
+        },
+        {
+          "ladder_id": "8740",
+          "test_name": "phase6b_variations_pruned_final_Wellbeing_of_humans_8740",
+          "file": "phase6b_variations_pruned_final_Wellbeing_of_humans_8740_comparisons.json"
+        },
+        {
+          "ladder_id": "9300",
+          "test_name": "phase6b_variations_pruned_final_Wellbeing_of_humans_9300",
+          "file": "phase6b_variations_pruned_final_Wellbeing_of_humans_9300_comparisons.json"
+        },
+        {
+          "ladder_id": "9491",
+          "test_name": "phase6b_variations_pruned_final_Wellbeing_of_humans_9491",
+          "file": "phase6b_variations_pruned_final_Wellbeing_of_humans_9491_comparisons.json"
+        },
+        {
+          "ladder_id": "9648",
+          "test_name": "phase6b_variations_pruned_final_Wellbeing_of_humans_9648",
+          "file": "phase6b_variations_pruned_final_Wellbeing_of_humans_9648_comparisons.json"
+        },
+        {
+          "ladder_id": "9843",
+          "test_name": "phase6b_variations_pruned_final_Wellbeing_of_humans_9843",
+          "file": "phase6b_variations_pruned_final_Wellbeing_of_humans_9843_comparisons.json"
+        }
+      ]
+    }
+  ]
+}

@@ -15,3 +15,10 @@ If a large artifact must be preserved for review or publication, mirror it to a
 dataset/archive system and record the external location in the README or paper
 supplement.
 
+Some generated results may still appear on GitHub because they were committed
+before the current ignore rules. `.gitignore` prevents new untracked files from
+being added; it does not remove files that Git already tracks.
+
+To stop tracking generated result artifacts while keeping local copies on disk,
+use `git rm --cached` on the chosen output folders and commit that index-only
+removal.

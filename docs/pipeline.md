@@ -37,6 +37,12 @@ Comparison inputs:
 - `data/03_comparisons/comparison_sample.json`
 - `data/03_comparisons/phase6b_variations_pruned/`
 
+The pruned phase 6b comparison files stay in a flat directory because the
+manifest stores filenames and the runner resolves them relative to the data
+directory. Use
+`data/03_comparisons/phase6b_variations_pruned/category_index.json` to browse
+the same comparison files by category.
+
 Command:
 
 ```bash
