@@ -11,14 +11,18 @@
 # Results and Output Directories
 /data/*
 !/data/.gitkeep
+!/data/README.md
 /data/**/*
 !/data/**/
 !/data/**/.gitkeep
+!/data/**/README.md
 /outputs/*
 !/outputs/.gitkeep
+!/outputs/README.md
 /outputs/**/*
 !/outputs/**/
 !/outputs/**/.gitkeep
+!/outputs/**/README.md
 
 # Documents and tabular data
 *.pdf
