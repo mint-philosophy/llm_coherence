@@ -11,9 +11,13 @@ Examples:
 - `opus-46-thinking/`: Claude Opus 4.6 with extended thinking.
 - `glm-45-base-logprobs/`: logprob-scored baseline rather than free-form A/B generation.
 
-Use `model_run_index.json` for the current machine-readable inventory. It lists
+Use `model_run_index.json` for the publication snapshot inventory. It lists
 per-model result counts, reasoning mode, analysis-output counts, and completion
 status relative to the 100 pruned phase 6b comparison sets.
+
+Raw model-run payloads are not tracked in Git for the public conference repo.
+The local working tree may still contain them, and they can be regenerated with
+the commands in `docs/rerun.md`.
 
 ## Current Inventory
 
@@ -44,6 +48,5 @@ PYTHONPATH=src python scripts/validate_artifacts.py --write-indexes
 PYTHONPATH=src python scripts/validate_artifacts.py
 ```
 
-Raw model runs are generated artifacts. The existing tracked files are treated
-as a retained publication snapshot; do not add newly generated raw outputs
-unless the snapshot is intentionally being updated.
+Raw model runs are generated artifacts; do not add newly generated raw outputs
+unless the public artifact package is intentionally being updated.

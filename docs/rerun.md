@@ -93,4 +93,6 @@ PYTHONPATH=src python -m llm_coherence.reporting.make_paper_figures
 
 Raw model outputs are generated artifacts. Keep them locally under `outputs/`
 while running experiments. Commit new raw outputs only when intentionally
-updating a publication snapshot.
+updating a publication snapshot or external artifact bundle. The public GitHub
+repo keeps lightweight indexes and documentation rather than thousands of raw
+result payloads.

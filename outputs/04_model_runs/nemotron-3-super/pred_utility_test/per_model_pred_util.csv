@@ -1,2 +1,0 @@
-model_key,label,n_sets,mean_test_auc,median_test_auc,mean_null_auc,mean_test_logloss,mean_p_value,mean_p_value_bh,frac_sig_at_p05,frac_sig_at_bh_fdr05
-nemotron-3-super,nemotron-3-super,100,0.8914523794589323,0.8988601057058919,0.5263477552370744,0.36269448450547,0.0163681592039801,0.016635553834683372,0.96,0.96

@@ -1,2 +1,0 @@
-model_key,label,n_sets,mean_test_auc,median_test_auc,mean_null_auc,mean_test_logloss,mean_p_value,mean_p_value_bh,frac_sig_at_p05,frac_sig_at_bh_fdr05
-ministral-3b-2512-openrouter,ministral-3b-2512-openrouter,100,0.9204533504700612,0.938658340096532,0.5872006995695315,0.29262477930957437,0.01810945273631841,0.01850405033532108,0.97,0.97

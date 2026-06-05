@@ -1,2 +1,0 @@
-model_key,label,n_sets,mean_test_auc,median_test_auc,mean_null_auc,mean_test_logloss,mean_p_value,mean_p_value_bh,frac_sig_at_p05,frac_sig_at_bh_fdr05
-opus-46,opus-46,99,0.9416798432845684,0.9439606304742602,0.7594569536876324,0.23818868161137993,0.03774058997939595,0.03929547322660436,0.9292929292929293,0.9292929292929293

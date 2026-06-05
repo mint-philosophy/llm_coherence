@@ -2,7 +2,7 @@
   "schema_version": "1.0",
   "source": "outputs/04_model_runs",
   "expected_variation_sets": 100,
-  "note": "Top-level model-run folders are model keys. Thinking-on variants use separate model keys and separate output folders, usually with the -thinking suffix.",
+  "note": "Snapshot inventory generated from local publication output payloads. Raw output payloads are excluded from Git so the public repository stays browsable. Top-level model-run folders are model keys; thinking-on variants use separate keys and folders, usually with the -thinking suffix.",
   "models": [
     {
       "model_key": "glm-45-base-logprobs",

@@ -25,6 +25,7 @@ CATEGORY_INDEX = COMPARISON_DIR / "category_index.json"
 MODEL_RUNS_DIR = REPO_ROOT / "outputs/04_model_runs"
 MODEL_RUN_INDEX = MODEL_RUNS_DIR / "model_run_index.json"
 ANALYSIS_DIR = REPO_ROOT / "outputs/05_analysis"
+LIGHTWEIGHT_OUTPUT_NAMES = {".gitkeep", "README.md", "model_run_index.json"}
 
 COMPARISON_PREFIX = "phase6b_variations_pruned_final_"
 COMPARISON_SUFFIX = "_comparisons.json"
@@ -50,6 +51,15 @@ def write_json(path: Path, payload: Any) -> None:
     with open(path, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2)
         f.write("\n")
+
+
+def model_run_payloads_present() -> bool:
+    if not MODEL_RUNS_DIR.exists():
+        return False
+    return any(
+        path.is_file() and path.name not in LIGHTWEIGHT_OUTPUT_NAMES
+        for path in MODEL_RUNS_DIR.rglob("*")
+    )
 
 
 def comparison_short_name(filename: str) -> tuple[str, str, str]:
@@ -189,9 +199,11 @@ def build_model_run_index() -> dict[str, Any]:
         "source": rel(MODEL_RUNS_DIR),
         "expected_variation_sets": expected_variation_sets,
         "note": (
-            "Top-level model-run folders are model keys. Thinking-on variants "
-            "use separate model keys and separate output folders, usually with "
-            "the -thinking suffix."
+            "Snapshot inventory generated from local publication output "
+            "payloads. Raw output payloads are excluded from Git so the public "
+            "repository stays browsable. Top-level model-run folders are model "
+            "keys; thinking-on variants use separate keys and folders, usually "
+            "with the -thinking suffix."
         ),
         "models": models,
     }
@@ -224,16 +236,23 @@ def main() -> int:
     args = parser.parse_args()
 
     category_index = build_category_index()
-    model_run_index = build_model_run_index()
+    has_model_run_payloads = model_run_payloads_present()
+    model_run_index = build_model_run_index() if has_model_run_payloads else None
 
     if args.write_indexes:
         write_json(CATEGORY_INDEX, category_index)
-        write_json(MODEL_RUN_INDEX, model_run_index)
+        if model_run_index is not None:
+            write_json(MODEL_RUN_INDEX, model_run_index)
+        else:
+            print(f"Skipping {rel(MODEL_RUN_INDEX)} refresh; no model-run payloads are present.")
 
     errors: list[str] = []
     validate_comparison_files(errors)
     validate_index(CATEGORY_INDEX, category_index, errors)
-    validate_index(MODEL_RUN_INDEX, model_run_index, errors)
+    if model_run_index is not None:
+        validate_index(MODEL_RUN_INDEX, model_run_index, errors)
+    elif not MODEL_RUN_INDEX.exists():
+        errors.append(f"missing snapshot index: {rel(MODEL_RUN_INDEX)}")
 
     if errors:
         print("Artifact validation failed:")
@@ -245,7 +264,10 @@ def main() -> int:
 
     print("Artifact validation passed.")
     print(f"  comparison sets: {category_index['total_variation_sets']}")
-    print(f"  model folders: {len(model_run_index['models'])}")
+    if model_run_index is None:
+        print("  model-run payloads: absent; using snapshot index only")
+    else:
+        print(f"  model folders: {len(model_run_index['models'])}")
     return 0
 
 

@@ -11,22 +11,22 @@ of a publication snapshot. In particular, treat these as generated artifacts:
 - regenerated figures and tables
 - temporary validation outputs
 
-## Current Decision
+## Public Repository Decision
 
-The existing tracked outputs are treated as a retained publication snapshot for
-now. New raw outputs should stay local unless the snapshot is intentionally
-updated. Lightweight index files such as
-`outputs/04_model_runs/model_run_index.json` are kept in git so GitHub remains
-browsable without moving the underlying artifacts.
+For the public AIES 2026 repository, generated output payloads are not tracked
+in Git. Keep README files, lightweight indexes, canonical inputs, code, and
+reproducibility scripts in the repository. Keep raw model runs, reasoning
+traces, and large derived outputs local or mirror them to an external artifact
+archive.
+
+`outputs/04_model_runs/model_run_index.json` is a retained snapshot inventory:
+it records what was present in the local publication outputs without requiring
+the public GitHub tree to show thousands of generated files.
 
 If a large artifact must be preserved for review or publication, mirror it to a
 dataset/archive system and record the external location in the README or paper
 supplement.
 
-Some generated results may still appear on GitHub because they were committed
-before the current ignore rules. `.gitignore` prevents new untracked files from
-being added; it does not remove files that Git already tracks.
-
-To stop tracking generated result artifacts while keeping local copies on disk,
-use `git rm --cached` on the chosen output folders and commit that index-only
-removal.
+`.gitignore` prevents new untracked files from being added; it does not remove
+files that Git already tracks. Use `git rm --cached` for explicit index-only
+cleanup while keeping local copies on disk.

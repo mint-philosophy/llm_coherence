@@ -1,8 +1,8 @@
 # LLM Preference Coherence
 
-This repo tests whether LLM forced-choice preferences are coherent over
-parametric 7-tier outcome ladders. The repository is organized in the same order
-as the experiment pipeline.
+Research artifact repository for the AIES 2026 project testing whether LLM
+forced-choice preferences are coherent over parametric 7-tier outcome ladders.
+The repository is organized in the same order as the experiment pipeline.
 
 ## Pipeline Order
 
@@ -34,6 +34,17 @@ src/llm_coherence/
 - Ladders: `data/01_ladders/phase6b_variations_pruned_final.json`
 - Comparison sample: `data/03_comparisons/comparison_sample.json`
 - Comparison manifest: `data/03_comparisons/phase6b_variations_pruned/phase6b_variations_pruned_final_manifest.json`
+
+## What Is Tracked
+
+- Source code under `src/llm_coherence/`
+- Pipeline and rerun documentation under `docs/`
+- Canonical ladder and comparison inputs under `data/`
+- Lightweight generated-artifact indexes and README files under `outputs/`
+
+Raw model responses, reasoning traces, and bulk derived outputs are generated
+artifacts. They are not tracked in Git for the public conference repository;
+use `docs/rerun.md` to regenerate them.
 
 ## Typical Commands
 

@@ -10,19 +10,15 @@
 
 # Results and Output Directories
 /data/*
-!/data/.gitkeep
 !/data/README.md
 /data/**/*
 !/data/**/
-!/data/**/.gitkeep
 !/data/**/README.md
 !/data/**/category_index.json
 /outputs/*
-!/outputs/.gitkeep
 !/outputs/README.md
 /outputs/**/*
 !/outputs/**/
-!/outputs/**/.gitkeep
 !/outputs/**/README.md
 !/outputs/**/model_run_index.json
 
