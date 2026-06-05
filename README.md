@@ -20,7 +20,8 @@ From GitHub alone, you can:
 
 Exact reproduction of archived paper outputs without rerunning APIs requires a
 separate artifact bundle containing raw model responses, reasoning traces, and
-derived analysis payloads. See `docs/replication.md`.
+derived analysis payloads. See `docs/replication.md` and
+`docs/huggingface_artifacts.md`.
 
 ## Repository Map
 
@@ -131,7 +132,8 @@ checkpoints, regenerated figures, or large derived outputs.
 
 Generated artifacts should stay under `outputs/` locally. For paper-result
 reproduction without rerunning APIs, mirror the full output bundle to a stable
-external archive and record the DOI or URL in `docs/replication.md`.
+external archive, preferably a Hugging Face Dataset repository, and record the
+DOI or URL in `docs/replication.md`.
 
 ## Documentation
 
@@ -139,4 +141,6 @@ external archive and record the DOI or URL in `docs/replication.md`.
 - `docs/rerun.md`: commands for rerunning the pipeline.
 - `docs/replication.md`: what can be replicated from GitHub and what requires
   an external artifact bundle.
+- `docs/huggingface_artifacts.md`: how to stage and upload the external artifact
+  bundle to Hugging Face.
 - `docs/artifact_policy.md`: Git and artifact-tracking policy.

@@ -40,8 +40,12 @@ The external artifact bundle should include:
 - `outputs/05_analysis/`
 - `outputs/06_figures_tables/` if final generated figures/tables are part of
   the camera-ready artifact
+- `results/`
 - checksums for the archived files
 - the Git commit SHA used to generate the archive
+
+The recommended archive target is a Hugging Face Dataset repository. See
+`docs/huggingface_artifacts.md` for the bundle layout and upload commands.
 
 Once the archive exists, add its DOI or stable URL to this document and to the
 root README.
