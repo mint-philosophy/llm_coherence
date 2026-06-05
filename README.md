@@ -1,78 +1,142 @@
 # LLM Preference Coherence
 
-Research artifact repository for the AIES 2026 project testing whether LLM
-forced-choice preferences are coherent over parametric 7-tier outcome ladders.
-The repository is organized in the same order as the experiment pipeline.
+Public research artifact for an AIES 2026 project on whether LLM
+forced-choice preferences remain coherent over parametric 7-tier outcome
+ladders.
 
-## Pipeline Order
+The repository is organized around the experiment pipeline: build and validate
+ladders, generate forced-choice comparisons, run model preference experiments,
+analyze coherence, and produce paper-ready summaries.
+
+## What This Repository Supports
+
+From GitHub alone, you can:
+
+- inspect the canonical ladder and comparison inputs;
+- rerun the model experiments, subject to provider access and model
+  availability;
+- regenerate analysis outputs from rerun model responses;
+- inspect lightweight summary snapshots and model-run inventories.
+
+Exact reproduction of archived paper outputs without rerunning APIs requires a
+separate artifact bundle containing raw model responses, reasoning traces, and
+derived analysis payloads. See `docs/replication.md`.
+
+## Repository Map
 
 ```text
 data/
-  01_ladders/        canonical ladder set
-  02_validation/     ladder quality checks and pruning inputs
-  03_comparisons/    forced-choice comparison files and manifest
-
-outputs/
-  01_ladders/        generated ladder artifacts
-  02_validation/     validation run outputs
-  03_comparisons/    generated comparison artifacts
-  04_model_runs/     raw per-model experiment runs
-  05_analysis/       coherence metrics and derived summaries
-  06_figures_tables/ paper figures and tables
+  01_ladders/        canonical pruned ladder set
+  02_validation/     validation-stage notes and regenerated intermediates
+  03_comparisons/    canonical forced-choice comparison files and manifest
 
 src/llm_coherence/
   generation/        build comparison inputs
   validation/        validate and prune ladders
   experiments/       run model forced-choice experiments
-  runtime/           local API helpers formerly supplied by compute_utilities
+  runtime/           local API/runtime helpers
   analysis/          compute coherence and predictive-utility metrics
   reporting/         build paper figures and tables
+
+results/
+  phase6b_coherence_summary.json
+
+outputs/
+  README files and lightweight indexes only in Git;
+  generated payloads stay local or in an external artifact archive
 ```
 
-## Current Canonical Inputs
+## Key Inputs
 
-- Ladders: `data/01_ladders/phase6b_variations_pruned_final.json`
-- Comparison sample: `data/03_comparisons/comparison_sample.json`
-- Comparison manifest: `data/03_comparisons/phase6b_variations_pruned/phase6b_variations_pruned_final_manifest.json`
+- `data/01_ladders/phase6b_variations_pruned_final.json`
+- `data/03_comparisons/comparison_sample.json`
+- `data/03_comparisons/phase6b_variations_pruned/phase6b_variations_pruned_final_manifest.json`
+- `data/03_comparisons/phase6b_variations_pruned/category_index.json`
 
-## What Is Tracked
+The pruned comparison files remain flat on disk because the manifest and
+loaders resolve comparison filenames relative to one data directory. Use the
+category index for browsing by topic without changing executable paths.
 
-- Source code under `src/llm_coherence/`
-- Pipeline and rerun documentation under `docs/`
-- Canonical ladder and comparison inputs under `data/`
-- Lightweight generated-artifact indexes and README files under `outputs/`
+## Result Summaries
 
-Raw model responses, reasoning traces, and bulk derived outputs are generated
-artifacts. They are not tracked in Git for the public conference repository;
-use `docs/rerun.md` to regenerate them.
+- `results/phase6b_coherence_summary.json`: compact public summary of local
+  phase 6b coherence metrics.
+- `outputs/04_model_runs/model_run_index.json`: inventory of the local
+  publication run snapshot, including model keys, thinking on/off status, and
+  result counts.
 
-## Typical Commands
+These files are for inspection and sanity checks. They do not replace the raw
+model-response artifact bundle needed to audit every individual choice.
 
-Run commands from the repo root with the package on `PYTHONPATH`:
+## Quick Start
+
+Install locally:
+
+```bash
+python -m pip install -e .
+```
+
+Validate tracked inputs and lightweight indexes:
+
+```bash
+PYTHONPATH=src python scripts/validate_artifacts.py
+```
+
+Regenerate comparison inputs:
 
 ```bash
 PYTHONPATH=src python -m llm_coherence.generation.generate_7tier_comparisons
-PYTHONPATH=src python -m llm_coherence.experiments.ladder_statement_pair.run_7tier_experiment --model gpt-54-nano --trials 10 --resume
-PYTHONPATH=src python -m llm_coherence.analysis.analyze_7tier_coherence --model gpt-54-nano
-PYTHONPATH=src python -m llm_coherence.analysis.predictive_utility --model gpt-54-nano
-PYTHONPATH=src python -m llm_coherence.reporting.make_paper_figures
 ```
 
-Live model runs use `src/llm_coherence/runtime/` for LiteLLM agents, prompt
-templates, cost estimates, and OpenRouter budget checks. API keys are read from
-environment variables or `api_keys/api_key_<provider>.txt` under the repo root.
+Run a small smoke experiment:
 
-Thinking on/off runs are separate model keys and separate output folders, for
-example `outputs/04_model_runs/gpt-54/` and
-`outputs/04_model_runs/gpt-54-thinking/`.
+```bash
+PYTHONPATH=src python -m llm_coherence.experiments.ladder_statement_pair.run_7tier_experiment \
+  --model gpt-54-nano \
+  --trials 1 \
+  --max-variation-sets 2 \
+  --smoke \
+  --resume
+```
 
-For the ordered experiment map, see `docs/pipeline.md`.
-For exact rerun commands, see `docs/rerun.md`.
-For current model-run inventory, see `outputs/04_model_runs/model_run_index.json`.
+Run analysis for one model:
+
+```bash
+PYTHONPATH=src python -m llm_coherence.analysis.analyze_7tier_coherence --model gpt-54-nano
+PYTHONPATH=src python -m llm_coherence.analysis.predictive_utility --model gpt-54-nano
+```
+
+For full rerun commands, sharding examples, and artifact handling, see
+`docs/rerun.md`.
+
+## Model Runs
+
+Thinking on/off variants are represented as separate model keys and separate
+output folders. For example:
+
+- `gpt-54`
+- `gpt-54-thinking`
+- `gpt-54-nano`
+- `gpt-54-nano-thinking`
+
+Runtime helpers live in `src/llm_coherence/runtime/`. API keys are read from
+environment variables or from `api_keys/api_key_<provider>.txt` under the repo
+root. API keys are not included in the repository.
 
 ## Artifact Policy
 
-Keep small canonical inputs and manifests in git. Treat raw model runs,
-reasoning traces, checkpoints, regenerated figures, and large derived outputs
-as artifacts. Those should live under `outputs/` locally and be mirrored to an
-external dataset/archive when needed for publication.
+This public repository tracks source code, canonical inputs, documentation, and
+small summaries. It does not track raw model responses, reasoning traces,
+checkpoints, regenerated figures, or large derived outputs.
+
+Generated artifacts should stay under `outputs/` locally. For paper-result
+reproduction without rerunning APIs, mirror the full output bundle to a stable
+external archive and record the DOI or URL in `docs/replication.md`.
+
+## Documentation
+
+- `docs/pipeline.md`: ordered experiment map.
+- `docs/rerun.md`: commands for rerunning the pipeline.
+- `docs/replication.md`: what can be replicated from GitHub and what requires
+  an external artifact bundle.
+- `docs/artifact_policy.md`: Git and artifact-tracking policy.

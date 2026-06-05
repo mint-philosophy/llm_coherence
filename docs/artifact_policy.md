@@ -23,6 +23,9 @@ archive.
 it records what was present in the local publication outputs without requiring
 the public GitHub tree to show thousands of generated files.
 
+Small public summaries can be tracked under `results/` when they make the
+artifact inspectable without exposing the full raw-output payload.
+
 If a large artifact must be preserved for review or publication, mirror it to a
 dataset/archive system and record the external location in the README or paper
 supplement.

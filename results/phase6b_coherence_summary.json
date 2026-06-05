@@ -1,0 +1,2094 @@
+{
+  "schema_version": "1.0",
+  "description": "Public summary snapshot of phase 6b coherence metrics derived from local publication outputs. Raw model responses are not included in Git.",
+  "source": "outputs/04_model_runs/*/phase6b_coherence_*.json",
+  "n_models": 14,
+  "models": [
+    {
+      "model": "glm-45-base-logprobs",
+      "model_variant": "base",
+      "reasoning_mode": "none",
+      "source_path": "outputs/04_model_runs/glm-45-base-logprobs/phase6b_coherence_glm-45-base-logprobs.json",
+      "overall": {
+        "n_variation_sets": 100,
+        "n_total_comparisons": 3000,
+        "n_tiers": 7,
+        "monotonicity_rate": 0.101,
+        "erratic_flip_rate": 0.0,
+        "mean_kendall_tau": 0.828453465265579,
+        "mean_spearman_rho": 0.9074218273723826,
+        "jt_significant_rate": 0.874,
+        "mean_logistic_slope": 0.6524241261902904,
+        "logistic_significant_rate": 0.8116666666666666,
+        "mean_isotonic_r2": 0.9601850951064737,
+        "mean_kendall_tau_abs": 0.7165821759000015,
+        "mean_spearman_rho_abs": 0.8282570919168993,
+        "mean_logistic_slope_abs": 0.6537210582054036,
+        "mean_isotonic_r2_bidirectional": 0.9644306377773428,
+        "frac_inferred_increasing": 0.991,
+        "frac_inferred_decreasing": 0.009,
+        "mean_bootstrap_mono_prob": 0.11404583333333333,
+        "mean_prob_range": 0.5042800666666667
+      },
+      "by_variation_category": {
+        "AI and human romantic relationships": {
+          "n_variation_sets": 3,
+          "n_comparisons": 90,
+          "monotonicity_rate": 0.15555555555555556,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.904220703068161,
+          "mean_logistic_slope": 0.5989671133218921,
+          "mean_isotonic_r2": 0.9932972170873432,
+          "mean_bootstrap_mono_prob": 0.12264444444444444
+        },
+        "AI moral patienthood": {
+          "n_variation_sets": 5,
+          "n_comparisons": 150,
+          "monotonicity_rate": 0.08,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.8347985772963779,
+          "mean_logistic_slope": 0.48118564431550886,
+          "mean_isotonic_r2": 0.9721583284309586,
+          "mean_bootstrap_mono_prob": 0.07110333333333332
+        },
+        "Global economy": {
+          "n_variation_sets": 6,
+          "n_comparisons": 180,
+          "monotonicity_rate": 0.07777777777777778,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.8176793514578173,
+          "mean_logistic_slope": 0.5989455387999274,
+          "mean_isotonic_r2": 0.9575308180061782,
+          "mean_bootstrap_mono_prob": 0.12294722222222221
+        },
+        "Global politics and geopolitics": {
+          "n_variation_sets": 7,
+          "n_comparisons": 210,
+          "monotonicity_rate": 0.0380952380952381,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.7311086833563523,
+          "mean_logistic_slope": 0.5686238344906995,
+          "mean_isotonic_r2": 0.9775756022010471,
+          "mean_bootstrap_mono_prob": 0.11744761904761905
+        },
+        "Life and species": {
+          "n_variation_sets": 4,
+          "n_comparisons": 120,
+          "monotonicity_rate": 0.041666666666666664,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.7312272692201751,
+          "mean_logistic_slope": 0.7437750509823928,
+          "mean_isotonic_r2": 0.9866350198159403,
+          "mean_bootstrap_mono_prob": 0.1156875
+        },
+        "Personal accomplishments": {
+          "n_variation_sets": 7,
+          "n_comparisons": 210,
+          "monotonicity_rate": 0.2523809523809524,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.9371724539005448,
+          "mean_logistic_slope": 0.5682468404963691,
+          "mean_isotonic_r2": 0.9566144625459702,
+          "mean_bootstrap_mono_prob": 0.1241404761904762
+        },
+        "Personal finances": {
+          "n_variation_sets": 15,
+          "n_comparisons": 450,
+          "monotonicity_rate": 0.1688888888888889,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.8934156646761177,
+          "mean_logistic_slope": 0.763510776024248,
+          "mean_isotonic_r2": 0.9403153365419626,
+          "mean_bootstrap_mono_prob": 0.1650711111111111
+        },
+        "Personal freedom and autonomy": {
+          "n_variation_sets": 3,
+          "n_comparisons": 90,
+          "monotonicity_rate": 0.011111111111111112,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.761902017845574,
+          "mean_logistic_slope": 0.5302910104042218,
+          "mean_isotonic_r2": 0.9908807942095315,
+          "mean_bootstrap_mono_prob": 0.08443888888888888
+        },
+        "Religion and spirituality": {
+          "n_variation_sets": 1,
+          "n_comparisons": 30,
+          "monotonicity_rate": 0.03333333333333333,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.878704124081367,
+          "mean_logistic_slope": 1.0913515696468319,
+          "mean_isotonic_r2": 0.9931891903471506,
+          "mean_bootstrap_mono_prob": 0.09998333333333333
+        },
+        "United States economy": {
+          "n_variation_sets": 9,
+          "n_comparisons": 270,
+          "monotonicity_rate": 0.14444444444444443,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.8539447086929283,
+          "mean_logistic_slope": 0.728613235921633,
+          "mean_isotonic_r2": 0.9172496270200782,
+          "mean_bootstrap_mono_prob": 0.10830185185185186
+        },
+        "United States politics and policies": {
+          "n_variation_sets": 29,
+          "n_comparisons": 870,
+          "monotonicity_rate": 0.06666666666666667,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.7770933088866832,
+          "mean_logistic_slope": 0.6292828025304398,
+          "mean_isotonic_r2": 0.96415888151949,
+          "mean_bootstrap_mono_prob": 0.09362586206896552
+        },
+        "Wellbeing of humans": {
+          "n_variation_sets": 11,
+          "n_comparisons": 330,
+          "monotonicity_rate": 0.06666666666666667,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.7685790894878692,
+          "mean_logistic_slope": 0.6882825689042312,
+          "mean_isotonic_r2": 0.9691231771226807,
+          "mean_bootstrap_mono_prob": 0.11548636363636364
+        }
+      }
+    },
+    {
+      "model": "glm-45-hybrid",
+      "model_variant": "instruct",
+      "reasoning_mode": "none",
+      "source_path": "outputs/04_model_runs/glm-45-hybrid/phase6b_coherence_glm-45-hybrid.json",
+      "overall": {
+        "n_variation_sets": 100,
+        "n_total_comparisons": 3000,
+        "n_tiers": 7,
+        "monotonicity_rate": 0.7946666666666666,
+        "erratic_flip_rate": 0.006,
+        "mean_kendall_tau": 0.6321443968728291,
+        "mean_spearman_rho": 0.7430681086304654,
+        "jt_significant_rate": 0.7906666666666666,
+        "mean_logistic_slope": 11.718475460914638,
+        "logistic_significant_rate": 0.44233333333333336,
+        "mean_isotonic_r2": 0.9551397141106875,
+        "mean_kendall_tau_abs": 0.5676158944616897,
+        "mean_spearman_rho_abs": 0.6412544875448714,
+        "mean_logistic_slope_abs": 11.733618869900859,
+        "mean_isotonic_r2_bidirectional": 0.9569512248391353,
+        "frac_inferred_increasing": 0.8083333333333333,
+        "frac_inferred_decreasing": 0.006666666666666667,
+        "mean_bootstrap_mono_prob": 0.6744131666666667,
+        "mean_prob_range": 0.6515166666666666
+      },
+      "by_variation_category": {
+        "AI and human romantic relationships": {
+          "n_variation_sets": 3,
+          "n_comparisons": 90,
+          "monotonicity_rate": 0.8333333333333334,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.7361842002774057,
+          "mean_logistic_slope": 22.696544482646452,
+          "mean_isotonic_r2": 0.9820352483704717,
+          "mean_bootstrap_mono_prob": 0.7479111111111112
+        },
+        "AI moral patienthood": {
+          "n_variation_sets": 5,
+          "n_comparisons": 150,
+          "monotonicity_rate": 0.7733333333333333,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.7099841574619794,
+          "mean_logistic_slope": 16.094922099836335,
+          "mean_isotonic_r2": 0.9667259038871947,
+          "mean_bootstrap_mono_prob": 0.6978800000000001
+        },
+        "Global economy": {
+          "n_variation_sets": 6,
+          "n_comparisons": 180,
+          "monotonicity_rate": 0.8277777777777777,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.6172874142512901,
+          "mean_logistic_slope": 9.59670453035162,
+          "mean_isotonic_r2": 0.9813406829744099,
+          "mean_bootstrap_mono_prob": 0.70675
+        },
+        "Global politics and geopolitics": {
+          "n_variation_sets": 7,
+          "n_comparisons": 210,
+          "monotonicity_rate": 0.8428571428571429,
+          "erratic_flip_rate": 0.014285714285714285,
+          "mean_kendall_tau": 0.6292711244247473,
+          "mean_logistic_slope": 10.224816182338357,
+          "mean_isotonic_r2": 0.9519130281074873,
+          "mean_bootstrap_mono_prob": 0.7015809523809523
+        },
+        "Life and species": {
+          "n_variation_sets": 4,
+          "n_comparisons": 120,
+          "monotonicity_rate": 0.9083333333333333,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.6554257625927149,
+          "mean_logistic_slope": 20.572829820482557,
+          "mean_isotonic_r2": 0.9920456518908028,
+          "mean_bootstrap_mono_prob": 0.8224291666666665
+        },
+        "Personal accomplishments": {
+          "n_variation_sets": 7,
+          "n_comparisons": 210,
+          "monotonicity_rate": 0.6523809523809524,
+          "erratic_flip_rate": 0.014285714285714285,
+          "mean_kendall_tau": 0.5859994104028408,
+          "mean_logistic_slope": 6.299345550566118,
+          "mean_isotonic_r2": 0.8812358505966988,
+          "mean_bootstrap_mono_prob": 0.4382904761904762
+        },
+        "Personal finances": {
+          "n_variation_sets": 15,
+          "n_comparisons": 450,
+          "monotonicity_rate": 0.82,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.5529133555872999,
+          "mean_logistic_slope": 10.963644090675873,
+          "mean_isotonic_r2": 0.9432719388530035,
+          "mean_bootstrap_mono_prob": 0.7461955555555556
+        },
+        "Personal freedom and autonomy": {
+          "n_variation_sets": 3,
+          "n_comparisons": 90,
+          "monotonicity_rate": 0.5111111111111111,
+          "erratic_flip_rate": 0.022222222222222223,
+          "mean_kendall_tau": 0.6852722322262756,
+          "mean_logistic_slope": 6.266901817275149,
+          "mean_isotonic_r2": 0.9336563289429202,
+          "mean_bootstrap_mono_prob": 0.33932222222222225
+        },
+        "Religion and spirituality": {
+          "n_variation_sets": 1,
+          "n_comparisons": 30,
+          "monotonicity_rate": 0.8333333333333334,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.789984520359561,
+          "mean_logistic_slope": 13.902155608496473,
+          "mean_isotonic_r2": 0.9853360761850587,
+          "mean_bootstrap_mono_prob": 0.6739999999999999
+        },
+        "United States economy": {
+          "n_variation_sets": 9,
+          "n_comparisons": 270,
+          "monotonicity_rate": 0.9,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.58558306458161,
+          "mean_logistic_slope": 12.888638383010852,
+          "mean_isotonic_r2": 0.9914106302879572,
+          "mean_bootstrap_mono_prob": 0.8125074074074075
+        },
+        "United States politics and policies": {
+          "n_variation_sets": 29,
+          "n_comparisons": 870,
+          "monotonicity_rate": 0.7563218390804598,
+          "erratic_flip_rate": 0.010344827586206896,
+          "mean_kendall_tau": 0.6814805248332425,
+          "mean_logistic_slope": 11.382326546831187,
+          "mean_isotonic_r2": 0.9540402236337435,
+          "mean_bootstrap_mono_prob": 0.6233977011494253
+        },
+        "Wellbeing of humans": {
+          "n_variation_sets": 11,
+          "n_comparisons": 330,
+          "monotonicity_rate": 0.8484848484848485,
+          "erratic_flip_rate": 0.0030303030303030303,
+          "mean_kendall_tau": 0.5499551671092934,
+          "mean_logistic_slope": 11.318171438573604,
+          "mean_isotonic_r2": 0.956429180582122,
+          "mean_bootstrap_mono_prob": 0.720260606060606
+        }
+      }
+    },
+    {
+      "model": "glm-45-hybrid-thinking",
+      "model_variant": "instruct",
+      "reasoning_mode": "none",
+      "source_path": "outputs/04_model_runs/glm-45-hybrid-thinking/phase6b_coherence_glm-45-hybrid-thinking.json",
+      "overall": {
+        "n_variation_sets": 100,
+        "n_total_comparisons": 3000,
+        "n_tiers": 7,
+        "monotonicity_rate": 0.7066666666666667,
+        "erratic_flip_rate": 0.006,
+        "mean_kendall_tau": 0.6367886499537321,
+        "mean_spearman_rho": 0.742751973283412,
+        "jt_significant_rate": 0.7583333333333333,
+        "mean_logistic_slope": 7.570961290232997,
+        "logistic_significant_rate": 0.5073333333333333,
+        "mean_isotonic_r2": 0.947806005730529,
+        "mean_kendall_tau_abs": 0.5695871399013112,
+        "mean_spearman_rho_abs": 0.6409587776800963,
+        "mean_logistic_slope_abs": 7.6074022271534245,
+        "mean_isotonic_r2_bidirectional": 0.9553295491863846,
+        "frac_inferred_increasing": 0.8073333333333333,
+        "frac_inferred_decreasing": 0.011666666666666667,
+        "mean_bootstrap_mono_prob": 0.7047068333333333,
+        "mean_prob_range": 0.5772059666666667
+      },
+      "by_variation_category": {
+        "AI and human romantic relationships": {
+          "n_variation_sets": 3,
+          "n_comparisons": 90,
+          "monotonicity_rate": 0.4666666666666667,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.7530050573273115,
+          "mean_logistic_slope": 6.133350345118444,
+          "mean_isotonic_r2": 0.9674650349822325,
+          "mean_bootstrap_mono_prob": 0.5252722222222221
+        },
+        "AI moral patienthood": {
+          "n_variation_sets": 5,
+          "n_comparisons": 150,
+          "monotonicity_rate": 0.5333333333333333,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.7408380245559606,
+          "mean_logistic_slope": 3.267876451284809,
+          "mean_isotonic_r2": 0.947482980228563,
+          "mean_bootstrap_mono_prob": 0.51704
+        },
+        "Global economy": {
+          "n_variation_sets": 6,
+          "n_comparisons": 180,
+          "monotonicity_rate": 0.8388888888888889,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.7190304883306486,
+          "mean_logistic_slope": 9.35776586756623,
+          "mean_isotonic_r2": 0.9848040973053515,
+          "mean_bootstrap_mono_prob": 0.8325666666666668
+        },
+        "Global politics and geopolitics": {
+          "n_variation_sets": 7,
+          "n_comparisons": 210,
+          "monotonicity_rate": 0.8571428571428571,
+          "erratic_flip_rate": 0.004761904761904762,
+          "mean_kendall_tau": 0.5645567797916929,
+          "mean_logistic_slope": 11.222837476574117,
+          "mean_isotonic_r2": 0.9630555545022382,
+          "mean_bootstrap_mono_prob": 0.8529976190476191
+        },
+        "Life and species": {
+          "n_variation_sets": 4,
+          "n_comparisons": 120,
+          "monotonicity_rate": 0.8916666666666667,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.6978073814586543,
+          "mean_logistic_slope": 17.19587083420314,
+          "mean_isotonic_r2": 0.9991250054760143,
+          "mean_bootstrap_mono_prob": 0.8915291666666666
+        },
+        "Personal accomplishments": {
+          "n_variation_sets": 7,
+          "n_comparisons": 210,
+          "monotonicity_rate": 0.5571428571428572,
+          "erratic_flip_rate": 0.023809523809523808,
+          "mean_kendall_tau": 0.44572194246637786,
+          "mean_logistic_slope": 5.263349538186018,
+          "mean_isotonic_r2": 0.8218139934957419,
+          "mean_bootstrap_mono_prob": 0.5587857142857143
+        },
+        "Personal finances": {
+          "n_variation_sets": 15,
+          "n_comparisons": 450,
+          "monotonicity_rate": 0.7177777777777777,
+          "erratic_flip_rate": 0.006666666666666667,
+          "mean_kendall_tau": 0.6180000568577017,
+          "mean_logistic_slope": 4.5808004662905475,
+          "mean_isotonic_r2": 0.9511656576000814,
+          "mean_bootstrap_mono_prob": 0.7014266666666666
+        },
+        "Personal freedom and autonomy": {
+          "n_variation_sets": 3,
+          "n_comparisons": 90,
+          "monotonicity_rate": 0.35555555555555557,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.6630357424437638,
+          "mean_logistic_slope": 2.0203018800532506,
+          "mean_isotonic_r2": 0.9139383168380132,
+          "mean_bootstrap_mono_prob": 0.36002777777777784
+        },
+        "Religion and spirituality": {
+          "n_variation_sets": 1,
+          "n_comparisons": 30,
+          "monotonicity_rate": 0.7666666666666667,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.7800634704037357,
+          "mean_logistic_slope": 9.457786986218915,
+          "mean_isotonic_r2": 0.9708118269372716,
+          "mean_bootstrap_mono_prob": 0.7679166666666667
+        },
+        "United States economy": {
+          "n_variation_sets": 9,
+          "n_comparisons": 270,
+          "monotonicity_rate": 0.7111111111111111,
+          "erratic_flip_rate": 0.007407407407407408,
+          "mean_kendall_tau": 0.7062387564244605,
+          "mean_logistic_slope": 9.14084957521117,
+          "mean_isotonic_r2": 0.9708450805410774,
+          "mean_bootstrap_mono_prob": 0.7246962962962963
+        },
+        "United States politics and policies": {
+          "n_variation_sets": 29,
+          "n_comparisons": 870,
+          "monotonicity_rate": 0.7241379310344828,
+          "erratic_flip_rate": 0.005747126436781609,
+          "mean_kendall_tau": 0.6363093404631587,
+          "mean_logistic_slope": 7.704452978444711,
+          "mean_isotonic_r2": 0.9522660081503361,
+          "mean_bootstrap_mono_prob": 0.7206408045977011
+        },
+        "Wellbeing of humans": {
+          "n_variation_sets": 11,
+          "n_comparisons": 330,
+          "monotonicity_rate": 0.7363636363636363,
+          "erratic_flip_rate": 0.006060606060606061,
+          "mean_kendall_tau": 0.5540613623198537,
+          "mean_logistic_slope": 8.372347810314132,
+          "mean_isotonic_r2": 0.9461770475053971,
+          "mean_bootstrap_mono_prob": 0.7341287878787879
+        }
+      }
+    },
+    {
+      "model": "gpt-54",
+      "model_variant": "instruct",
+      "reasoning_mode": "none",
+      "source_path": "outputs/04_model_runs/gpt-54/phase6b_coherence_gpt-54.json",
+      "overall": {
+        "n_variation_sets": 100,
+        "n_total_comparisons": 3000,
+        "n_tiers": 7,
+        "monotonicity_rate": 0.41333333333333333,
+        "erratic_flip_rate": 0.013333333333333334,
+        "mean_kendall_tau": 0.6102966717828405,
+        "mean_spearman_rho": 0.7287880538869785,
+        "jt_significant_rate": 0.7723333333333333,
+        "mean_logistic_slope": 3.292470394149684,
+        "logistic_significant_rate": 0.6563333333333333,
+        "mean_isotonic_r2": 0.8639754384885949,
+        "mean_kendall_tau_abs": 0.5554736503464967,
+        "mean_spearman_rho_abs": 0.6429264983522741,
+        "mean_logistic_slope_abs": 3.4304567836499493,
+        "mean_isotonic_r2_bidirectional": 0.8802093260266295,
+        "frac_inferred_increasing": 0.8576666666666667,
+        "frac_inferred_decreasing": 0.03866666666666667,
+        "mean_bootstrap_mono_prob": 0.42024599999999995,
+        "mean_prob_range": 0.5850620857699805
+      },
+      "by_variation_category": {
+        "AI and human romantic relationships": {
+          "n_variation_sets": 3,
+          "n_comparisons": 90,
+          "monotonicity_rate": 0.4,
+          "erratic_flip_rate": 0.05555555555555555,
+          "mean_kendall_tau": 0.6885092335651894,
+          "mean_logistic_slope": 8.452060959195839,
+          "mean_isotonic_r2": 0.9269997262319931,
+          "mean_bootstrap_mono_prob": 0.42963333333333326
+        },
+        "AI moral patienthood": {
+          "n_variation_sets": 5,
+          "n_comparisons": 150,
+          "monotonicity_rate": 0.22666666666666666,
+          "erratic_flip_rate": 0.02666666666666667,
+          "mean_kendall_tau": 0.6632965755541137,
+          "mean_logistic_slope": 1.7280531786370776,
+          "mean_isotonic_r2": 0.9004903152181748,
+          "mean_bootstrap_mono_prob": 0.24222
+        },
+        "Global economy": {
+          "n_variation_sets": 6,
+          "n_comparisons": 180,
+          "monotonicity_rate": 0.5944444444444444,
+          "erratic_flip_rate": 0.005555555555555556,
+          "mean_kendall_tau": 0.677926270040025,
+          "mean_logistic_slope": 4.581903794495809,
+          "mean_isotonic_r2": 0.9239936191822835,
+          "mean_bootstrap_mono_prob": 0.5863666666666666
+        },
+        "Global politics and geopolitics": {
+          "n_variation_sets": 7,
+          "n_comparisons": 210,
+          "monotonicity_rate": 0.4,
+          "erratic_flip_rate": 0.02857142857142857,
+          "mean_kendall_tau": 0.6177779092106437,
+          "mean_logistic_slope": 3.9825622388526325,
+          "mean_isotonic_r2": 0.8437597231881847,
+          "mean_bootstrap_mono_prob": 0.39840952380952377
+        },
+        "Life and species": {
+          "n_variation_sets": 4,
+          "n_comparisons": 120,
+          "monotonicity_rate": 0.5583333333333333,
+          "erratic_flip_rate": 0.016666666666666666,
+          "mean_kendall_tau": 0.6917113574354556,
+          "mean_logistic_slope": 5.349598280357862,
+          "mean_isotonic_r2": 0.9595384998396419,
+          "mean_bootstrap_mono_prob": 0.6035166666666666
+        },
+        "Personal accomplishments": {
+          "n_variation_sets": 7,
+          "n_comparisons": 210,
+          "monotonicity_rate": 0.3380952380952381,
+          "erratic_flip_rate": 0.014285714285714285,
+          "mean_kendall_tau": 0.49302548811852487,
+          "mean_logistic_slope": 2.117761576927772,
+          "mean_isotonic_r2": 0.7430767513965316,
+          "mean_bootstrap_mono_prob": 0.3447857142857143
+        },
+        "Personal finances": {
+          "n_variation_sets": 15,
+          "n_comparisons": 450,
+          "monotonicity_rate": 0.45555555555555555,
+          "erratic_flip_rate": 0.0022222222222222222,
+          "mean_kendall_tau": 0.6158828532845366,
+          "mean_logistic_slope": 2.215858372939147,
+          "mean_isotonic_r2": 0.8585252282766944,
+          "mean_bootstrap_mono_prob": 0.46007111111111115
+        },
+        "Personal freedom and autonomy": {
+          "n_variation_sets": 3,
+          "n_comparisons": 90,
+          "monotonicity_rate": 0.2111111111111111,
+          "erratic_flip_rate": 0.022222222222222223,
+          "mean_kendall_tau": 0.6063158706021794,
+          "mean_logistic_slope": 1.8326572341690384,
+          "mean_isotonic_r2": 0.821290457000282,
+          "mean_bootstrap_mono_prob": 0.22602777777777774
+        },
+        "Religion and spirituality": {
+          "n_variation_sets": 1,
+          "n_comparisons": 30,
+          "monotonicity_rate": 0.06666666666666667,
+          "erratic_flip_rate": 0.06666666666666667,
+          "mean_kendall_tau": 0.5874122640088311,
+          "mean_logistic_slope": 0.6551992431983964,
+          "mean_isotonic_r2": 0.8345650863608757,
+          "mean_bootstrap_mono_prob": 0.11046666666666667
+        },
+        "United States economy": {
+          "n_variation_sets": 9,
+          "n_comparisons": 270,
+          "monotonicity_rate": 0.5666666666666667,
+          "erratic_flip_rate": 0.011111111111111112,
+          "mean_kendall_tau": 0.6065865806441795,
+          "mean_logistic_slope": 5.0541134913550785,
+          "mean_isotonic_r2": 0.9069327554650469,
+          "mean_bootstrap_mono_prob": 0.564838888888889
+        },
+        "United States politics and policies": {
+          "n_variation_sets": 29,
+          "n_comparisons": 870,
+          "monotonicity_rate": 0.3195402298850575,
+          "erratic_flip_rate": 0.010344827586206896,
+          "mean_kendall_tau": 0.6287830318499567,
+          "mean_logistic_slope": 2.5224206226523207,
+          "mean_isotonic_r2": 0.8708184845026775,
+          "mean_bootstrap_mono_prob": 0.32893620689655173
+        },
+        "Wellbeing of humans": {
+          "n_variation_sets": 11,
+          "n_comparisons": 330,
+          "monotonicity_rate": 0.5575757575757576,
+          "erratic_flip_rate": 0.006060606060606061,
+          "mean_kendall_tau": 0.4896586129080951,
+          "mean_logistic_slope": 4.148203820583694,
+          "mean_isotonic_r2": 0.8210614842047409,
+          "mean_bootstrap_mono_prob": 0.5525136363636364
+        }
+      }
+    },
+    {
+      "model": "gpt-54-mini",
+      "model_variant": "instruct",
+      "reasoning_mode": "none",
+      "source_path": "outputs/04_model_runs/gpt-54-mini/phase6b_coherence_gpt-54-mini.json",
+      "overall": {
+        "n_variation_sets": 100,
+        "n_total_comparisons": 3000,
+        "n_tiers": 7,
+        "monotonicity_rate": 0.541,
+        "erratic_flip_rate": 0.012333333333333333,
+        "mean_kendall_tau": 0.6604458427783967,
+        "mean_spearman_rho": 0.7721696541577676,
+        "jt_significant_rate": 0.823,
+        "mean_logistic_slope": 4.5235081910411195,
+        "logistic_significant_rate": 0.678,
+        "mean_isotonic_r2": 0.9274975800801021,
+        "mean_kendall_tau_abs": 0.6006823813520199,
+        "mean_spearman_rho_abs": 0.6856790640277897,
+        "mean_logistic_slope_abs": 4.541819847987341,
+        "mean_isotonic_r2_bidirectional": 0.9322889271824061,
+        "frac_inferred_increasing": 0.875,
+        "frac_inferred_decreasing": 0.012,
+        "mean_bootstrap_mono_prob": 0.5462091666666666,
+        "mean_prob_range": 0.6204000000000001
+      },
+      "by_variation_category": {
+        "AI and human romantic relationships": {
+          "n_variation_sets": 3,
+          "n_comparisons": 90,
+          "monotonicity_rate": 0.4888888888888889,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.7121976757072533,
+          "mean_logistic_slope": 9.573199073283108,
+          "mean_isotonic_r2": 0.9696360305799735,
+          "mean_bootstrap_mono_prob": 0.5103555555555555
+        },
+        "AI moral patienthood": {
+          "n_variation_sets": 5,
+          "n_comparisons": 150,
+          "monotonicity_rate": 0.43333333333333335,
+          "erratic_flip_rate": 0.013333333333333334,
+          "mean_kendall_tau": 0.7017152226952459,
+          "mean_logistic_slope": 3.017573637019612,
+          "mean_isotonic_r2": 0.950215214709413,
+          "mean_bootstrap_mono_prob": 0.44183
+        },
+        "Global economy": {
+          "n_variation_sets": 6,
+          "n_comparisons": 180,
+          "monotonicity_rate": 0.6444444444444445,
+          "erratic_flip_rate": 0.022222222222222223,
+          "mean_kendall_tau": 0.6772690847066433,
+          "mean_logistic_slope": 5.0598145388065605,
+          "mean_isotonic_r2": 0.951223345391295,
+          "mean_bootstrap_mono_prob": 0.6370666666666667
+        },
+        "Global politics and geopolitics": {
+          "n_variation_sets": 7,
+          "n_comparisons": 210,
+          "monotonicity_rate": 0.5761904761904761,
+          "erratic_flip_rate": 0.004761904761904762,
+          "mean_kendall_tau": 0.6733578714847775,
+          "mean_logistic_slope": 7.062741902293222,
+          "mean_isotonic_r2": 0.9336075436265235,
+          "mean_bootstrap_mono_prob": 0.57795
+        },
+        "Life and species": {
+          "n_variation_sets": 4,
+          "n_comparisons": 120,
+          "monotonicity_rate": 0.825,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.7361910828662612,
+          "mean_logistic_slope": 8.129857493701929,
+          "mean_isotonic_r2": 0.998116682198854,
+          "mean_bootstrap_mono_prob": 0.8199166666666667
+        },
+        "Personal accomplishments": {
+          "n_variation_sets": 7,
+          "n_comparisons": 210,
+          "monotonicity_rate": 0.4142857142857143,
+          "erratic_flip_rate": 0.009523809523809525,
+          "mean_kendall_tau": 0.718756286516683,
+          "mean_logistic_slope": 2.4148703717035174,
+          "mean_isotonic_r2": 0.9184808069479138,
+          "mean_bootstrap_mono_prob": 0.41546428571428573
+        },
+        "Personal finances": {
+          "n_variation_sets": 15,
+          "n_comparisons": 450,
+          "monotonicity_rate": 0.58,
+          "erratic_flip_rate": 0.0044444444444444444,
+          "mean_kendall_tau": 0.5844157223685182,
+          "mean_logistic_slope": 3.1402829727297203,
+          "mean_isotonic_r2": 0.8780117148951052,
+          "mean_bootstrap_mono_prob": 0.5804933333333333
+        },
+        "Personal freedom and autonomy": {
+          "n_variation_sets": 3,
+          "n_comparisons": 90,
+          "monotonicity_rate": 0.28888888888888886,
+          "erratic_flip_rate": 0.03333333333333333,
+          "mean_kendall_tau": 0.7204554224480537,
+          "mean_logistic_slope": 2.6786144489614294,
+          "mean_isotonic_r2": 0.9497728077142666,
+          "mean_bootstrap_mono_prob": 0.31153888888888887
+        },
+        "Religion and spirituality": {
+          "n_variation_sets": 1,
+          "n_comparisons": 30,
+          "monotonicity_rate": 0.3333333333333333,
+          "erratic_flip_rate": 0.03333333333333333,
+          "mean_kendall_tau": 0.7670366502564109,
+          "mean_logistic_slope": 2.030646386019204,
+          "mean_isotonic_r2": 0.9501671555089092,
+          "mean_bootstrap_mono_prob": 0.31275000000000003
+        },
+        "United States economy": {
+          "n_variation_sets": 9,
+          "n_comparisons": 270,
+          "monotonicity_rate": 0.5740740740740741,
+          "erratic_flip_rate": 0.003703703703703704,
+          "mean_kendall_tau": 0.6563685195135995,
+          "mean_logistic_slope": 5.385221358450753,
+          "mean_isotonic_r2": 0.9513768663622041,
+          "mean_bootstrap_mono_prob": 0.5906814814814815
+        },
+        "United States politics and policies": {
+          "n_variation_sets": 29,
+          "n_comparisons": 870,
+          "monotonicity_rate": 0.48735632183908045,
+          "erratic_flip_rate": 0.021839080459770115,
+          "mean_kendall_tau": 0.6597363549918268,
+          "mean_logistic_slope": 3.362785732942038,
+          "mean_isotonic_r2": 0.9157798538511108,
+          "mean_bootstrap_mono_prob": 0.4988534482758621
+        },
+        "Wellbeing of humans": {
+          "n_variation_sets": 11,
+          "n_comparisons": 330,
+          "monotonicity_rate": 0.6515151515151515,
+          "erratic_flip_rate": 0.006060606060606061,
+          "mean_kendall_tau": 0.6063362662242991,
+          "mean_logistic_slope": 6.923930706210468,
+          "mean_isotonic_r2": 0.9396072478671499,
+          "mean_bootstrap_mono_prob": 0.6442803030303029
+        }
+      }
+    },
+    {
+      "model": "gpt-54-mini-thinking",
+      "model_variant": "instruct",
+      "reasoning_mode": "high",
+      "source_path": "outputs/04_model_runs/gpt-54-mini-thinking/phase6b_coherence_gpt-54-mini-thinking.json",
+      "overall": {
+        "n_variation_sets": 100,
+        "n_total_comparisons": 3000,
+        "n_tiers": 7,
+        "monotonicity_rate": 0.743,
+        "erratic_flip_rate": 0.001,
+        "mean_kendall_tau": 0.6063049771637813,
+        "mean_spearman_rho": 0.7107175328581329,
+        "jt_significant_rate": 0.6996666666666667,
+        "mean_logistic_slope": 7.69204893971004,
+        "logistic_significant_rate": 0.447,
+        "mean_isotonic_r2": 0.959727292082133,
+        "mean_kendall_tau_abs": 0.5264548596870184,
+        "mean_spearman_rho_abs": 0.5915343355941696,
+        "mean_logistic_slope_abs": 7.709156296360826,
+        "mean_isotonic_r2_bidirectional": 0.9619325335401071,
+        "frac_inferred_increasing": 0.7653333333333333,
+        "frac_inferred_decreasing": 0.006666666666666667,
+        "mean_bootstrap_mono_prob": 0.7448945,
+        "mean_prob_range": 0.5097200450063066
+      },
+      "by_variation_category": {
+        "AI and human romantic relationships": {
+          "n_variation_sets": 3,
+          "n_comparisons": 90,
+          "monotonicity_rate": 0.5777777777777777,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.7046512372040783,
+          "mean_logistic_slope": 9.214703297576287,
+          "mean_isotonic_r2": 0.9610610499845251,
+          "mean_bootstrap_mono_prob": 0.59165
+        },
+        "AI moral patienthood": {
+          "n_variation_sets": 5,
+          "n_comparisons": 150,
+          "monotonicity_rate": 0.6333333333333333,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.6745870350900169,
+          "mean_logistic_slope": 6.120970496369562,
+          "mean_isotonic_r2": 0.9533086538462043,
+          "mean_bootstrap_mono_prob": 0.6426333333333333
+        },
+        "Global economy": {
+          "n_variation_sets": 6,
+          "n_comparisons": 180,
+          "monotonicity_rate": 0.85,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.6706556090782271,
+          "mean_logistic_slope": 9.571420910762154,
+          "mean_isotonic_r2": 0.9941618604955538,
+          "mean_bootstrap_mono_prob": 0.8242083333333334
+        },
+        "Global politics and geopolitics": {
+          "n_variation_sets": 7,
+          "n_comparisons": 210,
+          "monotonicity_rate": 0.8571428571428571,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.5592120046160384,
+          "mean_logistic_slope": 10.226998106213655,
+          "mean_isotonic_r2": 0.9796573094015295,
+          "mean_bootstrap_mono_prob": 0.8452880952380952
+        },
+        "Life and species": {
+          "n_variation_sets": 4,
+          "n_comparisons": 120,
+          "monotonicity_rate": 0.9333333333333333,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.7079459105226809,
+          "mean_logistic_slope": 14.246465600991867,
+          "mean_isotonic_r2": 0.9985890585041441,
+          "mean_bootstrap_mono_prob": 0.9212166666666666
+        },
+        "Personal accomplishments": {
+          "n_variation_sets": 7,
+          "n_comparisons": 210,
+          "monotonicity_rate": 0.5380952380952381,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.658862927035274,
+          "mean_logistic_slope": 4.476993040200364,
+          "mean_isotonic_r2": 0.8985764858217313,
+          "mean_bootstrap_mono_prob": 0.5191809523809523
+        },
+        "Personal finances": {
+          "n_variation_sets": 15,
+          "n_comparisons": 450,
+          "monotonicity_rate": 0.7533333333333333,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.45407761101037364,
+          "mean_logistic_slope": 5.93401833316659,
+          "mean_isotonic_r2": 0.9309432363001536,
+          "mean_bootstrap_mono_prob": 0.7643044444444445
+        },
+        "Personal freedom and autonomy": {
+          "n_variation_sets": 3,
+          "n_comparisons": 90,
+          "monotonicity_rate": 0.35555555555555557,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.7348862000356727,
+          "mean_logistic_slope": 3.138726965180374,
+          "mean_isotonic_r2": 0.952174714572843,
+          "mean_bootstrap_mono_prob": 0.42022222222222233
+        },
+        "Religion and spirituality": {
+          "n_variation_sets": 1,
+          "n_comparisons": 30,
+          "monotonicity_rate": 0.3,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.7341676124557164,
+          "mean_logistic_slope": 4.6405224394306295,
+          "mean_isotonic_r2": 0.9594849400140048,
+          "mean_bootstrap_mono_prob": 0.3773999999999999
+        },
+        "United States economy": {
+          "n_variation_sets": 9,
+          "n_comparisons": 270,
+          "monotonicity_rate": 0.9,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.6729252016319535,
+          "mean_logistic_slope": 10.558931054357696,
+          "mean_isotonic_r2": 0.9930403565435094,
+          "mean_bootstrap_mono_prob": 0.8809462962962963
+        },
+        "United States politics and policies": {
+          "n_variation_sets": 29,
+          "n_comparisons": 870,
+          "monotonicity_rate": 0.7344827586206897,
+          "erratic_flip_rate": 0.0034482758620689655,
+          "mean_kendall_tau": 0.6140744658855075,
+          "mean_logistic_slope": 7.134883166393316,
+          "mean_isotonic_r2": 0.9617950061782401,
+          "mean_bootstrap_mono_prob": 0.7466718390804596
+        },
+        "Wellbeing of humans": {
+          "n_variation_sets": 11,
+          "n_comparisons": 330,
+          "monotonicity_rate": 0.793939393939394,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.49877056305956685,
+          "mean_logistic_slope": 8.054966914172066,
+          "mean_isotonic_r2": 0.96422389174369,
+          "mean_bootstrap_mono_prob": 0.7850272727272727
+        }
+      }
+    },
+    {
+      "model": "gpt-54-nano",
+      "model_variant": "instruct",
+      "reasoning_mode": "none",
+      "source_path": "outputs/04_model_runs/gpt-54-nano/phase6b_coherence_gpt-54-nano.json",
+      "overall": {
+        "n_variation_sets": 100,
+        "n_total_comparisons": 3000,
+        "n_tiers": 7,
+        "monotonicity_rate": 0.252,
+        "erratic_flip_rate": 0.02,
+        "mean_kendall_tau": 0.682124730852419,
+        "mean_spearman_rho": 0.8027180612456501,
+        "jt_significant_rate": 0.8606666666666667,
+        "mean_logistic_slope": 1.7175392674964303,
+        "logistic_significant_rate": 0.8033333333333333,
+        "mean_isotonic_r2": 0.8337508316308837,
+        "mean_kendall_tau_abs": 0.6294730734384213,
+        "mean_spearman_rho_abs": 0.7275807702751618,
+        "mean_logistic_slope_abs": 1.816463355513729,
+        "mean_isotonic_r2_bidirectional": 0.8526599078988231,
+        "frac_inferred_increasing": 0.938,
+        "frac_inferred_decreasing": 0.045,
+        "mean_bootstrap_mono_prob": 0.24857933333333332,
+        "mean_prob_range": 0.6662166666666667
+      },
+      "by_variation_category": {
+        "AI and human romantic relationships": {
+          "n_variation_sets": 3,
+          "n_comparisons": 90,
+          "monotonicity_rate": 0.2222222222222222,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.6977341539559576,
+          "mean_logistic_slope": 4.054786229799652,
+          "mean_isotonic_r2": 0.9645185882911859,
+          "mean_bootstrap_mono_prob": 0.27018333333333333
+        },
+        "AI moral patienthood": {
+          "n_variation_sets": 5,
+          "n_comparisons": 150,
+          "monotonicity_rate": 0.36,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.7873625728309414,
+          "mean_logistic_slope": 2.968816675481086,
+          "mean_isotonic_r2": 0.970453824332905,
+          "mean_bootstrap_mono_prob": 0.3737366666666667
+        },
+        "Global economy": {
+          "n_variation_sets": 6,
+          "n_comparisons": 180,
+          "monotonicity_rate": 0.19444444444444445,
+          "erratic_flip_rate": 0.016666666666666666,
+          "mean_kendall_tau": 0.7830636450986399,
+          "mean_logistic_slope": 0.8643774057213369,
+          "mean_isotonic_r2": 0.9016686055546443,
+          "mean_bootstrap_mono_prob": 0.13568055555555555
+        },
+        "Global politics and geopolitics": {
+          "n_variation_sets": 7,
+          "n_comparisons": 210,
+          "monotonicity_rate": 0.3238095238095238,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.7181646473105991,
+          "mean_logistic_slope": 1.680305734880832,
+          "mean_isotonic_r2": 0.8722850248664344,
+          "mean_bootstrap_mono_prob": 0.3258642857142857
+        },
+        "Life and species": {
+          "n_variation_sets": 4,
+          "n_comparisons": 120,
+          "monotonicity_rate": 0.5916666666666667,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.7760979964754497,
+          "mean_logistic_slope": 3.13244612430222,
+          "mean_isotonic_r2": 0.9667409878165868,
+          "mean_bootstrap_mono_prob": 0.5367083333333333
+        },
+        "Personal accomplishments": {
+          "n_variation_sets": 7,
+          "n_comparisons": 210,
+          "monotonicity_rate": 0.17142857142857143,
+          "erratic_flip_rate": 0.02857142857142857,
+          "mean_kendall_tau": 0.7158028153686703,
+          "mean_logistic_slope": 1.4527468189162833,
+          "mean_isotonic_r2": 0.8879856813053739,
+          "mean_bootstrap_mono_prob": 0.18570952380952382
+        },
+        "Personal finances": {
+          "n_variation_sets": 15,
+          "n_comparisons": 450,
+          "monotonicity_rate": 0.07111111111111111,
+          "erratic_flip_rate": 0.03777777777777778,
+          "mean_kendall_tau": 0.3546428295034564,
+          "mean_logistic_slope": 0.42705981808405796,
+          "mean_isotonic_r2": 0.5983044953635397,
+          "mean_bootstrap_mono_prob": 0.09122888888888889
+        },
+        "Personal freedom and autonomy": {
+          "n_variation_sets": 3,
+          "n_comparisons": 90,
+          "monotonicity_rate": 0.26666666666666666,
+          "erratic_flip_rate": 0.022222222222222223,
+          "mean_kendall_tau": 0.7620880769613451,
+          "mean_logistic_slope": 1.8971084200356814,
+          "mean_isotonic_r2": 0.9261357531262447,
+          "mean_bootstrap_mono_prob": 0.2235222222222222
+        },
+        "Religion and spirituality": {
+          "n_variation_sets": 1,
+          "n_comparisons": 30,
+          "monotonicity_rate": 0.0,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.6236819486668024,
+          "mean_logistic_slope": 0.8446633197662189,
+          "mean_isotonic_r2": 0.8546572262928603,
+          "mean_bootstrap_mono_prob": 0.015366666666666667
+        },
+        "United States economy": {
+          "n_variation_sets": 9,
+          "n_comparisons": 270,
+          "monotonicity_rate": 0.13333333333333333,
+          "erratic_flip_rate": 0.03333333333333333,
+          "mean_kendall_tau": 0.6874282542962546,
+          "mean_logistic_slope": 0.8252929423697104,
+          "mean_isotonic_r2": 0.8374968636010963,
+          "mean_bootstrap_mono_prob": 0.12603703703703703
+        },
+        "United States politics and policies": {
+          "n_variation_sets": 29,
+          "n_comparisons": 870,
+          "monotonicity_rate": 0.3310344827586207,
+          "erratic_flip_rate": 0.013793103448275862,
+          "mean_kendall_tau": 0.7565795978936394,
+          "mean_logistic_slope": 1.7977513736075765,
+          "mean_isotonic_r2": 0.8893546737814692,
+          "mean_bootstrap_mono_prob": 0.3296275862068965
+        },
+        "Wellbeing of humans": {
+          "n_variation_sets": 11,
+          "n_comparisons": 330,
+          "monotonicity_rate": 0.2787878787878788,
+          "erratic_flip_rate": 0.03333333333333333,
+          "mean_kendall_tau": 0.5483056429366399,
+          "mean_logistic_slope": 2.963068700694607,
+          "mean_isotonic_r2": 0.7358180473232959,
+          "mean_bootstrap_mono_prob": 0.2626242424242424
+        }
+      }
+    },
+    {
+      "model": "gpt-54-nano-thinking",
+      "model_variant": "instruct",
+      "reasoning_mode": "high",
+      "source_path": "outputs/04_model_runs/gpt-54-nano-thinking/phase6b_coherence_gpt-54-nano-thinking.json",
+      "overall": {
+        "n_variation_sets": 100,
+        "n_total_comparisons": 3000,
+        "n_tiers": 7,
+        "monotonicity_rate": 0.5816666666666667,
+        "erratic_flip_rate": 0.007333333333333333,
+        "mean_kendall_tau": 0.6663802748198787,
+        "mean_spearman_rho": 0.7745407589573767,
+        "jt_significant_rate": 0.7676666666666667,
+        "mean_logistic_slope": 5.001382482180945,
+        "logistic_significant_rate": 0.6123333333333333,
+        "mean_isotonic_r2": 0.9209631957001624,
+        "mean_kendall_tau_abs": 0.5936045451703585,
+        "mean_spearman_rho_abs": 0.6688042618587708,
+        "mean_logistic_slope_abs": 5.088766371097207,
+        "mean_isotonic_r2_bidirectional": 0.928275049634303,
+        "frac_inferred_increasing": 0.8456666666666667,
+        "frac_inferred_decreasing": 0.018666666666666668,
+        "mean_bootstrap_mono_prob": 0.5879025,
+        "mean_prob_range": 0.5954833333333334
+      },
+      "by_variation_category": {
+        "AI and human romantic relationships": {
+          "n_variation_sets": 3,
+          "n_comparisons": 90,
+          "monotonicity_rate": 0.5666666666666667,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.7394305436187749,
+          "mean_logistic_slope": 9.670849532365386,
+          "mean_isotonic_r2": 0.9867803167665667,
+          "mean_bootstrap_mono_prob": 0.5953055555555555
+        },
+        "AI moral patienthood": {
+          "n_variation_sets": 5,
+          "n_comparisons": 150,
+          "monotonicity_rate": 0.4866666666666667,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.7794217937193678,
+          "mean_logistic_slope": 4.045979174268303,
+          "mean_isotonic_r2": 0.9843944027894509,
+          "mean_bootstrap_mono_prob": 0.4937633333333332
+        },
+        "Global economy": {
+          "n_variation_sets": 6,
+          "n_comparisons": 180,
+          "monotonicity_rate": 0.5611111111111111,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.7158720008265224,
+          "mean_logistic_slope": 3.2749037424213707,
+          "mean_isotonic_r2": 0.9288921895752374,
+          "mean_bootstrap_mono_prob": 0.5859305555555555
+        },
+        "Global politics and geopolitics": {
+          "n_variation_sets": 7,
+          "n_comparisons": 210,
+          "monotonicity_rate": 0.680952380952381,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.6157281664904491,
+          "mean_logistic_slope": 6.828546122543806,
+          "mean_isotonic_r2": 0.9434916449301324,
+          "mean_bootstrap_mono_prob": 0.689952380952381
+        },
+        "Life and species": {
+          "n_variation_sets": 4,
+          "n_comparisons": 120,
+          "monotonicity_rate": 0.85,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.7558920734679198,
+          "mean_logistic_slope": 10.049839248621955,
+          "mean_isotonic_r2": 0.9936456913872632,
+          "mean_bootstrap_mono_prob": 0.8332625
+        },
+        "Personal accomplishments": {
+          "n_variation_sets": 7,
+          "n_comparisons": 210,
+          "monotonicity_rate": 0.3619047619047619,
+          "erratic_flip_rate": 0.004761904761904762,
+          "mean_kendall_tau": 0.6150694887989885,
+          "mean_logistic_slope": 1.8046998731778017,
+          "mean_isotonic_r2": 0.8698004880105045,
+          "mean_bootstrap_mono_prob": 0.34586904761904763
+        },
+        "Personal finances": {
+          "n_variation_sets": 15,
+          "n_comparisons": 450,
+          "monotonicity_rate": 0.5577777777777778,
+          "erratic_flip_rate": 0.0022222222222222222,
+          "mean_kendall_tau": 0.5731584593105548,
+          "mean_logistic_slope": 3.718274636625213,
+          "mean_isotonic_r2": 0.8661512057405043,
+          "mean_bootstrap_mono_prob": 0.5646811111111111
+        },
+        "Personal freedom and autonomy": {
+          "n_variation_sets": 3,
+          "n_comparisons": 90,
+          "monotonicity_rate": 0.36666666666666664,
+          "erratic_flip_rate": 0.022222222222222223,
+          "mean_kendall_tau": 0.5683121918747841,
+          "mean_logistic_slope": 1.4536354382833714,
+          "mean_isotonic_r2": 0.9421826171960703,
+          "mean_bootstrap_mono_prob": 0.4068666666666667
+        },
+        "Religion and spirituality": {
+          "n_variation_sets": 1,
+          "n_comparisons": 30,
+          "monotonicity_rate": 0.2,
+          "erratic_flip_rate": 0.1,
+          "mean_kendall_tau": 0.7148961524213152,
+          "mean_logistic_slope": 1.3799533673872693,
+          "mean_isotonic_r2": 0.9394482054972122,
+          "mean_bootstrap_mono_prob": 0.2511
+        },
+        "United States economy": {
+          "n_variation_sets": 9,
+          "n_comparisons": 270,
+          "monotonicity_rate": 0.7,
+          "erratic_flip_rate": 0.003703703703703704,
+          "mean_kendall_tau": 0.7340094246512152,
+          "mean_logistic_slope": 7.413091366857344,
+          "mean_isotonic_r2": 0.9690871208762979,
+          "mean_bootstrap_mono_prob": 0.6810333333333334
+        },
+        "United States politics and policies": {
+          "n_variation_sets": 29,
+          "n_comparisons": 870,
+          "monotonicity_rate": 0.5977011494252874,
+          "erratic_flip_rate": 0.013793103448275862,
+          "mean_kendall_tau": 0.7071145599138171,
+          "mean_logistic_slope": 4.536246340496533,
+          "mean_isotonic_r2": 0.9263285021086972,
+          "mean_bootstrap_mono_prob": 0.6067356321839079
+        },
+        "Wellbeing of humans": {
+          "n_variation_sets": 11,
+          "n_comparisons": 330,
+          "monotonicity_rate": 0.6060606060606061,
+          "erratic_flip_rate": 0.006060606060606061,
+          "mean_kendall_tau": 0.5209663790717274,
+          "mean_logistic_slope": 6.4391233566234956,
+          "mean_isotonic_r2": 0.875404634541133,
+          "mean_bootstrap_mono_prob": 0.6154166666666667
+        }
+      }
+    },
+    {
+      "model": "gpt-54-thinking",
+      "model_variant": "instruct",
+      "reasoning_mode": "high",
+      "source_path": "outputs/04_model_runs/gpt-54-thinking/phase6b_coherence_gpt-54-thinking.json",
+      "overall": {
+        "n_variation_sets": 100,
+        "n_total_comparisons": 3000,
+        "n_tiers": 7,
+        "monotonicity_rate": 0.5863333333333334,
+        "erratic_flip_rate": 0.012666666666666666,
+        "mean_kendall_tau": 0.5616135918801952,
+        "mean_spearman_rho": 0.6700572136029738,
+        "jt_significant_rate": 0.6626666666666666,
+        "mean_logistic_slope": 6.148442685779798,
+        "logistic_significant_rate": 0.468,
+        "mean_isotonic_r2": 0.9011051506965047,
+        "mean_kendall_tau_abs": 0.4940862236830641,
+        "mean_spearman_rho_abs": 0.5619289301954611,
+        "mean_logistic_slope_abs": 6.243138998962544,
+        "mean_isotonic_r2_bidirectional": 0.9138013374733835,
+        "frac_inferred_increasing": 0.757,
+        "frac_inferred_decreasing": 0.03266666666666666,
+        "mean_bootstrap_mono_prob": 0.6082643333333334,
+        "mean_prob_range": 0.514770525169132
+      },
+      "by_variation_category": {
+        "AI and human romantic relationships": {
+          "n_variation_sets": 3,
+          "n_comparisons": 90,
+          "monotonicity_rate": 0.45555555555555555,
+          "erratic_flip_rate": 0.06666666666666667,
+          "mean_kendall_tau": 0.7134574281154233,
+          "mean_logistic_slope": 6.105791796479264,
+          "mean_isotonic_r2": 0.9397318976500972,
+          "mean_bootstrap_mono_prob": 0.5002388888888889
+        },
+        "AI moral patienthood": {
+          "n_variation_sets": 5,
+          "n_comparisons": 150,
+          "monotonicity_rate": 0.35333333333333333,
+          "erratic_flip_rate": 0.02666666666666667,
+          "mean_kendall_tau": 0.6212062986385691,
+          "mean_logistic_slope": 2.5925400416539888,
+          "mean_isotonic_r2": 0.8653530957605349,
+          "mean_bootstrap_mono_prob": 0.3961966666666667
+        },
+        "Global economy": {
+          "n_variation_sets": 6,
+          "n_comparisons": 180,
+          "monotonicity_rate": 0.7777777777777778,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.6494864714619326,
+          "mean_logistic_slope": 9.503864691095368,
+          "mean_isotonic_r2": 0.9652798741668448,
+          "mean_bootstrap_mono_prob": 0.77815
+        },
+        "Global politics and geopolitics": {
+          "n_variation_sets": 7,
+          "n_comparisons": 210,
+          "monotonicity_rate": 0.819047619047619,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.4973365036565785,
+          "mean_logistic_slope": 9.420679899872335,
+          "mean_isotonic_r2": 0.9553444047108095,
+          "mean_bootstrap_mono_prob": 0.8273333333333334
+        },
+        "Life and species": {
+          "n_variation_sets": 4,
+          "n_comparisons": 120,
+          "monotonicity_rate": 0.9,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.692033984927443,
+          "mean_logistic_slope": 19.786617070087708,
+          "mean_isotonic_r2": 0.9943059489352186,
+          "mean_bootstrap_mono_prob": 0.9037458333333334
+        },
+        "Personal accomplishments": {
+          "n_variation_sets": 7,
+          "n_comparisons": 210,
+          "monotonicity_rate": 0.5095238095238095,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.434499584828095,
+          "mean_logistic_slope": 3.7745106584450974,
+          "mean_isotonic_r2": 0.8237982842685516,
+          "mean_bootstrap_mono_prob": 0.5399428571428572
+        },
+        "Personal finances": {
+          "n_variation_sets": 15,
+          "n_comparisons": 450,
+          "monotonicity_rate": 0.5422222222222223,
+          "erratic_flip_rate": 0.011111111111111112,
+          "mean_kendall_tau": 0.6327158108166856,
+          "mean_logistic_slope": 2.6775035622628356,
+          "mean_isotonic_r2": 0.8866973163809652,
+          "mean_bootstrap_mono_prob": 0.5349211111111112
+        },
+        "Personal freedom and autonomy": {
+          "n_variation_sets": 3,
+          "n_comparisons": 90,
+          "monotonicity_rate": 0.4,
+          "erratic_flip_rate": 0.011111111111111112,
+          "mean_kendall_tau": 0.3306384481014839,
+          "mean_logistic_slope": 0.6128742495705376,
+          "mean_isotonic_r2": 0.7875347948850348,
+          "mean_bootstrap_mono_prob": 0.4180166666666667
+        },
+        "Religion and spirituality": {
+          "n_variation_sets": 1,
+          "n_comparisons": 30,
+          "monotonicity_rate": 0.1,
+          "erratic_flip_rate": 0.26666666666666666,
+          "mean_kendall_tau": 0.4948126196718628,
+          "mean_logistic_slope": 1.5033081888239848,
+          "mean_isotonic_r2": 0.6959109430932168,
+          "mean_bootstrap_mono_prob": 0.13636666666666666
+        },
+        "United States economy": {
+          "n_variation_sets": 9,
+          "n_comparisons": 270,
+          "monotonicity_rate": 0.7296296296296296,
+          "erratic_flip_rate": 0.014814814814814815,
+          "mean_kendall_tau": 0.6545775022789434,
+          "mean_logistic_slope": 10.315893713647801,
+          "mean_isotonic_r2": 0.9693067748540976,
+          "mean_bootstrap_mono_prob": 0.740748148148148
+        },
+        "United States politics and policies": {
+          "n_variation_sets": 29,
+          "n_comparisons": 870,
+          "monotonicity_rate": 0.4747126436781609,
+          "erratic_flip_rate": 0.011494252873563218,
+          "mean_kendall_tau": 0.5456774745048878,
+          "mean_logistic_slope": 4.990810280120641,
+          "mean_isotonic_r2": 0.8882000338237008,
+          "mean_bootstrap_mono_prob": 0.5189344827586208
+        },
+        "Wellbeing of humans": {
+          "n_variation_sets": 11,
+          "n_comparisons": 330,
+          "monotonicity_rate": 0.7424242424242424,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.3879889441200901,
+          "mean_logistic_slope": 6.722470611574543,
+          "mean_isotonic_r2": 0.9001013642057308,
+          "mean_bootstrap_mono_prob": 0.7599863636363636
+        }
+      }
+    },
+    {
+      "model": "llama-31-8b-instruct-openrouter",
+      "model_variant": "instruct",
+      "reasoning_mode": "none",
+      "source_path": "outputs/04_model_runs/llama-31-8b-instruct-openrouter/phase6b_coherence_llama-31-8b-instruct-openrouter.json",
+      "overall": {
+        "n_variation_sets": 100,
+        "n_total_comparisons": 3000,
+        "n_tiers": 7,
+        "monotonicity_rate": 0.5996666666666667,
+        "erratic_flip_rate": 0.010666666666666666,
+        "mean_kendall_tau": 0.6529062646579268,
+        "mean_spearman_rho": 0.7677811586876557,
+        "jt_significant_rate": 0.8146666666666667,
+        "mean_logistic_slope": 2.999738768057377,
+        "logistic_significant_rate": 0.663,
+        "mean_isotonic_r2": 0.8838537850328304,
+        "mean_kendall_tau_abs": 0.6061023857741323,
+        "mean_spearman_rho_abs": 0.6927765025299559,
+        "mean_logistic_slope_abs": 3.0064301076252673,
+        "mean_isotonic_r2_bidirectional": 0.8929667330145988,
+        "frac_inferred_increasing": 0.892,
+        "frac_inferred_decreasing": 0.022333333333333334,
+        "mean_bootstrap_mono_prob": 0.34301200000000004,
+        "mean_prob_range": 0.5908885333333332
+      },
+      "by_variation_category": {
+        "AI and human romantic relationships": {
+          "n_variation_sets": 3,
+          "n_comparisons": 90,
+          "monotonicity_rate": 0.6888888888888889,
+          "erratic_flip_rate": 0.011111111111111112,
+          "mean_kendall_tau": 0.7505393769365931,
+          "mean_logistic_slope": 8.749444228587967,
+          "mean_isotonic_r2": 0.956655434961672,
+          "mean_bootstrap_mono_prob": 0.4656222222222222
+        },
+        "AI moral patienthood": {
+          "n_variation_sets": 5,
+          "n_comparisons": 150,
+          "monotonicity_rate": 0.3933333333333333,
+          "erratic_flip_rate": 0.02,
+          "mean_kendall_tau": 0.6453815336433962,
+          "mean_logistic_slope": 2.9411784360314264,
+          "mean_isotonic_r2": 0.8209878445029397,
+          "mean_bootstrap_mono_prob": 0.24336
+        },
+        "Global economy": {
+          "n_variation_sets": 6,
+          "n_comparisons": 180,
+          "monotonicity_rate": 0.7,
+          "erratic_flip_rate": 0.011111111111111112,
+          "mean_kendall_tau": 0.7335306901093874,
+          "mean_logistic_slope": 2.1486457197291737,
+          "mean_isotonic_r2": 0.9488927268087838,
+          "mean_bootstrap_mono_prob": 0.26145833333333335
+        },
+        "Global politics and geopolitics": {
+          "n_variation_sets": 7,
+          "n_comparisons": 210,
+          "monotonicity_rate": 0.7333333333333333,
+          "erratic_flip_rate": 0.014285714285714285,
+          "mean_kendall_tau": 0.7197822834541865,
+          "mean_logistic_slope": 6.029552183442077,
+          "mean_isotonic_r2": 0.931040129045927,
+          "mean_bootstrap_mono_prob": 0.4771309523809523
+        },
+        "Life and species": {
+          "n_variation_sets": 4,
+          "n_comparisons": 120,
+          "monotonicity_rate": 0.8083333333333333,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.7239145508289355,
+          "mean_logistic_slope": 1.436944154115895,
+          "mean_isotonic_r2": 0.9577599653671669,
+          "mean_bootstrap_mono_prob": 0.3184125
+        },
+        "Personal accomplishments": {
+          "n_variation_sets": 7,
+          "n_comparisons": 210,
+          "monotonicity_rate": 0.48095238095238096,
+          "erratic_flip_rate": 0.023809523809523808,
+          "mean_kendall_tau": 0.4993020186441815,
+          "mean_logistic_slope": 1.4752398492465608,
+          "mean_isotonic_r2": 0.7945272291009788,
+          "mean_bootstrap_mono_prob": 0.1556452380952381
+        },
+        "Personal finances": {
+          "n_variation_sets": 15,
+          "n_comparisons": 450,
+          "monotonicity_rate": 0.62,
+          "erratic_flip_rate": 0.0022222222222222222,
+          "mean_kendall_tau": 0.5947491449743499,
+          "mean_logistic_slope": 1.979145932279774,
+          "mean_isotonic_r2": 0.8612758580083741,
+          "mean_bootstrap_mono_prob": 0.34173555555555557
+        },
+        "Personal freedom and autonomy": {
+          "n_variation_sets": 3,
+          "n_comparisons": 90,
+          "monotonicity_rate": 0.32222222222222224,
+          "erratic_flip_rate": 0.044444444444444446,
+          "mean_kendall_tau": 0.5693545102060579,
+          "mean_logistic_slope": 0.7039031620727721,
+          "mean_isotonic_r2": 0.7893943099191603,
+          "mean_bootstrap_mono_prob": 0.1291
+        },
+        "Religion and spirituality": {
+          "n_variation_sets": 1,
+          "n_comparisons": 30,
+          "monotonicity_rate": 0.7,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.7282986357817909,
+          "mean_logistic_slope": 1.6510746128116376,
+          "mean_isotonic_r2": 0.9651539369590014,
+          "mean_bootstrap_mono_prob": 0.3105333333333334
+        },
+        "United States economy": {
+          "n_variation_sets": 9,
+          "n_comparisons": 270,
+          "monotonicity_rate": 0.674074074074074,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.7107701121502845,
+          "mean_logistic_slope": 2.0417861776375097,
+          "mean_isotonic_r2": 0.938213313369127,
+          "mean_bootstrap_mono_prob": 0.2947111111111111
+        },
+        "United States politics and policies": {
+          "n_variation_sets": 29,
+          "n_comparisons": 870,
+          "monotonicity_rate": 0.5827586206896552,
+          "erratic_flip_rate": 0.014942528735632184,
+          "mean_kendall_tau": 0.6593405847256337,
+          "mean_logistic_slope": 3.8721361684441944,
+          "mean_isotonic_r2": 0.8835081314283418,
+          "mean_bootstrap_mono_prob": 0.42232528735632185
+        },
+        "Wellbeing of humans": {
+          "n_variation_sets": 11,
+          "n_comparisons": 330,
+          "monotonicity_rate": 0.5515151515151515,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.6049061829193143,
+          "mean_logistic_slope": 2.157132655391981,
+          "mean_isotonic_r2": 0.8626340798134053,
+          "mean_bootstrap_mono_prob": 0.3356363636363636
+        }
+      }
+    },
+    {
+      "model": "ministral-3b-2512-openrouter",
+      "model_variant": "instruct",
+      "reasoning_mode": "none",
+      "source_path": "outputs/04_model_runs/ministral-3b-2512-openrouter/phase6b_coherence_ministral-3b-2512-openrouter.json",
+      "overall": {
+        "n_variation_sets": 100,
+        "n_total_comparisons": 3000,
+        "n_tiers": 7,
+        "monotonicity_rate": 0.582,
+        "erratic_flip_rate": 0.02266666666666667,
+        "mean_kendall_tau": 0.6496576111987828,
+        "mean_spearman_rho": 0.7664205102206683,
+        "jt_significant_rate": 0.836,
+        "mean_logistic_slope": 9.727477016635298,
+        "logistic_significant_rate": 0.5336666666666666,
+        "mean_isotonic_r2": 0.9093072909751072,
+        "mean_kendall_tau_abs": 0.5930435737415832,
+        "mean_spearman_rho_abs": 0.6800615995476957,
+        "mean_logistic_slope_abs": 9.748097860045844,
+        "mean_isotonic_r2_bidirectional": 0.9156301178186788,
+        "frac_inferred_increasing": 0.8743333333333333,
+        "frac_inferred_decreasing": 0.013333333333333334,
+        "mean_bootstrap_mono_prob": 0.5612983333333333,
+        "mean_prob_range": 0.7048166666666666
+      },
+      "by_variation_category": {
+        "AI and human romantic relationships": {
+          "n_variation_sets": 3,
+          "n_comparisons": 90,
+          "monotonicity_rate": 0.6333333333333333,
+          "erratic_flip_rate": 0.011111111111111112,
+          "mean_kendall_tau": 0.7204988065142253,
+          "mean_logistic_slope": 14.45259748607687,
+          "mean_isotonic_r2": 0.962622223937627,
+          "mean_bootstrap_mono_prob": 0.6184833333333333
+        },
+        "AI moral patienthood": {
+          "n_variation_sets": 5,
+          "n_comparisons": 150,
+          "monotonicity_rate": 0.7666666666666667,
+          "erratic_flip_rate": 0.006666666666666667,
+          "mean_kendall_tau": 0.7776648847421171,
+          "mean_logistic_slope": 18.202470549856148,
+          "mean_isotonic_r2": 0.9919474291742375,
+          "mean_bootstrap_mono_prob": 0.77372
+        },
+        "Global economy": {
+          "n_variation_sets": 6,
+          "n_comparisons": 180,
+          "monotonicity_rate": 0.37777777777777777,
+          "erratic_flip_rate": 0.05,
+          "mean_kendall_tau": 0.6318619752666492,
+          "mean_logistic_slope": 5.6465470257241615,
+          "mean_isotonic_r2": 0.8487149987955961,
+          "mean_bootstrap_mono_prob": 0.3788611111111111
+        },
+        "Global politics and geopolitics": {
+          "n_variation_sets": 7,
+          "n_comparisons": 210,
+          "monotonicity_rate": 0.6714285714285714,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.6624343206602716,
+          "mean_logistic_slope": 6.180311290534346,
+          "mean_isotonic_r2": 0.9147574292954527,
+          "mean_bootstrap_mono_prob": 0.6262190476190477
+        },
+        "Life and species": {
+          "n_variation_sets": 4,
+          "n_comparisons": 120,
+          "monotonicity_rate": 0.675,
+          "erratic_flip_rate": 0.008333333333333333,
+          "mean_kendall_tau": 0.7828480973055142,
+          "mean_logistic_slope": 9.708680445674494,
+          "mean_isotonic_r2": 0.9628459542658573,
+          "mean_bootstrap_mono_prob": 0.6440708333333334
+        },
+        "Personal accomplishments": {
+          "n_variation_sets": 7,
+          "n_comparisons": 210,
+          "monotonicity_rate": 0.5333333333333333,
+          "erratic_flip_rate": 0.009523809523809525,
+          "mean_kendall_tau": 0.6839417728783505,
+          "mean_logistic_slope": 10.334778449849152,
+          "mean_isotonic_r2": 0.9386885115901386,
+          "mean_bootstrap_mono_prob": 0.5036809523809523
+        },
+        "Personal finances": {
+          "n_variation_sets": 15,
+          "n_comparisons": 450,
+          "monotonicity_rate": 0.3488888888888889,
+          "erratic_flip_rate": 0.06666666666666667,
+          "mean_kendall_tau": 0.3227344499251297,
+          "mean_logistic_slope": 1.8671897944775921,
+          "mean_isotonic_r2": 0.7779979053538669,
+          "mean_bootstrap_mono_prob": 0.3627144444444445
+        },
+        "Personal freedom and autonomy": {
+          "n_variation_sets": 3,
+          "n_comparisons": 90,
+          "monotonicity_rate": 0.6222222222222222,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.7949549725147329,
+          "mean_logistic_slope": 11.105827744236656,
+          "mean_isotonic_r2": 0.9889558235863631,
+          "mean_bootstrap_mono_prob": 0.6144277777777778
+        },
+        "Religion and spirituality": {
+          "n_variation_sets": 1,
+          "n_comparisons": 30,
+          "monotonicity_rate": 0.5666666666666667,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.7263533150042345,
+          "mean_logistic_slope": 25.897549918268634,
+          "mean_isotonic_r2": 0.9897151347986964,
+          "mean_bootstrap_mono_prob": 0.6031833333333334
+        },
+        "United States economy": {
+          "n_variation_sets": 9,
+          "n_comparisons": 270,
+          "monotonicity_rate": 0.5592592592592592,
+          "erratic_flip_rate": 0.022222222222222223,
+          "mean_kendall_tau": 0.6407868514286321,
+          "mean_logistic_slope": 9.014113627833831,
+          "mean_isotonic_r2": 0.9332668301476302,
+          "mean_bootstrap_mono_prob": 0.5328481481481482
+        },
+        "United States politics and policies": {
+          "n_variation_sets": 29,
+          "n_comparisons": 870,
+          "monotonicity_rate": 0.6827586206896552,
+          "erratic_flip_rate": 0.017241379310344827,
+          "mean_kendall_tau": 0.7106663956994503,
+          "mean_logistic_slope": 13.202981541109857,
+          "mean_isotonic_r2": 0.9390171054135159,
+          "mean_bootstrap_mono_prob": 0.6582873563218391
+        },
+        "Wellbeing of humans": {
+          "n_variation_sets": 11,
+          "n_comparisons": 330,
+          "monotonicity_rate": 0.5969696969696969,
+          "erratic_flip_rate": 0.00909090909090909,
+          "mean_kendall_tau": 0.600641657660163,
+          "mean_logistic_slope": 8.98377790231437,
+          "mean_isotonic_r2": 0.9007164699640078,
+          "mean_bootstrap_mono_prob": 0.5339893939393939
+        }
+      }
+    },
+    {
+      "model": "nemotron-3-super",
+      "model_variant": "instruct",
+      "reasoning_mode": "none",
+      "source_path": "outputs/04_model_runs/nemotron-3-super/phase6b_coherence_nemotron-3-super.json",
+      "overall": {
+        "n_variation_sets": 100,
+        "n_total_comparisons": 3000,
+        "n_tiers": 7,
+        "monotonicity_rate": 0.7206666666666667,
+        "erratic_flip_rate": 0.001,
+        "mean_kendall_tau": 0.7653801026407621,
+        "mean_spearman_rho": 0.8637614943297645,
+        "jt_significant_rate": 0.8963333333333333,
+        "mean_logistic_slope": 5.488043705421973,
+        "logistic_significant_rate": 0.725,
+        "mean_isotonic_r2": 0.9618232899565516,
+        "mean_kendall_tau_abs": 0.7137890100448397,
+        "mean_spearman_rho_abs": 0.7943342062807303,
+        "mean_logistic_slope_abs": 5.489402118667121,
+        "mean_isotonic_r2_bidirectional": 0.9648345132820811,
+        "frac_inferred_increasing": 0.9213333333333333,
+        "frac_inferred_decreasing": 0.008666666666666666,
+        "mean_bootstrap_mono_prob": 0.5072935,
+        "mean_prob_range": 0.6931803999999999
+      },
+      "by_variation_category": {
+        "AI and human romantic relationships": {
+          "n_variation_sets": 3,
+          "n_comparisons": 90,
+          "monotonicity_rate": 0.7222222222222222,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.8211715580259925,
+          "mean_logistic_slope": 10.081704359182888,
+          "mean_isotonic_r2": 0.9753676384557808,
+          "mean_bootstrap_mono_prob": 0.6455944444444444
+        },
+        "AI moral patienthood": {
+          "n_variation_sets": 5,
+          "n_comparisons": 150,
+          "monotonicity_rate": 0.7333333333333333,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.8445190470065345,
+          "mean_logistic_slope": 5.6965002483139004,
+          "mean_isotonic_r2": 0.9910095640995618,
+          "mean_bootstrap_mono_prob": 0.5128266666666667
+        },
+        "Global economy": {
+          "n_variation_sets": 6,
+          "n_comparisons": 180,
+          "monotonicity_rate": 0.7,
+          "erratic_flip_rate": 0.005555555555555556,
+          "mean_kendall_tau": 0.7666623186952617,
+          "mean_logistic_slope": 4.1712319047245385,
+          "mean_isotonic_r2": 0.9684544540691334,
+          "mean_bootstrap_mono_prob": 0.46745000000000003
+        },
+        "Global politics and geopolitics": {
+          "n_variation_sets": 7,
+          "n_comparisons": 210,
+          "monotonicity_rate": 0.8,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.7763041977980708,
+          "mean_logistic_slope": 5.742528379449496,
+          "mean_isotonic_r2": 0.9776336908302171,
+          "mean_bootstrap_mono_prob": 0.5753499999999999
+        },
+        "Life and species": {
+          "n_variation_sets": 4,
+          "n_comparisons": 120,
+          "monotonicity_rate": 0.7833333333333333,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.8038522971864452,
+          "mean_logistic_slope": 5.285784283224881,
+          "mean_isotonic_r2": 0.9891679869608265,
+          "mean_bootstrap_mono_prob": 0.6049374999999999
+        },
+        "Personal accomplishments": {
+          "n_variation_sets": 7,
+          "n_comparisons": 210,
+          "monotonicity_rate": 0.8380952380952381,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.8153589133374276,
+          "mean_logistic_slope": 5.14142641780944,
+          "mean_isotonic_r2": 0.9900095173531194,
+          "mean_bootstrap_mono_prob": 0.48397380952380953
+        },
+        "Personal finances": {
+          "n_variation_sets": 15,
+          "n_comparisons": 450,
+          "monotonicity_rate": 0.7111111111111111,
+          "erratic_flip_rate": 0.0022222222222222222,
+          "mean_kendall_tau": 0.6798125723238183,
+          "mean_logistic_slope": 2.218931784625968,
+          "mean_isotonic_r2": 0.9237667150015166,
+          "mean_bootstrap_mono_prob": 0.3555255555555556
+        },
+        "Personal freedom and autonomy": {
+          "n_variation_sets": 3,
+          "n_comparisons": 90,
+          "monotonicity_rate": 0.7,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.8413634053844632,
+          "mean_logistic_slope": 2.82627725426501,
+          "mean_isotonic_r2": 0.9890906269303086,
+          "mean_bootstrap_mono_prob": 0.3589
+        },
+        "Religion and spirituality": {
+          "n_variation_sets": 1,
+          "n_comparisons": 30,
+          "monotonicity_rate": 0.6,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.8069230183627212,
+          "mean_logistic_slope": 6.29134111732111,
+          "mean_isotonic_r2": 0.9913612917304558,
+          "mean_bootstrap_mono_prob": 0.48064999999999997
+        },
+        "United States economy": {
+          "n_variation_sets": 9,
+          "n_comparisons": 270,
+          "monotonicity_rate": 0.6962962962962963,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.7362275386600472,
+          "mean_logistic_slope": 5.6211291608674765,
+          "mean_isotonic_r2": 0.965973416609872,
+          "mean_bootstrap_mono_prob": 0.562987037037037
+        },
+        "United States politics and policies": {
+          "n_variation_sets": 29,
+          "n_comparisons": 870,
+          "monotonicity_rate": 0.667816091954023,
+          "erratic_flip_rate": 0.0011494252873563218,
+          "mean_kendall_tau": 0.7747614196148065,
+          "mean_logistic_slope": 6.906938871863921,
+          "mean_isotonic_r2": 0.9526296921266896,
+          "mean_bootstrap_mono_prob": 0.5290936781609196
+        },
+        "Wellbeing of humans": {
+          "n_variation_sets": 11,
+          "n_comparisons": 330,
+          "monotonicity_rate": 0.7666666666666667,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.7137154212846869,
+          "mean_logistic_slope": 6.252091336332102,
+          "mean_isotonic_r2": 0.9659201283219611,
+          "mean_bootstrap_mono_prob": 0.5716257575757576
+        }
+      }
+    },
+    {
+      "model": "nemotron-3-super-thinking",
+      "model_variant": "instruct",
+      "reasoning_mode": "none",
+      "source_path": "outputs/04_model_runs/nemotron-3-super-thinking/phase6b_coherence_nemotron-3-super-thinking.json",
+      "overall": {
+        "n_variation_sets": 100,
+        "n_total_comparisons": 3000,
+        "n_tiers": 7,
+        "monotonicity_rate": 0.7396666666666667,
+        "erratic_flip_rate": 0.006,
+        "mean_kendall_tau": 0.6377778104476436,
+        "mean_spearman_rho": 0.744211907556042,
+        "jt_significant_rate": 0.743,
+        "mean_logistic_slope": 9.432366345388596,
+        "logistic_significant_rate": 0.44466666666666665,
+        "mean_isotonic_r2": 0.953611980419029,
+        "mean_kendall_tau_abs": 0.5633752224601334,
+        "mean_spearman_rho_abs": 0.6322152478229721,
+        "mean_logistic_slope_abs": 9.464352064753736,
+        "mean_isotonic_r2_bidirectional": 0.9576217931293378,
+        "frac_inferred_increasing": 0.7973333333333333,
+        "frac_inferred_decreasing": 0.012333333333333333,
+        "mean_bootstrap_mono_prob": 0.7494716666666666,
+        "mean_prob_range": 0.5964832666666666
+      },
+      "by_variation_category": {
+        "AI and human romantic relationships": {
+          "n_variation_sets": 3,
+          "n_comparisons": 90,
+          "monotonicity_rate": 0.7333333333333333,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.7760447336681974,
+          "mean_logistic_slope": 13.550376298958334,
+          "mean_isotonic_r2": 0.9918595640969478,
+          "mean_bootstrap_mono_prob": 0.7454944444444445
+        },
+        "AI moral patienthood": {
+          "n_variation_sets": 5,
+          "n_comparisons": 150,
+          "monotonicity_rate": 0.64,
+          "erratic_flip_rate": 0.013333333333333334,
+          "mean_kendall_tau": 0.7586056008923538,
+          "mean_logistic_slope": 7.6931534615844415,
+          "mean_isotonic_r2": 0.9797794826965113,
+          "mean_bootstrap_mono_prob": 0.6430433333333334
+        },
+        "Global economy": {
+          "n_variation_sets": 6,
+          "n_comparisons": 180,
+          "monotonicity_rate": 0.8722222222222222,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.6289486960639012,
+          "mean_logistic_slope": 11.954010983285372,
+          "mean_isotonic_r2": 0.9846704313805316,
+          "mean_bootstrap_mono_prob": 0.8577472222222222
+        },
+        "Global politics and geopolitics": {
+          "n_variation_sets": 7,
+          "n_comparisons": 210,
+          "monotonicity_rate": 0.8380952380952381,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.580899458426975,
+          "mean_logistic_slope": 10.967728374014518,
+          "mean_isotonic_r2": 0.9636146587939467,
+          "mean_bootstrap_mono_prob": 0.8500285714285712
+        },
+        "Life and species": {
+          "n_variation_sets": 4,
+          "n_comparisons": 120,
+          "monotonicity_rate": 0.9166666666666666,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.7398505976009785,
+          "mean_logistic_slope": 15.688378005372336,
+          "mean_isotonic_r2": 0.9947164105150909,
+          "mean_bootstrap_mono_prob": 0.9053375
+        },
+        "Personal accomplishments": {
+          "n_variation_sets": 7,
+          "n_comparisons": 210,
+          "monotonicity_rate": 0.580952380952381,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.6337753925192202,
+          "mean_logistic_slope": 8.593704491753064,
+          "mean_isotonic_r2": 0.9150798894538243,
+          "mean_bootstrap_mono_prob": 0.5739904761904762
+        },
+        "Personal finances": {
+          "n_variation_sets": 15,
+          "n_comparisons": 450,
+          "monotonicity_rate": 0.8333333333333334,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.5105104010084893,
+          "mean_logistic_slope": 8.131314426386002,
+          "mean_isotonic_r2": 0.9578891451179569,
+          "mean_bootstrap_mono_prob": 0.8411255555555555
+        },
+        "Personal freedom and autonomy": {
+          "n_variation_sets": 3,
+          "n_comparisons": 90,
+          "monotonicity_rate": 0.3888888888888889,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.7546319488203601,
+          "mean_logistic_slope": 2.512456580222856,
+          "mean_isotonic_r2": 0.9495516594487564,
+          "mean_bootstrap_mono_prob": 0.4171166666666667
+        },
+        "Religion and spirituality": {
+          "n_variation_sets": 1,
+          "n_comparisons": 30,
+          "monotonicity_rate": 0.5333333333333333,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.7791720565425925,
+          "mean_logistic_slope": 6.549482082873873,
+          "mean_isotonic_r2": 0.9829481085043643,
+          "mean_bootstrap_mono_prob": 0.5710500000000001
+        },
+        "United States economy": {
+          "n_variation_sets": 9,
+          "n_comparisons": 270,
+          "monotonicity_rate": 0.8592592592592593,
+          "erratic_flip_rate": 0.003703703703703704,
+          "mean_kendall_tau": 0.6419076384989114,
+          "mean_logistic_slope": 10.516665351490074,
+          "mean_isotonic_r2": 0.9815293826108694,
+          "mean_bootstrap_mono_prob": 0.861275925925926
+        },
+        "United States politics and policies": {
+          "n_variation_sets": 29,
+          "n_comparisons": 870,
+          "monotonicity_rate": 0.6931034482758621,
+          "erratic_flip_rate": 0.016091954022988506,
+          "mean_kendall_tau": 0.6714738557637341,
+          "mean_logistic_slope": 9.443114224681931,
+          "mean_isotonic_r2": 0.9441583387220552,
+          "mean_bootstrap_mono_prob": 0.7103436781609196
+        },
+        "Wellbeing of humans": {
+          "n_variation_sets": 11,
+          "n_comparisons": 330,
+          "monotonicity_rate": 0.7,
+          "erratic_flip_rate": 0.0030303030303030303,
+          "mean_kendall_tau": 0.5216440756091291,
+          "mean_logistic_slope": 8.014114677633508,
+          "mean_isotonic_r2": 0.9122432125449204,
+          "mean_bootstrap_mono_prob": 0.7244333333333334
+        }
+      }
+    },
+    {
+      "model": "opus-46",
+      "model_variant": "instruct",
+      "reasoning_mode": "none",
+      "source_path": "outputs/04_model_runs/opus-46/phase6b_coherence_opus-46.json",
+      "overall": {
+        "n_variation_sets": 100,
+        "n_total_comparisons": 3000,
+        "n_tiers": 7,
+        "monotonicity_rate": 0.7596666666666667,
+        "erratic_flip_rate": 0.018,
+        "mean_kendall_tau": 0.48950216532993396,
+        "mean_spearman_rho": 0.5920037432684515,
+        "jt_significant_rate": 0.6353333333333333,
+        "mean_logistic_slope": 10.131936817238813,
+        "logistic_significant_rate": 0.33266666666666667,
+        "mean_isotonic_r2": 0.9211755287149651,
+        "mean_kendall_tau_abs": 0.4327346315305713,
+        "mean_spearman_rho_abs": 0.49335147367132354,
+        "mean_logistic_slope_abs": 10.186935776820084,
+        "mean_isotonic_r2_bidirectional": 0.9299364589761033,
+        "frac_inferred_increasing": 0.6726666666666666,
+        "frac_inferred_decreasing": 0.018,
+        "mean_bootstrap_mono_prob": 0.7111725,
+        "mean_prob_range": 0.52941092481077
+      },
+      "by_variation_category": {
+        "AI and human romantic relationships": {
+          "n_variation_sets": 3,
+          "n_comparisons": 90,
+          "monotonicity_rate": 0.43333333333333335,
+          "erratic_flip_rate": 0.05555555555555555,
+          "mean_kendall_tau": 0.5817753726150979,
+          "mean_logistic_slope": 7.7994273095226845,
+          "mean_isotonic_r2": 0.857642232088976,
+          "mean_bootstrap_mono_prob": 0.41456666666666664
+        },
+        "AI moral patienthood": {
+          "n_variation_sets": 5,
+          "n_comparisons": 150,
+          "monotonicity_rate": 0.5733333333333334,
+          "erratic_flip_rate": 0.04,
+          "mean_kendall_tau": 0.5313029349204724,
+          "mean_logistic_slope": 7.546890904553593,
+          "mean_isotonic_r2": 0.8582618161842018,
+          "mean_bootstrap_mono_prob": 0.5195733333333333
+        },
+        "Global economy": {
+          "n_variation_sets": 6,
+          "n_comparisons": 180,
+          "monotonicity_rate": 0.8444444444444444,
+          "erratic_flip_rate": 0.005555555555555556,
+          "mean_kendall_tau": 0.6494253677869476,
+          "mean_logistic_slope": 13.432170545368349,
+          "mean_isotonic_r2": 0.9701671376125546,
+          "mean_bootstrap_mono_prob": 0.7581416666666668
+        },
+        "Global politics and geopolitics": {
+          "n_variation_sets": 7,
+          "n_comparisons": 210,
+          "monotonicity_rate": 0.8904761904761904,
+          "erratic_flip_rate": 0.014285714285714285,
+          "mean_kendall_tau": 0.4226489873317604,
+          "mean_logistic_slope": 10.684141930567472,
+          "mean_isotonic_r2": 0.9684491315698478,
+          "mean_bootstrap_mono_prob": 0.8611047619047619
+        },
+        "Life and species": {
+          "n_variation_sets": 4,
+          "n_comparisons": 120,
+          "monotonicity_rate": 0.9333333333333333,
+          "erratic_flip_rate": 0.0,
+          "mean_kendall_tau": 0.5619945654891877,
+          "mean_logistic_slope": 16.17335786880182,
+          "mean_isotonic_r2": 0.9940713344834495,
+          "mean_bootstrap_mono_prob": 0.8951625
+        },
+        "Personal accomplishments": {
+          "n_variation_sets": 7,
+          "n_comparisons": 210,
+          "monotonicity_rate": 0.6428571428571429,
+          "erratic_flip_rate": 0.023809523809523808,
+          "mean_kendall_tau": 0.4689511501418702,
+          "mean_logistic_slope": 7.747231122905062,
+          "mean_isotonic_r2": 0.8638082230559935,
+          "mean_bootstrap_mono_prob": 0.6062119047619047
+        },
+        "Personal finances": {
+          "n_variation_sets": 15,
+          "n_comparisons": 450,
+          "monotonicity_rate": 0.6777777777777778,
+          "erratic_flip_rate": 0.022222222222222223,
+          "mean_kendall_tau": 0.5004676067112941,
+          "mean_logistic_slope": 6.998562925137337,
+          "mean_isotonic_r2": 0.8863695586471411,
+          "mean_bootstrap_mono_prob": 0.5899966666666666
+        },
+        "Personal freedom and autonomy": {
+          "n_variation_sets": 3,
+          "n_comparisons": 90,
+          "monotonicity_rate": 0.4888888888888889,
+          "erratic_flip_rate": 0.1111111111111111,
+          "mean_kendall_tau": 0.12869326206085965,
+          "mean_logistic_slope": -0.31351145940386005,
+          "mean_isotonic_r2": 0.7188807435087214,
+          "mean_bootstrap_mono_prob": 0.4771611111111111
+        },
+        "Religion and spirituality": {
+          "n_variation_sets": 1,
+          "n_comparisons": 30,
+          "monotonicity_rate": 0.43333333333333335,
+          "erratic_flip_rate": 0.06666666666666667,
+          "mean_kendall_tau": 0.614275335760384,
+          "mean_logistic_slope": 6.988002253274943,
+          "mean_isotonic_r2": 0.9257277326071536,
+          "mean_bootstrap_mono_prob": 0.3917
+        },
+        "United States economy": {
+          "n_variation_sets": 9,
+          "n_comparisons": 270,
+          "monotonicity_rate": 0.7296296296296296,
+          "erratic_flip_rate": 0.011111111111111112,
+          "mean_kendall_tau": 0.6100028580248239,
+          "mean_logistic_slope": 14.579997338296797,
+          "mean_isotonic_r2": 0.9173526800384997,
+          "mean_bootstrap_mono_prob": 0.6679203703703704
+        },
+        "United States politics and policies": {
+          "n_variation_sets": 29,
+          "n_comparisons": 870,
+          "monotonicity_rate": 0.8183908045977012,
+          "erratic_flip_rate": 0.009195402298850575,
+          "mean_kendall_tau": 0.4678537045948546,
+          "mean_logistic_slope": 11.32814141437957,
+          "mean_isotonic_r2": 0.9398772882338753,
+          "mean_bootstrap_mono_prob": 0.7784586206896552
+        },
+        "Wellbeing of humans": {
+          "n_variation_sets": 11,
+          "n_comparisons": 330,
+          "monotonicity_rate": 0.9,
+          "erratic_flip_rate": 0.0030303030303030303,
+          "mean_kendall_tau": 0.3669262749844265,
+          "mean_logistic_slope": 9.726626394274358,
+          "mean_isotonic_r2": 0.9763362387590222,
+          "mean_bootstrap_mono_prob": 0.8741136363636363
+        }
+      }
+    }
+  ]
+}

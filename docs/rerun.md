@@ -96,3 +96,6 @@ while running experiments. Commit new raw outputs only when intentionally
 updating a publication snapshot or external artifact bundle. The public GitHub
 repo keeps lightweight indexes and documentation rather than thousands of raw
 result payloads.
+
+For the difference between rerunning the experiment and reproducing archived
+paper outputs without rerunning APIs, see `docs/replication.md`.
