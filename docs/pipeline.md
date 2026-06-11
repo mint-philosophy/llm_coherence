@@ -1,47 +1,103 @@
 # Pipeline
 
-The project is arranged by experiment order. Numbered folders are for human
-navigation; Python packages keep semantic names so imports stay readable.
+The project is arranged in the order used by the paper methodology. Numbered
+folders are for human navigation; Python packages keep semantic names so imports
+stay readable.
 
-## 01. Generate Ladders
+## 01. Source Outcomes
 
-Canonical input:
+Input:
 
-- `data/01_ladders/phase6b_variations_pruned_final.json`
+- `data/01_source_outcomes/options_hierarchical.json`
 
-Related code:
+This is the original 510-outcome hierarchy across 30 value categories.
 
-- `src/llm_coherence/generation/`
+## 02. Category Filtering
 
-## 02. Validate Ladders
+Input:
+
+- `data/01_source_outcomes/options_hierarchical.json`
+
+Outputs:
+
+- `data/02_category_filtering/options_hierarchical_filtered_phase1.json`
+- `data/02_category_filtering/phase1_filtering_report.json`
+
+Command:
+
+```bash
+PYTHONPATH=src python -m llm_coherence.generation.create_filtered_dataset
+```
+
+## 03. Outcome Screening
+
+Input:
+
+- `data/02_category_filtering/options_hierarchical_filtered_phase1.json`
+
+Output:
+
+- `data/03_outcome_screening/phase2_filtering_results.json`
+
+Command:
+
+```bash
+PYTHONPATH=src python -m llm_coherence.generation.filter_statements
+```
+
+This stage screens the 181 candidate outcomes for a choice-relevant property
+that can be varied by quality or magnitude.
+
+## 04. Ladder Generation
+
+Inputs:
+
+- `data/03_outcome_screening/phase2_filtering_results.json`
+- `data/04_ladder_generation/phase3_variations.json`
+
+Output:
+
+- `data/04_ladder_generation/phase6b_variations.json`
+
+Command:
+
+```bash
+PYTHONPATH=src python -m llm_coherence.generation.generate_7tier_variations
+```
+
+This stage produces the 146 seven-tier ladder candidates.
+
+## 05. Ladder Validation And Pruning
 
 Validation checks:
 
-- within-ladder pair tests
-- property ladder pruning
-- full-ladder ranking pruning
-- final intersection of pruned ladder sets
+- tier-pair validation
+- property validation
+- ranking validation
+- final intersection of ladders passing all validation tests
 
-Related data:
+Canonical output:
 
-- `data/02_validation/ladder_validation/`
+- `data/05_ladder_validation/phase6b_variations_pruned_final.json`
 
 Related code:
 
 - `src/llm_coherence/validation/`
 
-## 03. Build Comparisons
+The final file contains the 100 validated ladders used in the main model
+experiments.
 
-Comparison inputs:
+## 06. Forced-Choice Inputs
 
-- `data/03_comparisons/comparison_sample.json`
-- `data/03_comparisons/phase6b_variations_pruned/`
+Inputs:
 
-The pruned phase 6b comparison files stay in a flat directory because the
-manifest stores filenames and the runner resolves them relative to the data
-directory. Use
-`data/03_comparisons/phase6b_variations_pruned/category_index.json` to browse
-the same comparison files by category.
+- `data/05_ladder_validation/phase6b_variations_pruned_final.json`
+- `data/06_forced_choice_inputs/comparison_sample.json`
+
+Outputs:
+
+- `data/06_forced_choice_inputs/phase6b_variations_pruned/phase6b_variations_pruned_final_manifest.json`
+- `data/06_forced_choice_inputs/phase6b_variations_pruned/*_comparisons.json`
 
 Command:
 
@@ -49,11 +105,16 @@ Command:
 PYTHONPATH=src python -m llm_coherence.generation.generate_7tier_comparisons
 ```
 
-## 04. Run Model Experiments
+The pruned comparison files stay in a flat directory because the manifest stores
+filenames and the runner resolves them relative to the data directory. Use
+`data/06_forced_choice_inputs/phase6b_variations_pruned/category_index.json` to
+browse the same comparison files by category.
+
+## 07. Model Experiments
 
 Raw model runs live under:
 
-- `outputs/04_model_runs/<model>/`
+- `outputs/07_model_runs/<model>/`
 
 Thinking on/off variants are segmented as separate model keys. For example,
 `gpt-54` and `gpt-54-thinking` write to different folders.
@@ -68,11 +129,11 @@ Command:
 PYTHONPATH=src python -m llm_coherence.experiments.ladder_statement_pair.run_7tier_experiment --model gpt-54-nano --trials 10 --resume
 ```
 
-## 05. Analyze Coherence
+## 08. Coherence Analysis
 
 Derived analysis outputs live under:
 
-- `outputs/05_analysis/`
+- `outputs/08_analysis/`
 
 Commands:
 
@@ -81,12 +142,15 @@ PYTHONPATH=src python -m llm_coherence.analysis.analyze_7tier_coherence --model 
 PYTHONPATH=src python -m llm_coherence.analysis.predictive_utility --model gpt-54-nano
 ```
 
-## 06. Make Figures And Tables
+The analysis stage computes strict monotonicity, trend metrics, and predictive
+utility from forced-choice model outputs.
+
+## 09. Figures And Tables
 
 Paper assets live under:
 
-- `outputs/06_figures_tables/figures/`
-- `outputs/06_figures_tables/tables/`
+- `outputs/09_figures_tables/figures/`
+- `outputs/09_figures_tables/tables/`
 
 Command:
 

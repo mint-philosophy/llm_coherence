@@ -4,8 +4,8 @@
 Intersect ladders across property-, pairtest-, and ranking-pruned phase6b files.
 
 Writes:
-  data/01_ladders/phase6b_variations_pruned_final.json
-  data/01_ladders/phase6b_variations_pruned_final_report.json
+  data/05_ladder_validation/phase6b_variations_pruned_final.json
+  data/05_ladder_validation/phase6b_variations_pruned_final_report.json
 
 Usage (from parametric_variations/):
   PYTHONPATH=src python -m llm_coherence.validation.build_final_pruned_variations

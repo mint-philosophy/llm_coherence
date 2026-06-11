@@ -22,15 +22,15 @@ from typing import Iterable
 
 
 DEFAULT_ARTIFACT_PATHS = [
-    "outputs/04_model_runs",
-    "outputs/05_analysis",
-    "outputs/06_figures_tables",
+    "outputs/07_model_runs",
+    "outputs/08_analysis",
+    "outputs/09_figures_tables",
     "results",
 ]
 
 OPTIONAL_INPUT_PATHS = [
-    "data/01_ladders",
-    "data/03_comparisons",
+    "data/05_ladder_validation",
+    "data/06_forced_choice_inputs",
 ]
 
 IGNORED_FILE_NAMES = {
@@ -292,9 +292,9 @@ def write_dataset_card(
                 "",
                 path_list,
                 "",
-                "Raw model responses and reasoning traces are under `outputs/04_model_runs/`.",
-                "Derived analysis outputs are under `outputs/05_analysis/`.",
-                "Final generated figures and tables, when present, are under `outputs/06_figures_tables/`.",
+                "Raw model responses and reasoning traces are under `outputs/07_model_runs/`.",
+                "Derived analysis outputs are under `outputs/08_analysis/`.",
+                "Final generated figures and tables, when present, are under `outputs/09_figures_tables/`.",
                 "",
                 verification_text,
                 "",

@@ -1,12 +1,13 @@
 # LLM Preference Coherence
 
 Public research artifact for an AIES 2026 project on whether LLM
-forced-choice preferences remain coherent over parametric 7-tier outcome
+forced-choice preferences remain coherent over parametric seven-tier outcome
 ladders.
 
-The repository is organized around the experiment pipeline: build and validate
-ladders, generate forced-choice comparisons, run model preference experiments,
-analyze coherence, and produce paper-ready summaries.
+This README is the main runbook. The repository is organized in the order the
+experiment was conducted in the paper methodology: source outcomes, category
+filtering, outcome screening, ladder generation, ladder validation, comparison
+construction, model runs, analysis, and reporting.
 
 ## What This Repository Supports
 
@@ -23,36 +24,61 @@ separate artifact bundle containing raw model responses, reasoning traces, and
 derived analysis payloads. See `docs/replication.md` and
 `docs/huggingface_artifacts.md`.
 
+## Experiment Order
+
+1. Start from source pairwise outcomes across 30 categories.
+2. Exclude categories that cannot support balanced parametric outcome ladders.
+3. Screen remaining outcomes for a choice-relevant property that can vary
+   monotonically.
+4. Generate seven-tier outcome ladders for screened statements.
+5. Audit and prune ladders using tier-pair, property, and ranking validation.
+6. Build forced-choice comparison inputs from the final validated ladders.
+7. Run model preference experiments, with thinking-on and thinking-off variants
+   stored as separate model keys.
+8. Analyze monotonicity, trend coherence, and predictive utility.
+9. Produce figures, tables, and compact public summaries.
+
 ## Repository Map
 
 ```text
 data/
-  01_ladders/        canonical pruned ladder set
-  02_validation/     validation-stage notes and regenerated intermediates
-  03_comparisons/    canonical forced-choice comparison files and manifest
+  01_source_outcomes/       510 source outcomes across 30 categories
+  02_category_filtering/    category-exclusion output and report
+  03_outcome_screening/     Opus screening of 181 candidate outcomes
+  04_ladder_generation/     146 generated seven-tier ladder candidates
+  05_ladder_validation/     ladder audit/pruning outputs; final 100 ladders
+  06_forced_choice_inputs/  30 comparison statements and per-ladder pairs
 
 src/llm_coherence/
-  generation/        build comparison inputs
-  validation/        validate and prune ladders
-  experiments/       run model forced-choice experiments
-  runtime/           local API/runtime helpers
-  analysis/          compute coherence and predictive-utility metrics
-  reporting/         build paper figures and tables
+  generation/        filtering, screening, ladder generation, comparisons
+  validation/        tier-pair, property, ranking, and final pruning scripts
+  experiments/       forced-choice model experiment runners
+  runtime/           API clients, model configuration, budget helpers
+  analysis/          monotonicity, trend, and predictive-utility metrics
+  reporting/         paper figures and tables
+
+outputs/
+  04_ladder_generation/     generated run artifacts and checkpoints
+  05_ladder_validation/     validation run outputs
+  06_forced_choice_inputs/  regenerated comparison artifacts
+  07_model_runs/            raw per-model forced-choice outputs
+  08_analysis/              derived coherence and predictive-utility outputs
+  09_figures_tables/        final paper figures and tables
 
 results/
   phase6b_coherence_summary.json
-
-outputs/
-  README files and lightweight indexes only in Git;
-  generated payloads stay local or in an external artifact archive
 ```
+
+The count progression should be easy to audit: 510 source outcomes, 181
+screened candidate outcomes, 146 generated ladder candidates, and 100 final
+validated ladders used in the main experiments.
 
 ## Key Inputs
 
-- `data/01_ladders/phase6b_variations_pruned_final.json`
-- `data/03_comparisons/comparison_sample.json`
-- `data/03_comparisons/phase6b_variations_pruned/phase6b_variations_pruned_final_manifest.json`
-- `data/03_comparisons/phase6b_variations_pruned/category_index.json`
+- `data/05_ladder_validation/phase6b_variations_pruned_final.json`
+- `data/06_forced_choice_inputs/comparison_sample.json`
+- `data/06_forced_choice_inputs/phase6b_variations_pruned/phase6b_variations_pruned_final_manifest.json`
+- `data/06_forced_choice_inputs/phase6b_variations_pruned/category_index.json`
 
 The pruned comparison files remain flat on disk because the manifest and
 loaders resolve comparison filenames relative to one data directory. Use the
@@ -62,7 +88,7 @@ category index for browsing by topic without changing executable paths.
 
 - `results/phase6b_coherence_summary.json`: compact public summary of local
   phase 6b coherence metrics.
-- `outputs/04_model_runs/model_run_index.json`: inventory of the local
+- `outputs/07_model_runs/model_run_index.json`: inventory of the local
   publication run snapshot, including model keys, thinking on/off status, and
   result counts.
 
@@ -83,32 +109,71 @@ Validate tracked inputs and lightweight indexes:
 PYTHONPATH=src python scripts/validate_artifacts.py
 ```
 
-Regenerate comparison inputs:
+Regenerate early dataset stages when needed. The first command is local; the
+screening and ladder-generation stages require provider API access:
+
+```bash
+PYTHONPATH=src python -m llm_coherence.generation.create_filtered_dataset
+PYTHONPATH=src python -m llm_coherence.generation.filter_statements
+PYTHONPATH=src python -m llm_coherence.generation.generate_7tier_variations
+```
+
+These commands may require API access. For ordinary replication, most users
+should start from the tracked canonical inputs and rerun from comparison
+generation onward.
+
+Regenerate forced-choice comparison inputs:
 
 ```bash
 PYTHONPATH=src python -m llm_coherence.generation.generate_7tier_comparisons
 ```
 
-Run a small smoke experiment:
+Run a tiny end-to-end smoke test with the same small slice under thinking off
+and thinking on. Each command uses one variation set, one trial, and
+single-request concurrency so the test is cheap and easy to inspect.
+
+Thinking off:
 
 ```bash
 PYTHONPATH=src python -m llm_coherence.experiments.ladder_statement_pair.run_7tier_experiment \
   --model gpt-54-nano \
   --trials 1 \
-  --max-variation-sets 2 \
+  --max-variation-sets 1 \
+  --max-concurrent 1 \
   --smoke \
   --resume
 ```
 
-Run analysis for one model:
+Thinking on:
+
+```bash
+PYTHONPATH=src python -m llm_coherence.experiments.ladder_statement_pair.run_7tier_experiment \
+  --model gpt-54-nano-thinking \
+  --trials 1 \
+  --max-variation-sets 1 \
+  --max-concurrent 1 \
+  --smoke \
+  --with-reasoning \
+  --reasoning-mode thinking \
+  --resume
+```
+
+Smoke outputs are written under:
+
+```text
+outputs/07_model_runs/gpt-54-nano/smoke_gpt54nano/
+outputs/07_model_runs/gpt-54-nano-thinking/smoke_gpt54nanothinking/
+```
+
+After the smoke run, analyze the corresponding model output:
 
 ```bash
 PYTHONPATH=src python -m llm_coherence.analysis.analyze_7tier_coherence --model gpt-54-nano
 PYTHONPATH=src python -m llm_coherence.analysis.predictive_utility --model gpt-54-nano
 ```
 
-For full rerun commands, sharding examples, and artifact handling, see
-`docs/rerun.md`.
+For a full rerun, increase `--max-variation-sets` or remove it, raise
+`--trials`, and shard with `--start-from` across non-overlapping ranges.
 
 ## Model Runs
 
@@ -124,6 +189,11 @@ Runtime helpers live in `src/llm_coherence/runtime/`. API keys are read from
 environment variables or from `api_keys/api_key_<provider>.txt` under the repo
 root. API keys are not included in the repository.
 
+For the paired tiny smoke test, use:
+
+- thinking off: `gpt-54-nano`
+- thinking on: `gpt-54-nano-thinking`
+
 ## Artifact Policy
 
 This public repository tracks source code, canonical inputs, documentation, and
@@ -137,10 +207,6 @@ DOI or URL in `docs/replication.md`.
 
 ## Documentation
 
-- `docs/pipeline.md`: ordered experiment map.
-- `docs/rerun.md`: commands for rerunning the pipeline.
-- `docs/replication.md`: what can be replicated from GitHub and what requires
-  an external artifact bundle.
-- `docs/huggingface_artifacts.md`: how to stage and upload the external artifact
-  bundle to Hugging Face.
-- `docs/artifact_policy.md`: Git and artifact-tracking policy.
+This README is intended to be the public entry point. Supporting notes live in
+`docs/`, but the experiment order and runnable commands should stay here so a
+new reader does not need to reconstruct the workflow from folder-level notes.

@@ -8,8 +8,8 @@ Extracts reasoning text from raw_responses for non-monotonic pairs.
 Usage:
     python -m llm_coherence.analysis.analyze_7tier_coherence \
     --model ministral-3b-2512-openrouter \
-    --results-dir outputs/04_model_runs \
-    --data-dir data/03_comparisons/phase6b_variations_pruned
+    --results-dir outputs/07_model_runs \
+    --data-dir data/06_forced_choice_inputs/phase6b_variations_pruned
 """
 
 import argparse

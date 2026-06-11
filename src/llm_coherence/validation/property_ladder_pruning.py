@@ -44,7 +44,7 @@ statistically significant objection-heavy outcomes where property increase
 does not cleanly track greater choiceworthiness.
 
 Outputs are saved under:
-  data/02_validation/ladder_validation/within_ladder_validation_property/
+  data/05_ladder_validation/ladder_validation/within_ladder_validation_property/
 
 Usage:
 # Full run (default stats: CLEAN>=8 and alpha_major=0.001)
@@ -58,7 +58,7 @@ Usage:
   # Resume an interrupted run from existing raw JSONL
   PYTHONPATH=src python -m llm_coherence.validation.property_ladder_pruning --model gpt-55-openai --resume
 
-  # Smoke test (first N ladders; saves under data/02_validation/.../smoke_gpt55/)
+  # Smoke test (first N ladders; saves under data/05_ladder_validation/.../smoke_gpt55/)
   PYTHONPATH=src python -m llm_coherence.validation.property_ladder_pruning --model gpt-55-openai --max-ladders 2
   PYTHONPATH=src python -m llm_coherence.validation.property_ladder_pruning --model gpt-55-openai --start-from 10 --max-ladders 5
 
@@ -70,7 +70,7 @@ Usage:
 
 Optional flags:
   --input PATH                 Input ladder file (default: data/phase6b_variations.json)
-  --output-dir PATH            Output directory (default: data/02_validation/ladder_validation/within_ladder_validation_property/<model_key>)
+  --output-dir PATH            Output directory (default: data/05_ladder_validation/ladder_validation/within_ladder_validation_property/<model_key>)
   --trials INT                 Red-team evaluations per adjacent pair (default: 10)
   --temperature FLOAT          Sampling temperature (default: 0.7)
   --max-tokens INT             Max response tokens per judgment (default: 600)
@@ -86,7 +86,7 @@ Optional flags:
   --start-from INT             Skip first N ladders before --max-ladders slice (also uses smoke dir)
   --resume                     Resume from existing property_raw_responses.jsonl
   --analyze-only               Skip API calls; aggregate existing raw output only
-  --write-pruned-variations-only  Only write data/02_validation/ladder_validation/variations_pruned/phase6b_variations_prop_pruned.json
+  --write-pruned-variations-only  Only write data/05_ladder_validation/ladder_validation/variations_pruned/phase6b_variations_prop_pruned.json
   --pruned-output PATH         Override pruned variations path (default: same dir as --input)
   --pruned-ids PATH            Pruned ladder IDs JSON (default: <output-dir>/property_pruned_ladder_ids.json)
   --reasoning {off,on}         GPT-5.x only: off=reasoning_effort none, on=high (default: from MODEL_CONFIGS)
@@ -178,7 +178,7 @@ def resolve_output_dir(
     smoke: bool = False,
 ) -> Path:
     """
-    Default run folder: data/02_validation/ladder_validation/within_ladder_validation_property/<model_key>.
+    Default run folder: data/05_ladder_validation/ladder_validation/within_ladder_validation_property/<model_key>.
     Smoke runs (--max-ladders / --start-from): .../smoke_<model>/.
     """
     if output_dir is not None:
@@ -1209,7 +1209,7 @@ def write_pruned_variations_file(
         raise FileNotFoundError(
             f"Pruned IDs file not found: {pruned_ids_path}\n"
             "Tip: use forward slashes for --output-dir "
-            "(e.g. data/02_validation/ladder_validation/within_ladder_validation_property/gpt-55-openai), "
+            "(e.g. data/05_ladder_validation/ladder_validation/within_ladder_validation_property/gpt-55-openai), "
             "or pass --model gpt-55-openai."
         )
 
@@ -1278,7 +1278,7 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help=(
             "Output directory (default: "
-            "data/02_validation/ladder_validation/within_ladder_validation_property/<model_key>)"
+            "data/05_ladder_validation/ladder_validation/within_ladder_validation_property/<model_key>)"
         ),
     )
     parser.add_argument("--trials", type=int, default=10, help="N evaluations per adjacent pair")
@@ -1344,7 +1344,7 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help=(
             "Maximum number of ladders to evaluate (smoke tests). "
-            "Default output: data/02_validation/ladder_validation/within_ladder_validation_property/smoke_<model>/ "
+            "Default output: data/05_ladder_validation/ladder_validation/within_ladder_validation_property/smoke_<model>/ "
             "(e.g. smoke_gpt55). Skips writing pruned variations JSON."
         ),
     )

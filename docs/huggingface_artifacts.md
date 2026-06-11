@@ -6,11 +6,11 @@ large and noisy for GitHub.
 
 The local publication payload currently has this shape:
 
-- `outputs/04_model_runs/`: raw model choices and reasoning traces, about
+- `outputs/07_model_runs/`: raw model choices and reasoning traces, about
   2.7 GB locally.
-- `outputs/05_analysis/`: derived coherence, predictive-utility, forced-choice,
+- `outputs/08_analysis/`: derived coherence, predictive-utility, forced-choice,
   and reasoning-summary outputs, about 329 MB locally.
-- `outputs/06_figures_tables/`: final generated paper figures and tables when
+- `outputs/09_figures_tables/`: final generated paper figures and tables when
   they exist. At the time this workflow was added, only README/placeholders
   were present locally.
 - `results/`: compact public result summaries.
@@ -30,15 +30,15 @@ README.md
 artifact_manifest.json
 SHA256SUMS
 outputs/
-  04_model_runs/
-  05_analysis/
-  06_figures_tables/
+  07_model_runs/
+  08_analysis/
+  09_figures_tables/
 results/
 ```
 
-Optionally include `data/01_ladders/` and `data/03_comparisons/` in the HF
-archive as well. They are already tracked in GitHub, but including them makes
-the HF archive easier to inspect on its own.
+Optionally include the tracked `data/` stages in the HF archive as well. They
+are already tracked in GitHub, but including them makes the HF archive easier to
+inspect on its own.
 
 ## Prepare The Bundle
 
@@ -97,14 +97,14 @@ lets Hugging Face resume completed hashing/pre-upload steps.
 ## After Upload
 
 1. Check the HF repository file tree and confirm these paths exist:
-   `outputs/04_model_runs/`, `outputs/05_analysis/`, `outputs/06_figures_tables/`,
+   `outputs/07_model_runs/`, `outputs/08_analysis/`, `outputs/09_figures_tables/`,
    `results/`, `artifact_manifest.json`, and `SHA256SUMS`.
 2. Generate a DOI from the HF repository settings when the artifact is final.
 3. Add the HF URL or DOI to `README.md` and `docs/replication.md`.
 4. Commit that README/replication update to GitHub.
 
 For camera-ready release, regenerate and stage final figures/tables before
-running the bundle script if `outputs/06_figures_tables/` is still empty.
+running the bundle script if `outputs/09_figures_tables/` is still empty.
 
 ## Hugging Face References
 

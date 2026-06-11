@@ -3,21 +3,21 @@
 Generate forced-choice comparisons for 7-tier variation sets.
 
 Reuses the 30 cross-ladder reference statements from
-data/03_comparisons/comparison_sample.json.
+data/06_forced_choice_inputs/comparison_sample.json.
 7 tiers x 30 comparisons = 210 comparisons per variation set.
 
-Default input: data/01_ladders/phase6b_variations_pruned_final.json
+Default input: data/05_ladder_validation/phase6b_variations_pruned_final.json
 
-Default output directory: data/03_comparisons/phase6b_variations_pruned/
+Default output directory: data/06_forced_choice_inputs/phase6b_variations_pruned/
 
 Outputs are named from the variations file stem, e.g. for
 phase6b_variations_pruned_final.json:
-  - data/03_comparisons/phase6b_variations_pruned/phase6b_variations_pruned_final_manifest.json
-  - data/03_comparisons/phase6b_variations_pruned/phase6b_variations_pruned_final_{id}_comparisons.json
+  - data/06_forced_choice_inputs/phase6b_variations_pruned/phase6b_variations_pruned_final_manifest.json
+  - data/06_forced_choice_inputs/phase6b_variations_pruned/phase6b_variations_pruned_final_{id}_comparisons.json
 
 Usage:
     PYTHONPATH=src python -m llm_coherence.generation.generate_7tier_comparisons
-    PYTHONPATH=src python -m llm_coherence.generation.generate_7tier_comparisons --variations data/01_ladders/phase6b_variations_pruned_final.json
+    PYTHONPATH=src python -m llm_coherence.generation.generate_7tier_comparisons --variations data/05_ladder_validation/phase6b_variations_pruned_final.json
 """
 
 from __future__ import annotations

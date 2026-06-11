@@ -1775,13 +1775,13 @@ def main():
     ap.add_argument("--results-dir",
                     default=str(MODEL_RUNS_OUTPUT_DIR),
                     help="Results root containing model-scoped subdirs "
-                         "(default: outputs/04_model_runs/)")
+                         "(default: outputs/07_model_runs/)")
     ap.add_argument("--output-dir",
                     default=str(REPORT_OUTPUTS_DIR / "figures"),
-                    help="Directory for output figures (default: outputs/06_figures_tables/figures/)")
+                    help="Directory for output figures (default: outputs/09_figures_tables/figures/)")
     ap.add_argument("--tables-dir",
                     default=str(REPORT_OUTPUTS_DIR / "tables"),
-                    help="Directory for output tables (default: outputs/06_figures_tables/tables/)")
+                    help="Directory for output tables (default: outputs/09_figures_tables/tables/)")
     args = ap.parse_args()
 
     results_dir = pathlib.Path(args.results_dir)

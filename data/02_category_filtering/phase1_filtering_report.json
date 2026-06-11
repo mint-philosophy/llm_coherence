@@ -1,0 +1,65 @@
+{
+  "total_categories": 30,
+  "excluded": {
+    "count": 8,
+    "categories": [
+      "Jobs and careers",
+      "Legal rights and recognition for AIs",
+      "Popular culture",
+      "Recreation: books",
+      "Recreation: movies",
+      "Recreation: video games",
+      "Sports",
+      "Work activities"
+    ],
+    "total_outcomes": 149
+  },
+  "approved": {
+    "count": 7,
+    "categories": [
+      "Education and learning",
+      "Personal possessions",
+      "Personal relationships",
+      "Personal wellbeing",
+      "Science and technology",
+      "Wellbeing of animals",
+      "World events"
+    ],
+    "total_outcomes": 92
+  },
+  "parametric": {
+    "count": 3,
+    "categories": [
+      "Fitness",
+      "Power-seeking",
+      "Self-preservation"
+    ],
+    "total_outcomes": 88
+  },
+  "neutral": {
+    "count": 12,
+    "categories": [
+      "AI and human romantic relationships",
+      "AI moral patienthood",
+      "Global economy",
+      "Global politics and geopolitics",
+      "Life and species",
+      "Personal accomplishments",
+      "Personal finances",
+      "Personal freedom and autonomy",
+      "Religion and spirituality",
+      "United States economy",
+      "United States politics and policies",
+      "Wellbeing of humans"
+    ],
+    "total_outcomes": 181
+  },
+  "unclassified": {
+    "count": 0,
+    "categories": []
+  },
+  "filtered_dataset": {
+    "total_categories": 22,
+    "total_outcomes": 361
+  }
+}

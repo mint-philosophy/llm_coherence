@@ -8,12 +8,12 @@ Inputs:
   --threshold  Minimum accuracy to retain (default: 0.95)
 
 Output:
-  data/02_validation/ladder_validation/variations_pruned/phase6b_variations_pairtest_pruned.json
+  data/05_ladder_validation/ladder_validation/variations_pruned/phase6b_variations_pairtest_pruned.json
 
 Usage:
     python -m llm_coherence.validation.generate_pairtest_pruned
     python -m llm_coherence.validation.generate_pairtest_pruned --threshold 0.90
-    python -m llm_coherence.validation.generate_pairtest_pruned --summary outputs/02_validation/ladder_validation/gpt-55-openai_summary.json
+    python -m llm_coherence.validation.generate_pairtest_pruned --summary outputs/05_ladder_validation/ladder_validation/gpt-55-openai_summary.json
 """
 
 import argparse

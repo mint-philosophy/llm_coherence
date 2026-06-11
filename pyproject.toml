@@ -15,6 +15,7 @@ dependencies = [
   "scipy",
   "statsmodels",
   "pyyaml",
+  "python-dotenv",
   "httpx",
   "litellm",
 ]

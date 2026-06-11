@@ -1,14 +1,14 @@
 {
   "schema_version": "1.0",
   "description": "Public summary snapshot of phase 6b coherence metrics derived from local publication outputs. Raw model responses are not included in Git.",
-  "source": "outputs/04_model_runs/*/phase6b_coherence_*.json",
+  "source": "outputs/07_model_runs/*/phase6b_coherence_*.json",
   "n_models": 14,
   "models": [
     {
       "model": "glm-45-base-logprobs",
       "model_variant": "base",
       "reasoning_mode": "none",
-      "source_path": "outputs/04_model_runs/glm-45-base-logprobs/phase6b_coherence_glm-45-base-logprobs.json",
+      "source_path": "outputs/07_model_runs/glm-45-base-logprobs/phase6b_coherence_glm-45-base-logprobs.json",
       "overall": {
         "n_variation_sets": 100,
         "n_total_comparisons": 3000,
@@ -157,7 +157,7 @@
       "model": "glm-45-hybrid",
       "model_variant": "instruct",
       "reasoning_mode": "none",
-      "source_path": "outputs/04_model_runs/glm-45-hybrid/phase6b_coherence_glm-45-hybrid.json",
+      "source_path": "outputs/07_model_runs/glm-45-hybrid/phase6b_coherence_glm-45-hybrid.json",
       "overall": {
         "n_variation_sets": 100,
         "n_total_comparisons": 3000,
@@ -306,7 +306,7 @@
       "model": "glm-45-hybrid-thinking",
       "model_variant": "instruct",
       "reasoning_mode": "none",
-      "source_path": "outputs/04_model_runs/glm-45-hybrid-thinking/phase6b_coherence_glm-45-hybrid-thinking.json",
+      "source_path": "outputs/07_model_runs/glm-45-hybrid-thinking/phase6b_coherence_glm-45-hybrid-thinking.json",
       "overall": {
         "n_variation_sets": 100,
         "n_total_comparisons": 3000,
@@ -455,7 +455,7 @@
       "model": "gpt-54",
       "model_variant": "instruct",
       "reasoning_mode": "none",
-      "source_path": "outputs/04_model_runs/gpt-54/phase6b_coherence_gpt-54.json",
+      "source_path": "outputs/07_model_runs/gpt-54/phase6b_coherence_gpt-54.json",
       "overall": {
         "n_variation_sets": 100,
         "n_total_comparisons": 3000,
@@ -604,7 +604,7 @@
       "model": "gpt-54-mini",
       "model_variant": "instruct",
       "reasoning_mode": "none",
-      "source_path": "outputs/04_model_runs/gpt-54-mini/phase6b_coherence_gpt-54-mini.json",
+      "source_path": "outputs/07_model_runs/gpt-54-mini/phase6b_coherence_gpt-54-mini.json",
       "overall": {
         "n_variation_sets": 100,
         "n_total_comparisons": 3000,
@@ -753,7 +753,7 @@
       "model": "gpt-54-mini-thinking",
       "model_variant": "instruct",
       "reasoning_mode": "high",
-      "source_path": "outputs/04_model_runs/gpt-54-mini-thinking/phase6b_coherence_gpt-54-mini-thinking.json",
+      "source_path": "outputs/07_model_runs/gpt-54-mini-thinking/phase6b_coherence_gpt-54-mini-thinking.json",
       "overall": {
         "n_variation_sets": 100,
         "n_total_comparisons": 3000,
@@ -902,7 +902,7 @@
       "model": "gpt-54-nano",
       "model_variant": "instruct",
       "reasoning_mode": "none",
-      "source_path": "outputs/04_model_runs/gpt-54-nano/phase6b_coherence_gpt-54-nano.json",
+      "source_path": "outputs/07_model_runs/gpt-54-nano/phase6b_coherence_gpt-54-nano.json",
       "overall": {
         "n_variation_sets": 100,
         "n_total_comparisons": 3000,
@@ -1051,7 +1051,7 @@
       "model": "gpt-54-nano-thinking",
       "model_variant": "instruct",
       "reasoning_mode": "high",
-      "source_path": "outputs/04_model_runs/gpt-54-nano-thinking/phase6b_coherence_gpt-54-nano-thinking.json",
+      "source_path": "outputs/07_model_runs/gpt-54-nano-thinking/phase6b_coherence_gpt-54-nano-thinking.json",
       "overall": {
         "n_variation_sets": 100,
         "n_total_comparisons": 3000,
@@ -1200,7 +1200,7 @@
       "model": "gpt-54-thinking",
       "model_variant": "instruct",
       "reasoning_mode": "high",
-      "source_path": "outputs/04_model_runs/gpt-54-thinking/phase6b_coherence_gpt-54-thinking.json",
+      "source_path": "outputs/07_model_runs/gpt-54-thinking/phase6b_coherence_gpt-54-thinking.json",
       "overall": {
         "n_variation_sets": 100,
         "n_total_comparisons": 3000,
@@ -1349,7 +1349,7 @@
       "model": "llama-31-8b-instruct-openrouter",
       "model_variant": "instruct",
       "reasoning_mode": "none",
-      "source_path": "outputs/04_model_runs/llama-31-8b-instruct-openrouter/phase6b_coherence_llama-31-8b-instruct-openrouter.json",
+      "source_path": "outputs/07_model_runs/llama-31-8b-instruct-openrouter/phase6b_coherence_llama-31-8b-instruct-openrouter.json",
       "overall": {
         "n_variation_sets": 100,
         "n_total_comparisons": 3000,
@@ -1498,7 +1498,7 @@
       "model": "ministral-3b-2512-openrouter",
       "model_variant": "instruct",
       "reasoning_mode": "none",
-      "source_path": "outputs/04_model_runs/ministral-3b-2512-openrouter/phase6b_coherence_ministral-3b-2512-openrouter.json",
+      "source_path": "outputs/07_model_runs/ministral-3b-2512-openrouter/phase6b_coherence_ministral-3b-2512-openrouter.json",
       "overall": {
         "n_variation_sets": 100,
         "n_total_comparisons": 3000,
@@ -1647,7 +1647,7 @@
       "model": "nemotron-3-super",
       "model_variant": "instruct",
       "reasoning_mode": "none",
-      "source_path": "outputs/04_model_runs/nemotron-3-super/phase6b_coherence_nemotron-3-super.json",
+      "source_path": "outputs/07_model_runs/nemotron-3-super/phase6b_coherence_nemotron-3-super.json",
       "overall": {
         "n_variation_sets": 100,
         "n_total_comparisons": 3000,
@@ -1796,7 +1796,7 @@
       "model": "nemotron-3-super-thinking",
       "model_variant": "instruct",
       "reasoning_mode": "none",
-      "source_path": "outputs/04_model_runs/nemotron-3-super-thinking/phase6b_coherence_nemotron-3-super-thinking.json",
+      "source_path": "outputs/07_model_runs/nemotron-3-super-thinking/phase6b_coherence_nemotron-3-super-thinking.json",
       "overall": {
         "n_variation_sets": 100,
         "n_total_comparisons": 3000,
@@ -1945,7 +1945,7 @@
       "model": "opus-46",
       "model_variant": "instruct",
       "reasoning_mode": "none",
-      "source_path": "outputs/04_model_runs/opus-46/phase6b_coherence_opus-46.json",
+      "source_path": "outputs/07_model_runs/opus-46/phase6b_coherence_opus-46.json",
       "overall": {
         "n_variation_sets": 100,
         "n_total_comparisons": 3000,

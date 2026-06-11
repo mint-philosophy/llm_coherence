@@ -10,16 +10,24 @@
 
 # Results and Output Directories
 /data/*
-!/data/README.md
 /data/**/*
 !/data/**/
-!/data/**/README.md
+!/data/01_source_outcomes/options_hierarchical.json
+!/data/02_category_filtering/options_hierarchical_filtered_phase1.json
+!/data/02_category_filtering/phase1_filtering_report.json
+!/data/02_category_filtering/filtered_dataset_config.yaml
+!/data/03_outcome_screening/phase2_filtering_results.json
+!/data/04_ladder_generation/phase3_variations.json
+!/data/04_ladder_generation/phase6b_variations.json
+!/data/04_ladder_generation/phase_3_variations_config.yaml
+!/data/05_ladder_validation/phase6b_variations_pruned_final.json
+!/data/06_forced_choice_inputs/comparison_sample.json
 !/data/**/category_index.json
+!/data/06_forced_choice_inputs/phase6b_variations_pruned/phase6b_variations_pruned_final_manifest.json
+!/data/06_forced_choice_inputs/phase6b_variations_pruned/*_comparisons.json
 /outputs/*
-!/outputs/README.md
 /outputs/**/*
 !/outputs/**/
-!/outputs/**/README.md
 !/outputs/**/model_run_index.json
 
 # Documents and tabular data

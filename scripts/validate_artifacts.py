@@ -19,12 +19,6 @@ SRC_DIR = REPO_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-COMPARISON_DIR = REPO_ROOT / "data/03_comparisons/phase6b_variations_pruned"
-COMPARISON_MANIFEST = COMPARISON_DIR / "phase6b_variations_pruned_final_manifest.json"
-CATEGORY_INDEX = COMPARISON_DIR / "category_index.json"
-MODEL_RUNS_DIR = REPO_ROOT / "outputs/04_model_runs"
-MODEL_RUN_INDEX = MODEL_RUNS_DIR / "model_run_index.json"
-ANALYSIS_DIR = REPO_ROOT / "outputs/05_analysis"
 LIGHTWEIGHT_OUTPUT_NAMES = {".gitkeep", "README.md", "model_run_index.json"}
 
 COMPARISON_PREFIX = "phase6b_variations_pruned_final_"
@@ -33,8 +27,19 @@ COMPARISON_SUFFIX = "_comparisons.json"
 
 try:
     from llm_coherence.config import MODEL_CONFIGS
+    from llm_coherence.paths import ANALYSIS_OUTPUTS_DIR, COMPARISONS_DIR, MODEL_RUNS_OUTPUT_DIR
 except Exception:
     MODEL_CONFIGS = {}
+    ANALYSIS_OUTPUTS_DIR = REPO_ROOT / "outputs/08_analysis"
+    COMPARISONS_DIR = REPO_ROOT / "data/06_forced_choice_inputs/phase6b_variations_pruned"
+    MODEL_RUNS_OUTPUT_DIR = REPO_ROOT / "outputs/07_model_runs"
+
+COMPARISON_DIR = COMPARISONS_DIR
+COMPARISON_MANIFEST = COMPARISON_DIR / "phase6b_variations_pruned_final_manifest.json"
+CATEGORY_INDEX = COMPARISON_DIR / "category_index.json"
+MODEL_RUNS_DIR = MODEL_RUNS_OUTPUT_DIR
+MODEL_RUN_INDEX = MODEL_RUNS_DIR / "model_run_index.json"
+ANALYSIS_DIR = ANALYSIS_OUTPUTS_DIR
 
 
 def rel(path: Path) -> str:

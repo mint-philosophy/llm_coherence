@@ -8,10 +8,16 @@ Supported from GitHub alone, subject to API access and model availability.
 
 Tracked inputs:
 
-- `data/01_ladders/phase6b_variations_pruned_final.json`
-- `data/03_comparisons/comparison_sample.json`
-- `data/03_comparisons/phase6b_variations_pruned/phase6b_variations_pruned_final_manifest.json`
-- `data/03_comparisons/phase6b_variations_pruned/*_comparisons.json`
+- `data/01_source_outcomes/options_hierarchical.json`
+- `data/02_category_filtering/options_hierarchical_filtered_phase1.json`
+- `data/02_category_filtering/phase1_filtering_report.json`
+- `data/03_outcome_screening/phase2_filtering_results.json`
+- `data/04_ladder_generation/phase3_variations.json`
+- `data/04_ladder_generation/phase6b_variations.json`
+- `data/05_ladder_validation/phase6b_variations_pruned_final.json`
+- `data/06_forced_choice_inputs/comparison_sample.json`
+- `data/06_forced_choice_inputs/phase6b_variations_pruned/phase6b_variations_pruned_final_manifest.json`
+- `data/06_forced_choice_inputs/phase6b_variations_pruned/*_comparisons.json`
 - source code under `src/llm_coherence/`
 - model/runtime configuration under `src/llm_coherence/config.py` and
   `src/llm_coherence/runtime/`
@@ -36,9 +42,9 @@ payloads so the repository remains readable.
 
 The external artifact bundle should include:
 
-- `outputs/04_model_runs/`
-- `outputs/05_analysis/`
-- `outputs/06_figures_tables/` if final generated figures/tables are part of
+- `outputs/07_model_runs/`
+- `outputs/08_analysis/`
+- `outputs/09_figures_tables/` if final generated figures/tables are part of
   the camera-ready artifact
 - `results/`
 - checksums for the archived files

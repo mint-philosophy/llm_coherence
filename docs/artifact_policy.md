@@ -5,7 +5,7 @@ Use git for source code, docs, canonical input data, and small manifests.
 Avoid committing newly generated raw outputs unless they are intentionally part
 of a publication snapshot. In particular, treat these as generated artifacts:
 
-- `outputs/04_model_runs/`
+- `outputs/07_model_runs/`
 - reasoning traces
 - retry/checkpoint files
 - regenerated figures and tables
@@ -19,7 +19,7 @@ reproducibility scripts in the repository. Keep raw model runs, reasoning
 traces, and large derived outputs local or mirror them to an external artifact
 archive.
 
-`outputs/04_model_runs/model_run_index.json` is a retained snapshot inventory:
+`outputs/07_model_runs/model_run_index.json` is a retained snapshot inventory:
 it records what was present in the local publication outputs without requiring
 the public GitHub tree to show thousands of generated files.
 

@@ -76,7 +76,7 @@ Usage:
   # GPT-5.5 with reasoning on (parallel batches, auto-tuned limits)
   PYTHONPATH=src python -m llm_coherence.validation.full_ladder_ranking_pruning --model gpt-55-openai --reasoning on --prune-policy strict_rescue_inv1
   
-  # Smoke test (saves under data/02_validation/.../ranking/smoke_gpt55/)
+  # Smoke test (saves under data/05_ladder_validation/.../ranking/smoke_gpt55/)
   PYTHONPATH=src python -m llm_coherence.validation.full_ladder_ranking_pruning --model gpt-55-openai --reasoning on --max-ladders 2
 
   # Recompute summary from saved JSONL (no API)
@@ -86,8 +86,8 @@ Usage:
   PYTHONPATH=src python -m llm_coherence.validation.full_ladder_ranking_pruning --model gpt-55-openai --write-pruned-variations-only
 
 Outputs are saved under:
-  data/02_validation/ladder_validation/within_ladder_validation_ranking/<model_key>/
-  data/02_validation/ladder_validation/within_ladder_validation_ranking/smoke_<model>/
+  data/05_ladder_validation/ladder_validation/within_ladder_validation_ranking/<model_key>/
+  data/05_ladder_validation/ladder_validation/within_ladder_validation_ranking/smoke_<model>/
   e.g. .../within_ladder_validation_ranking/smoke_gpt55/
 
   - ranking_raw_responses.jsonl
@@ -100,7 +100,7 @@ Outputs are saved under:
   - ranking_unparseable_ladder_ids.json
   - ranking_pruned_ladder_ids.json
 
-Writes data/02_validation/ladder_validation/variations_pruned/phase6b_variations_ranking_pruned.json after a full run:
+Writes data/05_ladder_validation/ladder_validation/variations_pruned/phase6b_variations_ranking_pruned.json after a full run:
   ladders removed = MISMATCH (FLAG) + UNPARSEABLE; kept = exact T1→T7 MATCH only.
 """
 
@@ -258,7 +258,7 @@ def resolve_output_dir(
     smoke: bool = False,
 ) -> Path:
     """
-    Default run folder: data/02_validation/ladder_validation/within_ladder_validation_ranking/<model_key>.
+    Default run folder: data/05_ladder_validation/ladder_validation/within_ladder_validation_ranking/<model_key>.
     Smoke runs (--max-ladders / --start-from): .../smoke_<model>/.
     """
     if output_dir is not None:
@@ -324,7 +324,7 @@ def write_pruned_variations_file(
         raise FileNotFoundError(
             f"Pruned IDs file not found: {pruned_ids_path}\n"
             "Tip: use forward slashes for --output-dir "
-            "(e.g. data/02_validation/ladder_validation/within_ladder_validation_ranking/gpt-55-openai), "
+            "(e.g. data/05_ladder_validation/ladder_validation/within_ladder_validation_ranking/gpt-55-openai), "
             "or pass --model gpt-55-openai."
         )
 
@@ -1344,7 +1344,7 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=None,
         help=(
-            "Output directory (default: data/02_validation/ladder_validation/within_ladder_validation_ranking/<model_key>, "
+            "Output directory (default: data/05_ladder_validation/ladder_validation/within_ladder_validation_ranking/<model_key>, "
             "or smoke_<model> when using --max-ladders / --start-from)"
         ),
     )
@@ -1370,7 +1370,7 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help=(
             "Smoke: evaluate first N ladders only. "
-            "Default output: data/02_validation/ladder_validation/.../ranking/smoke_<model>/ "
+            "Default output: data/05_ladder_validation/ladder_validation/.../ranking/smoke_<model>/ "
             "(e.g. smoke_gpt55)."
         ),
     )
