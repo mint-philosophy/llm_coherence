@@ -104,7 +104,7 @@ def load_manifest(manifest_path: Path) -> dict:
 
 def get_test_names(manifest: dict, variation_ids: list[str] | None = None) -> list[str]:
     all_files = manifest["variation_files"]
-    all_test_names = [f.replace("_comparisons.json", "") for f in all_files]
+    all_test_names = [Path(f).name.replace("_comparisons.json", "") for f in all_files]
 
     if variation_ids:
         filtered = []

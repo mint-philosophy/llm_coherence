@@ -971,7 +971,7 @@ def analyze_justifications(
     For non-monotonic (variation, comparison) pairs, extract the reasoning
     text from raw responses and summarize.
     """
-    test_names = [f.replace("_comparisons.json", "") for f in manifest["variation_files"]]
+    test_names = [Path(f).name.replace("_comparisons.json", "") for f in manifest["variation_files"]]
 
     non_monotonic_justifications = []
     total_checked = 0
@@ -1104,7 +1104,7 @@ def main():
         variations_data = json.load(f)
     var_lookup = {v["original_statement_id"]: v for v in variations_data}
 
-    test_names = [f.replace("_comparisons.json", "") for f in manifest["variation_files"]]
+    test_names = [Path(f).name.replace("_comparisons.json", "") for f in manifest["variation_files"]]
     print(f"Loading results for {len(test_names)} variation sets (model: {args.model})")
 
     variation_results = []

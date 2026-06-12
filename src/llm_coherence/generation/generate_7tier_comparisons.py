@@ -13,7 +13,7 @@ Default output directory: data/06_forced_choice_inputs/phase6b_variations_pruned
 Outputs are named from the variations file stem, e.g. for
 phase6b_variations_pruned_final.json:
   - data/06_forced_choice_inputs/phase6b_variations_pruned/phase6b_variations_pruned_final_manifest.json
-  - data/06_forced_choice_inputs/phase6b_variations_pruned/phase6b_variations_pruned_final_{id}_comparisons.json
+  - data/06_forced_choice_inputs/phase6b_variations_pruned/{category}/phase6b_variations_pruned_final_{category}_{id}_comparisons.json
 
 Usage:
     PYTHONPATH=src python -m llm_coherence.generation.generate_7tier_comparisons
@@ -64,6 +64,10 @@ def load_comparison_sample(path: Path) -> list[dict]:
 
 def sanitize_id(variation_id: str) -> str:
     return variation_id.replace(" ", "_").replace("/", "_")
+
+
+def sanitize_category(category: str) -> str:
+    return category.replace(" ", "_").replace("/", "_")
 
 
 def variations_stem(variations_path: Path) -> str:
@@ -238,7 +242,11 @@ def main() -> None:
         test_name = test_name_for_ladder(var_path, ladder_id)
         comps = generate_comparisons_for_variation(var, sampled)
 
+        category_dir = sanitize_category(var["category"])
         fname = comparison_basename(var_path, ladder_id)
+        rel_path = Path(category_dir) / fname
+        file_path = out / rel_path
+        file_path.parent.mkdir(parents=True, exist_ok=True)
         payload = {
             "test_name": test_name,
             "test_type": "phase6b_monotonicity",
@@ -252,9 +260,9 @@ def main() -> None:
             "num_comparisons": len(comps),
             "comparisons": comps,
         }
-        with open(out / fname, "w", encoding="utf-8") as f:
+        with open(file_path, "w", encoding="utf-8") as f:
             json.dump(payload, f, indent=2, ensure_ascii=False)
-        manifest["variation_files"].append(fname)
+        manifest["variation_files"].append(rel_path.as_posix())
 
     manifest_path = out / manifest_basename(var_path)
     with open(manifest_path, "w", encoding="utf-8") as f:

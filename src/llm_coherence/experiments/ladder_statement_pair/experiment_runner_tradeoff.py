@@ -2,9 +2,9 @@
 experiment_runner_tradeoff.py
 
 Run forced-choice preference elicitation for trade-off consistency tests.
-Loads comparisons from data/<test_name>_comparisons.json, runs (A,B) and (B,A)
-trials per comparison, and saves results in the format consumed by
-llm_coherence.analysis.analyze_7tier_coherence.
+Loads comparison JSONs from the category-organized forced-choice input
+directory, runs (A,B) and (B,A) trials per comparison, and saves results in the
+format consumed by llm_coherence.analysis.analyze_7tier_coherence.
 Supports checkpointing for resume after interruption.
 """
 
@@ -216,19 +216,42 @@ def build_prompt(
     ]
 
 
+_LADDER_TEST_PREFIX = "phase6b_variations_pruned_final_"
+
+
+def category_for_test_name(test_name: str) -> str | None:
+    """Return category slug for canonical phase6b test names."""
+    if not test_name.startswith(_LADDER_TEST_PREFIX):
+        return None
+    short = test_name[len(_LADDER_TEST_PREFIX):]
+    if "_" not in short:
+        return None
+    category, _ladder_id = short.rsplit("_", 1)
+    return category
+
+
+def comparison_file_path(data_dir: Path, test_name: str) -> Path:
+    """Resolve comparison JSON path for category-organized or legacy flat data."""
+    filename = f"{test_name}_comparisons.json"
+    flat = data_dir / filename
+    if flat.exists():
+        return flat
+    category = category_for_test_name(test_name)
+    if category:
+        return data_dir / category / filename
+    return flat
+
+
 # Loading and saving data
 
 def load_comparisons(data_dir: Path, test_name: str) -> List[Dict[str, Any]]:
-    """Load comparison list from data/<test_name>_comparisons.json."""
-    path = data_dir / f"{test_name}_comparisons.json"
+    """Load comparison list from category-organized or legacy flat data."""
+    path = comparison_file_path(data_dir, test_name)
     if not path.exists():
         raise FileNotFoundError(f"Comparisons file not found: {path}")
     with open(path, "r") as f:
         data = json.load(f)
     return data["comparisons"]
-
-
-_LADDER_TEST_PREFIX = "phase6b_variations_pruned_final_"
 
 
 def artifact_dir_name_for_test(test_name: str) -> str:
@@ -600,7 +623,7 @@ async def run_experiment(
     agent_extra_body = getattr(agent, "extra_body", None) or None
     agent_retry_counts = getattr(agent, "retry_counts", None)
     usage_summary = _summarize_usage(getattr(agent, "usage_log", []))
-    comparison_file_path = data_dir / f"{test_name}_comparisons.json"
+    comparison_path = comparison_file_path(data_dir, test_name)
     prompt_template_used = (
         "comparison_prompt_template_reasoning_default"
         if with_reasoning
@@ -642,7 +665,7 @@ async def run_experiment(
             "package_versions": _package_versions(),
             "prompt_template_used": prompt_template_used,
             "system_message": system_message,
-            "comparison_file_sha256": _file_sha256(comparison_file_path),
+            "comparison_file_sha256": _file_sha256(comparison_path),
             "retry_counts": agent_retry_counts,
             **_host_info(),
         },

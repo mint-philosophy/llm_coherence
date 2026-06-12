@@ -101,9 +101,26 @@ validated ladders used in the main experiments.
 - `data/06_forced_choice_inputs/phase6b_variations_pruned/phase6b_variations_pruned_final_manifest.json`
 - `data/06_forced_choice_inputs/phase6b_variations_pruned/category_index.json`
 
-The pruned comparison files remain flat on disk because the manifest and
-loaders resolve comparison filenames relative to one data directory. Use the
-category index for browsing by topic without changing executable paths.
+The pruned comparison files are grouped into category folders for browsing.
+The manifest stores category-relative file paths, while each JSON file keeps a
+flat `test_name` so existing model-run outputs remain comparable.
+
+## Final Ladder Categories
+
+| Category | Folder | Ladders |
+| --- | --- | ---: |
+| AI and human romantic relationships | `AI_and_human_romantic_relationships/` | 3 |
+| AI moral patienthood | `AI_moral_patienthood/` | 5 |
+| Global economy | `Global_economy/` | 6 |
+| Global politics and geopolitics | `Global_politics_and_geopolitics/` | 7 |
+| Life and species | `Life_and_species/` | 4 |
+| Personal accomplishments | `Personal_accomplishments/` | 7 |
+| Personal finances | `Personal_finances/` | 15 |
+| Personal freedom and autonomy | `Personal_freedom_and_autonomy/` | 3 |
+| Religion and spirituality | `Religion_and_spirituality/` | 1 |
+| United States economy | `United_States_economy/` | 9 |
+| United States politics and policies | `United_States_politics_and_policies/` | 29 |
+| Wellbeing of humans | `Wellbeing_of_humans/` | 11 |
 
 ## Result Summaries
 
@@ -114,6 +131,9 @@ category index for browsing by topic without changing executable paths.
 
 These files are for inspection and sanity checks. They do not replace the raw
 model-response artifact bundle needed to audit every individual choice.
+Full per-category analysis payloads are generated locally under `outputs/`
+when analyses are rerun and should be mirrored in the external artifact bundle,
+not expanded into Git-tracked `results/`.
 
 ## Paper Model Slate
 

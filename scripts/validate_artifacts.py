@@ -68,7 +68,7 @@ def model_run_payloads_present() -> bool:
 
 
 def comparison_short_name(filename: str) -> tuple[str, str, str]:
-    test_name = filename.removesuffix(COMPARISON_SUFFIX)
+    test_name = Path(filename).name.removesuffix(COMPARISON_SUFFIX)
     short = test_name.removeprefix(COMPARISON_PREFIX)
     category, ladder_id = short.rsplit("_", 1)
     return test_name, category, ladder_id
@@ -101,12 +101,12 @@ def build_category_index() -> dict[str, Any]:
 
     return {
         "schema_version": "1.0",
-        "layout": "flat",
+        "layout": "category_directories",
         "generated_from": COMPARISON_MANIFEST.name,
         "note": (
-            "Comparison files remain flat so existing runners can resolve "
-            "manifest filenames relative to this data directory. Use this "
-            "index for category browsing without changing paths."
+            "Comparison files are grouped by category for browsing. The "
+            "manifest stores category-relative file paths; runners still use "
+            "the flat test_name stored inside each JSON payload."
         ),
         "total_variation_sets": sum(category["count"] for category in categories),
         "categories": categories,
