@@ -14,7 +14,14 @@ from pathlib import Path
 from typing import Any
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+def find_repo_root(start: Path) -> Path:
+    for path in (start, *start.parents):
+        if (path / "pyproject.toml").exists() and (path / "src" / "llm_coherence").exists():
+            return path
+    raise RuntimeError("Could not find llm_coherence repository root")
+
+
+REPO_ROOT = find_repo_root(Path(__file__).resolve())
 SRC_DIR = REPO_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))

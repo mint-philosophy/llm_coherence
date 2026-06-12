@@ -45,6 +45,13 @@ IGNORED_DIR_NAMES = {
 }
 
 
+def find_repo_root(start: Path) -> Path:
+    for path in (start, *start.parents):
+        if (path / "pyproject.toml").exists() and (path / "src" / "llm_coherence").exists():
+            return path
+    raise RuntimeError("Could not find llm_coherence repository root")
+
+
 @dataclass(frozen=True)
 class StageStats:
     files: int = 0
@@ -73,7 +80,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--repo-root",
         type=Path,
-        default=Path(__file__).resolve().parents[1],
+        default=find_repo_root(Path(__file__).resolve()),
         help="Path to the llm_coherence repository root.",
     )
     parser.add_argument(

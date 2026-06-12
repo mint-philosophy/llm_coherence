@@ -19,7 +19,7 @@ If you are reading the repo for the first time:
    `data/05_ladder_validation/phase6b_variations_pruned_final.json`.
 3. Inspect the forced-choice inputs in `data/06_forced_choice_inputs/`.
 4. Check the summary files in `results/`.
-5. Use the numbered scripts in `scripts/pipeline/` only if you want to rerun
+5. Use the numbered directories under `scripts/` only if you want to rerun
    code.
 
 Raw model responses are not tracked in Git. They should live locally under
@@ -82,17 +82,24 @@ example in a Hugging Face Dataset repository.
 | Folder | Purpose |
 | --- | --- |
 | `data/` | Canonical inputs and intermediate data products that define the instrument. Numbered subfolders follow the experiment order. |
-| `scripts/pipeline/` | Numbered public wrapper scripts in the order of the paper methodology. |
-| `scripts/` | Repository maintenance scripts, including artifact validation. |
+| `scripts/00_repository/` | Repository maintenance scripts, including artifact validation and artifact-bundle preparation. |
+| `scripts/01_instrument_design/` | Public wrappers for source filtering, outcome screening, and ladder generation. |
+| `scripts/02_ladder_validation/` | Public wrappers for ladder audit, pruning, and final validation. |
+| `scripts/03_forced_choice_inputs/` | Public wrapper for forced-choice input construction. |
+| `scripts/04_model_runs/` | Public wrapper for model forced-choice runs. |
+| `scripts/05_analysis/` | Public wrappers for monotonicity and predictive-utility analyses. |
+| `scripts/06_reporting/` | Public wrapper for paper figure and table generation. |
 | `src/llm_coherence/` | Importable Python package containing the implementation used by the wrappers. See note below. |
 | `results/` | Lightweight public summaries and inventories that are small enough to track in Git. |
 | `outputs/` | Local-only generated artifacts from reruns: raw model responses, reasoning traces, derived analyses, figures, tables, and checkpoints. This folder is ignored by Git. |
 
-Use `scripts/pipeline/` when reading the repository as a paper artifact. Use
-`src/llm_coherence/` when editing the implementation. The `src` layout is the
-standard Python package layout: it keeps importable code separate from data and
-generated artifacts. The package name is `llm_coherence`, which is why direct
-module commands use `python -m llm_coherence...`.
+Use the numbered `scripts/` directories when reading the repository as a paper
+artifact. GitHub sorts folders alphabetically, so the numeric prefixes make the
+methodology order visible in the file browser. Use `src/llm_coherence/` when
+editing the implementation. The `src` layout is the standard Python package
+layout: it keeps importable code separate from data and generated artifacts.
+The package name is `llm_coherence`, which is why direct module commands use
+`python -m llm_coherence...`.
 
 The count progression should be easy to audit: 510 source outcomes, 181
 screened candidate outcomes, 146 generated ladder candidates, and 100 final
@@ -184,16 +191,16 @@ python -m pip install -e .
 Validate tracked inputs and lightweight indexes:
 
 ```bash
-PYTHONPATH=src python scripts/validate_artifacts.py
+PYTHONPATH=src python scripts/00_repository/validate_artifacts.py
 ```
 
 Regenerate early instrument-design stages when needed. The first command is
 local; the screening and ladder-generation stages require provider API access:
 
 ```bash
-PYTHONPATH=src python scripts/pipeline/01_create_filtered_dataset.py
-PYTHONPATH=src python scripts/pipeline/02_screen_outcomes.py
-PYTHONPATH=src python scripts/pipeline/03_generate_7tier_ladders.py
+PYTHONPATH=src python scripts/01_instrument_design/01_create_filtered_dataset.py
+PYTHONPATH=src python scripts/01_instrument_design/02_screen_outcomes.py
+PYTHONPATH=src python scripts/01_instrument_design/03_generate_7tier_ladders.py
 ```
 
 For ordinary replication, most users should start from the tracked canonical
@@ -215,7 +222,7 @@ data/05_ladder_validation/phase6b_variations_pruned_final.json
 Regenerate forced-choice comparison inputs:
 
 ```bash
-PYTHONPATH=src python scripts/pipeline/09_generate_forced_choice_inputs.py
+PYTHONPATH=src python scripts/03_forced_choice_inputs/09_generate_forced_choice_inputs.py
 ```
 
 Run a tiny end-to-end smoke test with the same small slice under thinking off
@@ -225,7 +232,7 @@ single-request concurrency so the test is cheap and easy to inspect.
 Thinking off:
 
 ```bash
-PYTHONPATH=src python scripts/pipeline/10_run_model_experiments.py \
+PYTHONPATH=src python scripts/04_model_runs/10_run_model_experiments.py \
   --model gpt-54-nano \
   --trials 1 \
   --max-variation-sets 1 \
@@ -237,7 +244,7 @@ PYTHONPATH=src python scripts/pipeline/10_run_model_experiments.py \
 Thinking on:
 
 ```bash
-PYTHONPATH=src python scripts/pipeline/10_run_model_experiments.py \
+PYTHONPATH=src python scripts/04_model_runs/10_run_model_experiments.py \
   --model gpt-54-nano-thinking \
   --trials 1 \
   --max-variation-sets 1 \
@@ -258,8 +265,8 @@ outputs/07_model_runs/gpt-54-nano-thinking/smoke_gpt54nanothinking/
 After the smoke run, analyze the corresponding model output:
 
 ```bash
-PYTHONPATH=src python scripts/pipeline/11_analyze_coherence.py --model gpt-54-nano
-PYTHONPATH=src python scripts/pipeline/12_predictive_utility.py --model gpt-54-nano
+PYTHONPATH=src python scripts/05_analysis/11_analyze_coherence.py --model gpt-54-nano
+PYTHONPATH=src python scripts/05_analysis/12_predictive_utility.py --model gpt-54-nano
 ```
 
 For a full rerun, increase `--max-variation-sets` or remove it, raise
@@ -267,25 +274,25 @@ For a full rerun, increase `--max-variation-sets` or remove it, raise
 
 ## Canonical Script Sequence
 
-Use the numbered wrappers in `scripts/pipeline/` when tracing the experiment
-from the paper methodology. Run them from the repository root with
+Use the numbered wrapper directories under `scripts/` when tracing the
+experiment from the paper methodology. Run them from the repository root with
 `PYTHONPATH=src python <script>`.
 
 | Step | Purpose | Wrapper |
 | ---: | --- | --- |
-| 1 | Filter source outcomes from the Mazeika hierarchy. | `scripts/pipeline/01_create_filtered_dataset.py` |
-| 2 | Screen outcomes for a monotonic choice-relevant property. | `scripts/pipeline/02_screen_outcomes.py` |
-| 3 | Generate seven-tier candidate ladders. | `scripts/pipeline/03_generate_7tier_ladders.py` |
-| 4 | Validate all within-ladder tier pairs. | `scripts/pipeline/04_tier_pair_validation.py` |
-| 5 | Stress-test adjacent ladder steps for property validity. | `scripts/pipeline/05_property_validation.py` |
-| 6 | Build pair-test-pruned ladders. | `scripts/pipeline/06_build_pairtest_pruned_ladders.py` |
-| 7 | Validate full seven-tier ranking recovery. | `scripts/pipeline/07_full_ladder_ranking_validation.py` |
-| 8 | Intersect validation outputs into the final 100 ladders. | `scripts/pipeline/08_build_final_pruned_ladders.py` |
-| 9 | Generate forced-choice comparison inputs. | `scripts/pipeline/09_generate_forced_choice_inputs.py` |
-| 10 | Run forced-choice model experiments. | `scripts/pipeline/10_run_model_experiments.py` |
-| 11 | Compute monotonicity and rank-trend metrics. | `scripts/pipeline/11_analyze_coherence.py` |
-| 12 | Run cross-validated logistic-regression predictive utility. | `scripts/pipeline/12_predictive_utility.py` |
-| 13 | Build paper figures and tables. | `scripts/pipeline/13_make_paper_figures.py` |
+| 1 | Filter source outcomes from the Mazeika hierarchy. | `scripts/01_instrument_design/01_create_filtered_dataset.py` |
+| 2 | Screen outcomes for a monotonic choice-relevant property. | `scripts/01_instrument_design/02_screen_outcomes.py` |
+| 3 | Generate seven-tier candidate ladders. | `scripts/01_instrument_design/03_generate_7tier_ladders.py` |
+| 4 | Validate all within-ladder tier pairs. | `scripts/02_ladder_validation/04_tier_pair_validation.py` |
+| 5 | Stress-test adjacent ladder steps for property validity. | `scripts/02_ladder_validation/05_property_validation.py` |
+| 6 | Build pair-test-pruned ladders. | `scripts/02_ladder_validation/06_build_pairtest_pruned_ladders.py` |
+| 7 | Validate full seven-tier ranking recovery. | `scripts/02_ladder_validation/07_full_ladder_ranking_validation.py` |
+| 8 | Intersect validation outputs into the final 100 ladders. | `scripts/02_ladder_validation/08_build_final_pruned_ladders.py` |
+| 9 | Generate forced-choice comparison inputs. | `scripts/03_forced_choice_inputs/09_generate_forced_choice_inputs.py` |
+| 10 | Run forced-choice model experiments. | `scripts/04_model_runs/10_run_model_experiments.py` |
+| 11 | Compute monotonicity and rank-trend metrics. | `scripts/05_analysis/11_analyze_coherence.py` |
+| 12 | Run cross-validated logistic-regression predictive utility. | `scripts/05_analysis/12_predictive_utility.py` |
+| 13 | Build paper figures and tables. | `scripts/06_reporting/13_make_paper_figures.py` |
 
 Each wrapper delegates to the corresponding importable module under
 `src/llm_coherence/`. For example, `10_run_model_experiments.py` calls
