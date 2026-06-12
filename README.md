@@ -27,7 +27,7 @@ example in a Hugging Face Dataset repository.
 
 ## Experiment Order
 
-1. **Instrument design.** Start from the Mosaic-style source outcome hierarchy,
+1. **Instrument design.** Start from the Mazeika source outcome hierarchy,
    exclude unsuitable categories, screen outcomes for a monotonic property, and
    generate seven-tier candidate ladders.
 2. **Ladder-quality audit and validation.** Audit ladder ordering, property
