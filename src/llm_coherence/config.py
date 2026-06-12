@@ -4,9 +4,9 @@ config.py
 Configuration for parametric variation experiments.
 Centralized settings for models, API parameters, and experiment parameters.
 
-Trimmed to the AIES slate for llm_coherence: the 15 paper models (Table 1)
-plus the gpt-55-openai within-ladder pruning judge. Models present in mint's
-config but not used by this repo have been removed.
+Trimmed to the AIES workflow for llm_coherence. The public README separates the
+15 model configurations reported in the paper from audit judges and local support
+or exploratory model keys.
 """
 
 from dataclasses import dataclass
@@ -25,16 +25,15 @@ class ModelConfig:
     base_timeout: float = 5.0
     extra_body: Optional[dict] = None  # Provider-specific params (reasoning_effort, thinking, etc.)
     enable_cache: bool = False  # Enable prompt caching (Anthropic via OpenRouter)
-    # Native API model name (used by batch_runner_anthropic.py to build requests
-    # and to look up batched-pricing rates). For Anthropic models this is
-    # "claude-opus-4-6" / "claude-opus-4-7", not the model_key.
+    # Native provider model name for APIs that need it. For Anthropic models this
+    # is "claude-opus-4-6" / "claude-opus-4-7", not the model_key.
     model_name_full: Optional[str] = None
     # System message for forced-choice elicitation. Matches what nemotron / GLM /
     # Llama OFF runs used so cross-family comparisons stay apples-to-apples.
     system_message: Optional[str] = None
     # Declarative provenance of the reasoning artifact this model produces.
     # Values: none | prose_justification | summary | raw_cot | unverified
-    # Used by reasoning_metadata.py to populate the four schema-v1.1 fields.
+    # Used by reporting/inventory code to describe reasoning artifacts.
     reasoning_artifact_type: str = "none"
 
     def __post_init__(self):

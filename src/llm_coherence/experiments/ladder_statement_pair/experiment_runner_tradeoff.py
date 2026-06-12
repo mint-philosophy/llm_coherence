@@ -3,7 +3,8 @@ experiment_runner_tradeoff.py
 
 Run forced-choice preference elicitation for trade-off consistency tests.
 Loads comparisons from data/<test_name>_comparisons.json, runs (A,B) and (B,A)
-trials per comparison, and saves results in the format expected by tradeoff_analysis.py.
+trials per comparison, and saves results in the format consumed by
+llm_coherence.analysis.analyze_7tier_coherence.
 Supports checkpointing for resume after interruption.
 """
 
@@ -676,7 +677,10 @@ async def run_experiment(
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Run trade-off preference elicitation and save results for tradeoff_analysis.py",
+        description=(
+            "Run forced-choice preference elicitation and save results for "
+            "llm_coherence.analysis.analyze_7tier_coherence"
+        ),
     )
     parser.add_argument(
         "--test",

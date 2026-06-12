@@ -101,6 +101,40 @@ category index for browsing by topic without changing executable paths.
 These files are for inspection and sanity checks. They do not replace the raw
 model-response artifact bundle needed to audit every individual choice.
 
+## Paper Model Slate
+
+The main paper reports 15 model configurations: 10 reasoning-off or
+non-reasoning configurations and 5 reasoning-on configurations.
+
+| Paper label | Repo model key | Reasoning mode |
+| --- | --- | --- |
+| GPT-5.4 Nano | `gpt-54-nano` | off |
+| GPT-5.4 Nano Thinking | `gpt-54-nano-thinking` | on |
+| GPT-5.4 Mini | `gpt-54-mini` | off |
+| GPT-5.4 Mini Thinking | `gpt-54-mini-thinking` | on |
+| GPT-5.4 | `gpt-54` | off |
+| GPT-5.4 Thinking | `gpt-54-thinking` | on |
+| Opus 4.6 | `opus-46` | off |
+| Nemotron 3 Super 120B | `nemotron-3-super` | off |
+| Nemotron 3 Super 120B Thinking | `nemotron-3-super-thinking` | on |
+| GLM-4.5 Base | `glm-45-base-logprobs` | logprob-scored base model |
+| GLM-4.5 Hybrid | `glm-45-hybrid` | off |
+| GLM-4.5 Hybrid Thinking | `glm-45-hybrid-thinking` | on |
+| Llama 3.1 8B Instruct | `llama-31-8b-instruct-openrouter` | off |
+| Ministral 3B 2512 | `ministral-3b-2512-openrouter` | off |
+| Mistral Small 3.1 Thinking | `mistral-small-2603-openrouter-thinking` | on |
+
+The ladder-audit stage is a separate judge-model use case. The pruning judge is
+`gpt-55-openai`, and the paper also reports tier-pair sanity checks for GPT-5.5,
+Opus 4.6, GPT-5.4, GLM-4.5 Hybrid, GPT-5.4 Mini, Nemotron 3 Super 120B, and
+Llama 3.1 8B. These audit checks should not be counted as additional main
+experiment configurations.
+
+Local output inventories may include support or exploratory model keys that are
+not part of the 15-configuration paper table. In particular,
+`opus-46-thinking` is configured for local/exploratory runs but is not included
+in the main paper's reported model slate unless the paper is updated.
+
 ## Quick Start
 
 Install locally:
@@ -256,6 +290,10 @@ For the paired tiny smoke test, use:
 - Refusal-like behavior is tracked through parseability/unparseable-response
   statistics in forced-choice outputs, not through a separate refusal
   classifier.
+- The old `parametric_variations` workspace contains batch submission, polling,
+  retry, and partial-finalization utilities. Those are operational wrappers for
+  API execution, not additional methodology steps. Migrate them only if exact
+  original batch-workflow reproduction is required.
 
 ## Artifact Policy
 
