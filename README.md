@@ -10,6 +10,17 @@ when the relevant property is increased? The repository is organized around the
 paper's experiment order: instrument design, ladder audit, forced-choice model
 runs, coherence analysis, predictive-utility analysis, and reporting.
 
+## Research Question
+
+Do LLM forced-choice preferences remain coherent when outcomes are varied
+monotonically along a controlled seven-tier ladder? In this repository,
+coherence means that a model's choices should track the intended direction of a
+single value-relevant property rather than reversing, flattening, or becoming
+unpredictable as the property changes.
+
+The paper link and citation will be added here after the preprint is available
+on arXiv.
+
 ## Start Here
 
 If you are reading the repo for the first time:
@@ -278,21 +289,21 @@ Use the numbered wrapper directories under `scripts/` when tracing the
 experiment from the paper methodology. Run them from the repository root with
 `PYTHONPATH=src python <script>`.
 
-| Step | Purpose | Wrapper |
-| ---: | --- | --- |
-| 1 | Filter source outcomes from the Mazeika hierarchy. | `scripts/01_instrument_design/01_create_filtered_dataset.py` |
-| 2 | Screen outcomes for a monotonic choice-relevant property. | `scripts/01_instrument_design/02_screen_outcomes.py` |
-| 3 | Generate seven-tier candidate ladders. | `scripts/01_instrument_design/03_generate_7tier_ladders.py` |
-| 4 | Validate all within-ladder tier pairs. | `scripts/02_ladder_validation/04_tier_pair_validation.py` |
-| 5 | Stress-test adjacent ladder steps for property validity. | `scripts/02_ladder_validation/05_property_validation.py` |
-| 6 | Build pair-test-pruned ladders. | `scripts/02_ladder_validation/06_build_pairtest_pruned_ladders.py` |
-| 7 | Validate full seven-tier ranking recovery. | `scripts/02_ladder_validation/07_full_ladder_ranking_validation.py` |
-| 8 | Intersect validation outputs into the final 100 ladders. | `scripts/02_ladder_validation/08_build_final_pruned_ladders.py` |
-| 9 | Generate forced-choice comparison inputs. | `scripts/03_forced_choice_inputs/09_generate_forced_choice_inputs.py` |
-| 10 | Run forced-choice model experiments. | `scripts/04_model_runs/10_run_model_experiments.py` |
-| 11 | Compute monotonicity and rank-trend metrics. | `scripts/05_analysis/11_analyze_coherence.py` |
-| 12 | Run cross-validated logistic-regression predictive utility. | `scripts/05_analysis/12_predictive_utility.py` |
-| 13 | Build paper figures and tables. | `scripts/06_reporting/13_make_paper_figures.py` |
+| Step | Purpose | Public wrapper | Implementation |
+| ---: | --- | --- | --- |
+| 1 | Filter source outcomes from the Mazeika hierarchy. | `scripts/01_instrument_design/01_create_filtered_dataset.py` | `src/llm_coherence/generation/create_filtered_dataset.py` |
+| 2 | Screen outcomes for a monotonic choice-relevant property. | `scripts/01_instrument_design/02_screen_outcomes.py` | `src/llm_coherence/generation/filter_statements.py` |
+| 3 | Generate seven-tier candidate ladders. | `scripts/01_instrument_design/03_generate_7tier_ladders.py` | `src/llm_coherence/generation/generate_7tier_variations.py` |
+| 4 | Validate all within-ladder tier pairs. | `scripts/02_ladder_validation/04_tier_pair_validation.py` | `src/llm_coherence/validation/within_ladder_validation.py` |
+| 5 | Stress-test adjacent ladder steps for property validity. | `scripts/02_ladder_validation/05_property_validation.py` | `src/llm_coherence/validation/property_ladder_pruning.py` |
+| 6 | Build pair-test-pruned ladders. | `scripts/02_ladder_validation/06_build_pairtest_pruned_ladders.py` | `src/llm_coherence/validation/generate_pairtest_pruned.py` |
+| 7 | Validate full seven-tier ranking recovery. | `scripts/02_ladder_validation/07_full_ladder_ranking_validation.py` | `src/llm_coherence/validation/full_ladder_ranking_pruning.py` |
+| 8 | Intersect validation outputs into the final 100 ladders. | `scripts/02_ladder_validation/08_build_final_pruned_ladders.py` | `src/llm_coherence/validation/build_final_pruned_variations.py` |
+| 9 | Generate forced-choice comparison inputs. | `scripts/03_forced_choice_inputs/09_generate_forced_choice_inputs.py` | `src/llm_coherence/generation/generate_7tier_comparisons.py` |
+| 10 | Run forced-choice model experiments. | `scripts/04_model_runs/10_run_model_experiments.py` | `src/llm_coherence/experiments/ladder_statement_pair/run_7tier_experiment.py` |
+| 11 | Compute monotonicity and rank-trend metrics. | `scripts/05_analysis/11_analyze_coherence.py` | `src/llm_coherence/analysis/analyze_7tier_coherence.py` |
+| 12 | Run cross-validated logistic-regression predictive utility. | `scripts/05_analysis/12_predictive_utility.py` | `src/llm_coherence/analysis/predictive_utility.py` |
+| 13 | Build paper figures and tables. | `scripts/06_reporting/13_make_paper_figures.py` | `src/llm_coherence/reporting/make_paper_figures.py` |
 
 Each wrapper delegates to the corresponding importable module under
 `src/llm_coherence/`. For example, `10_run_model_experiments.py` calls
