@@ -1,13 +1,29 @@
 # LLM Preference Coherence
 
 Public research artifact for an AIES 2026 project on whether LLM
-forced-choice preferences remain coherent over parametric seven-tier outcome
-ladders.
+forced-choice preferences remain coherent when one value-relevant property is
+varied across a seven-tier ladder.
 
-This README is the main runbook. The repository is organized in the order the
-experiment was conducted in the paper methodology: instrument design,
-ladder-quality audit/validation, forced-choice preference elicitation,
-monotonicity analysis, predictive-utility analysis, and reporting.
+The experiment asks a simple question: if a model prefers an outcome at a
+baseline tier, does it keep preferring stronger versions of that same outcome
+when the relevant property is increased? The repository is organized around the
+paper's experiment order: instrument design, ladder audit, forced-choice model
+runs, coherence analysis, predictive-utility analysis, and reporting.
+
+## Start Here
+
+If you are reading the repo for the first time:
+
+1. Read the experiment order below.
+2. Inspect the final validated ladders in
+   `data/05_ladder_validation/phase6b_variations_pruned_final.json`.
+3. Inspect the forced-choice inputs in `data/06_forced_choice_inputs/`.
+4. Check the summary files in `results/`.
+5. Use the quick-start commands only if you want to rerun code.
+
+Raw model responses are not tracked in Git. They should live locally under
+`outputs/` during reruns and in an external artifact archive for paper
+reproduction.
 
 ## What This Repository Supports
 
@@ -27,53 +43,52 @@ example in a Hugging Face Dataset repository.
 
 ## Experiment Order
 
-1. **Instrument design.** Start from the Mazeika source outcome hierarchy,
-   exclude unsuitable categories, screen outcomes for a monotonic property, and
-   generate seven-tier candidate ladders.
-2. **Ladder-quality audit and validation.** Audit ladder ordering, property
-   consistency, and valence direction with a strong model judge; fix
-   valence-reversal issues and prune to the final validated ladder set.
-3. **Forced-choice preference elicitation.** For each model variant, compare
-   every tier in each validated ladder against fixed comparison statements and
-   save per-pair choice counts and probabilities.
-4. **Monotonicity analysis.** Convert forced-choice outputs into strict
-   monotonicity, Kendall tau, Spearman rho, isotonic R-squared, bootstrap
-   monotonicity, and parseability summaries.
-5. **Predictive-utility analysis.** Run the cross-validated logistic-regression
-   predictive-utility test on each model's forced-choice outputs.
-6. **Reporting.** Build figures, tables, compact summaries, and external
-   artifact bundles.
+1. **Instrument design**
+   Start from the Mazeika source outcomes, exclude unsuitable categories,
+   screen outcomes for a monotonic property, and generate seven-tier candidate
+   ladders.
+   Look at: `data/01_source_outcomes/` to `data/04_ladder_generation/`.
 
-## Repository Map
+2. **Ladder audit**
+   Check ordering, property consistency, and valence direction with a strong
+   judge model; prune to the final 100 ladders.
+   Look at: `data/05_ladder_validation/` and `src/llm_coherence/validation/`.
 
-```text
-data/
-  01_source_outcomes/       510 source outcomes across 30 categories
-  02_category_filtering/    category-exclusion output and report
-  03_outcome_screening/     Opus screening of 181 candidate outcomes
-  04_ladder_generation/     146 generated seven-tier ladder candidates
-  05_ladder_validation/     ladder audit/pruning outputs; final 100 ladders
-  06_forced_choice_inputs/  30 comparison statements and per-ladder pairs
+3. **Forced-choice inputs**
+   Pair every validated ladder tier with fixed comparison statements.
+   Look at: `data/06_forced_choice_inputs/`.
 
-src/llm_coherence/
-  generation/        filtering, screening, ladder generation, comparisons
-  validation/        tier-pair, property, ranking, and final pruning scripts
-  experiments/       forced-choice model experiment runners
-  runtime/           API clients, model configuration, budget helpers
-  analysis/          monotonicity, trend, and predictive-utility metrics
-  reporting/         paper figures and tables
+4. **Model runs**
+   Run each model configuration and save per-pair choice counts, probabilities,
+   raw responses, and parseability metadata.
+   Writes to: local-only `outputs/07_model_runs/`.
 
-outputs/
-  04_ladder_generation/     generated run artifacts and checkpoints
-  05_ladder_validation/     validation run outputs
-  06_forced_choice_inputs/  regenerated comparison artifacts
-  07_model_runs/            raw per-model forced-choice outputs
-  08_analysis/              derived coherence and predictive-utility outputs
-  09_figures_tables/        final paper figures and tables
+5. **Coherence analysis**
+   Compute strict monotonicity, Kendall tau, Spearman rho, isotonic R-squared,
+   bootstrap monotonicity, and parseability summaries.
+   Look at: `src/llm_coherence/analysis/`.
 
-results/
-  phase6b_coherence_summary.json
-```
+6. **Predictive utility**
+   Run the cross-validated logistic-regression predictive-utility test.
+   Look at: `src/llm_coherence/analysis/predictive_utility.py`.
+
+7. **Reporting**
+   Build figures, tables, compact summaries, and external artifact bundles.
+   Look at: `src/llm_coherence/reporting/` and `results/`.
+
+## Folder Guide
+
+| Folder | Purpose |
+| --- | --- |
+| `data/` | Canonical inputs and intermediate data products that define the instrument. Numbered subfolders follow the experiment order. |
+| `src/llm_coherence/` | Importable Python package containing the experiment code. See note below. |
+| `scripts/` | Repository maintenance scripts, including artifact validation. |
+| `results/` | Lightweight public summaries and inventories that are small enough to track in Git. |
+| `outputs/` | Local-only generated artifacts from reruns: raw model responses, reasoning traces, derived analyses, figures, tables, and checkpoints. This folder is ignored by Git. |
+
+Why `src/llm_coherence/`? This is the standard Python `src` layout. It keeps
+importable code separate from data and generated artifacts. The package name is
+`llm_coherence`, which is why commands use `python -m llm_coherence...`.
 
 The count progression should be easy to audit: 510 source outcomes, 181
 screened candidate outcomes, 146 generated ladder candidates, and 100 final
@@ -94,9 +109,8 @@ category index for browsing by topic without changing executable paths.
 
 - `results/phase6b_coherence_summary.json`: compact public summary of local
   phase 6b coherence metrics.
-- `outputs/07_model_runs/model_run_index.json`: inventory of the local
-  publication run snapshot, including model keys, thinking on/off status, and
-  result counts.
+- `results/model_run_index.json`: inventory of the local publication run
+  snapshot, including model keys, thinking on/off status, and result counts.
 
 These files are for inspection and sanity checks. They do not replace the raw
 model-response artifact bundle needed to audit every individual choice.

@@ -28,7 +28,6 @@
 /outputs/*
 /outputs/**/*
 !/outputs/**/
-!/outputs/**/model_run_index.json
 
 # Documents and tabular data
 *.pdf

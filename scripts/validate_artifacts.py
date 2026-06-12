@@ -38,7 +38,7 @@ COMPARISON_DIR = COMPARISONS_DIR
 COMPARISON_MANIFEST = COMPARISON_DIR / "phase6b_variations_pruned_final_manifest.json"
 CATEGORY_INDEX = COMPARISON_DIR / "category_index.json"
 MODEL_RUNS_DIR = MODEL_RUNS_OUTPUT_DIR
-MODEL_RUN_INDEX = MODEL_RUNS_DIR / "model_run_index.json"
+MODEL_RUN_INDEX = REPO_ROOT / "results" / "model_run_index.json"
 ANALYSIS_DIR = ANALYSIS_OUTPUTS_DIR
 
 
@@ -236,7 +236,7 @@ def main() -> int:
     parser.add_argument(
         "--write-indexes",
         action="store_true",
-        help="Refresh category_index.json and model_run_index.json before validating.",
+        help="Refresh category_index.json and results/model_run_index.json before validating.",
     )
     args = parser.parse_args()
 
