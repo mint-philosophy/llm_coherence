@@ -18,8 +18,8 @@ coherence means that a model's choices should track the intended direction of a
 single value-relevant property rather than reversing, flattening, or becoming
 unpredictable as the property changes.
 
-The paper link and citation will be added here after the preprint is available
-on arXiv.
+This repository accompanies a paper submitted to AIES 2026. The citation and
+preprint link will be added when publicly available.
 
 ## Start Here
 
