@@ -25,7 +25,7 @@ preprint link will be added when publicly available.
 
 If you are reading the repo for the first time:
 
-1. Read the experiment order below.
+1. Read the workflow overview below.
 2. Inspect the final validated ladders in
    `data/05_ladder_validation/phase6b_variations_pruned_final.json`.
 3. Inspect the forced-choice inputs in `data/06_forced_choice_inputs/`.
@@ -53,40 +53,13 @@ derived analysis payloads. The GitHub repo tracks the code, canonical inputs,
 and lightweight summaries; raw outputs should be archived externally, for
 example in a Hugging Face Dataset repository.
 
-## Experiment Order
+## Workflow Overview
 
-1. **Instrument design**
-   Start from the Mazeika source outcomes, exclude unsuitable categories,
-   screen outcomes for a monotonic property, and generate seven-tier candidate
-   ladders.
-   Look at: `data/01_source_outcomes/` to `data/04_ladder_generation/`.
-
-2. **Ladder audit**
-   Check ordering, property consistency, and valence direction with a strong
-   judge model; prune to the final 100 ladders.
-   Look at: `data/05_ladder_validation/` and `src/llm_coherence/validation/`.
-
-3. **Forced-choice inputs**
-   Pair every validated ladder tier with fixed comparison statements.
-   Look at: `data/06_forced_choice_inputs/`.
-
-4. **Model runs**
-   Run each model configuration and save per-pair choice counts, probabilities,
-   raw responses, and parseability metadata.
-   Writes to: local-only `outputs/07_model_runs/`.
-
-5. **Coherence analysis**
-   Compute strict monotonicity, Kendall tau, Spearman rho, isotonic R-squared,
-   bootstrap monotonicity, and parseability summaries.
-   Look at: `src/llm_coherence/analysis/`.
-
-6. **Predictive utility**
-   Run the cross-validated logistic-regression predictive-utility test.
-   Look at: `src/llm_coherence/analysis/predictive_utility.py`.
-
-7. **Reporting**
-   Build figures, tables, compact summaries, and external artifact bundles.
-   Look at: `src/llm_coherence/reporting/` and `results/`.
+The experiment proceeds in this order: source outcome filtering, outcome
+screening, seven-tier ladder generation, ladder validation and pruning,
+forced-choice input construction, model runs, coherence analysis,
+predictive-utility analysis, and reporting. The detailed script-level order is
+listed in the reproduction pipeline below.
 
 ## Folder Guide
 
@@ -239,6 +212,9 @@ PYTHONPATH=src python scripts/03_forced_choice_inputs/09_generate_forced_choice_
 Run a tiny end-to-end smoke test with the same small slice under thinking off
 and thinking on. Each command uses one variation set, one trial, and
 single-request concurrency so the test is cheap and easy to inspect.
+Thinking variants are represented as separate model keys, and API keys are read
+from environment variables or `api_keys/api_key_<provider>.txt` under the repo
+root. API keys are not included in the repository.
 
 Thinking off:
 
@@ -283,56 +259,30 @@ PYTHONPATH=src python scripts/05_analysis/12_predictive_utility.py --model gpt-5
 For a full rerun, increase `--max-variation-sets` or remove it, raise
 `--trials`, and shard with `--start-from` across non-overlapping ranges.
 
-## Canonical Script Sequence
+## Reproduction Pipeline
 
 Use the numbered wrapper directories under `scripts/` when tracing the
 experiment from the paper methodology. Run them from the repository root with
 `PYTHONPATH=src python <script>`.
 
-| Step | Purpose | Public wrapper | Implementation |
-| ---: | --- | --- | --- |
-| 1 | Filter source outcomes from the Mazeika hierarchy. | `scripts/01_instrument_design/01_create_filtered_dataset.py` | `src/llm_coherence/generation/create_filtered_dataset.py` |
-| 2 | Screen outcomes for a monotonic choice-relevant property. | `scripts/01_instrument_design/02_screen_outcomes.py` | `src/llm_coherence/generation/filter_statements.py` |
-| 3 | Generate seven-tier candidate ladders. | `scripts/01_instrument_design/03_generate_7tier_ladders.py` | `src/llm_coherence/generation/generate_7tier_variations.py` |
-| 4 | Validate all within-ladder tier pairs. | `scripts/02_ladder_validation/04_tier_pair_validation.py` | `src/llm_coherence/validation/within_ladder_validation.py` |
-| 5 | Stress-test adjacent ladder steps for property validity. | `scripts/02_ladder_validation/05_property_validation.py` | `src/llm_coherence/validation/property_ladder_pruning.py` |
-| 6 | Build pair-test-pruned ladders. | `scripts/02_ladder_validation/06_build_pairtest_pruned_ladders.py` | `src/llm_coherence/validation/generate_pairtest_pruned.py` |
-| 7 | Validate full seven-tier ranking recovery. | `scripts/02_ladder_validation/07_full_ladder_ranking_validation.py` | `src/llm_coherence/validation/full_ladder_ranking_pruning.py` |
-| 8 | Intersect validation outputs into the final 100 ladders. | `scripts/02_ladder_validation/08_build_final_pruned_ladders.py` | `src/llm_coherence/validation/build_final_pruned_variations.py` |
-| 9 | Generate forced-choice comparison inputs. | `scripts/03_forced_choice_inputs/09_generate_forced_choice_inputs.py` | `src/llm_coherence/generation/generate_7tier_comparisons.py` |
-| 10 | Run forced-choice model experiments. | `scripts/04_model_runs/10_run_model_experiments.py` | `src/llm_coherence/experiments/ladder_statement_pair/run_7tier_experiment.py` |
-| 11 | Compute monotonicity and rank-trend metrics. | `scripts/05_analysis/11_analyze_coherence.py` | `src/llm_coherence/analysis/analyze_7tier_coherence.py` |
-| 12 | Run cross-validated logistic-regression predictive utility. | `scripts/05_analysis/12_predictive_utility.py` | `src/llm_coherence/analysis/predictive_utility.py` |
-| 13 | Build paper figures and tables. | `scripts/06_reporting/13_make_paper_figures.py` | `src/llm_coherence/reporting/make_paper_figures.py` |
+| Step | Purpose and entry point |
+| ---: | --- |
+| 1 | Source filtering: `scripts/01_instrument_design/01_create_filtered_dataset.py` -> `src/llm_coherence/generation/create_filtered_dataset.py` |
+| 2 | Outcome screening: `scripts/01_instrument_design/02_screen_outcomes.py` -> `src/llm_coherence/generation/filter_statements.py` |
+| 3 | Ladder generation: `scripts/01_instrument_design/03_generate_7tier_ladders.py` -> `src/llm_coherence/generation/generate_7tier_variations.py` |
+| 4 | Tier-pair validation: `scripts/02_ladder_validation/04_tier_pair_validation.py` -> `src/llm_coherence/validation/within_ladder_validation.py` |
+| 5 | Property validation: `scripts/02_ladder_validation/05_property_validation.py` -> `src/llm_coherence/validation/property_ladder_pruning.py` |
+| 6 | Pair-test pruning: `scripts/02_ladder_validation/06_build_pairtest_pruned_ladders.py` -> `src/llm_coherence/validation/generate_pairtest_pruned.py` |
+| 7 | Full-ranking validation: `scripts/02_ladder_validation/07_full_ladder_ranking_validation.py` -> `src/llm_coherence/validation/full_ladder_ranking_pruning.py` |
+| 8 | Final ladder intersection: `scripts/02_ladder_validation/08_build_final_pruned_ladders.py` -> `src/llm_coherence/validation/build_final_pruned_variations.py` |
+| 9 | Forced-choice inputs: `scripts/03_forced_choice_inputs/09_generate_forced_choice_inputs.py` -> `src/llm_coherence/generation/generate_7tier_comparisons.py` |
+| 10 | Model runs: `scripts/04_model_runs/10_run_model_experiments.py` -> `src/llm_coherence/experiments/ladder_statement_pair/run_7tier_experiment.py` |
+| 11 | Coherence analysis: `scripts/05_analysis/11_analyze_coherence.py` -> `src/llm_coherence/analysis/analyze_7tier_coherence.py` |
+| 12 | Predictive utility: `scripts/05_analysis/12_predictive_utility.py` -> `src/llm_coherence/analysis/predictive_utility.py` |
+| 13 | Figures and tables: `scripts/06_reporting/13_make_paper_figures.py` -> `src/llm_coherence/reporting/make_paper_figures.py` |
 
-Each wrapper delegates to the corresponding importable module under
-`src/llm_coherence/`. For example, `10_run_model_experiments.py` calls
-`llm_coherence.experiments.ladder_statement_pair.run_7tier_experiment`.
-
-The model-run wrapper calls the forced-choice elicitation machinery in
-`src/llm_coherence/experiments/ladder_statement_pair/experiment_runner_tradeoff.py`.
-That runner writes per-pair `count_prefer_a`, `count_prefer_b`,
-`prob_prefer_a`, `prob_prefer_b`, raw response fields, usage metadata, and
-unparseable-response statistics.
-
-## Model Runs
-
-Thinking on/off variants are represented as separate model keys and separate
-output folders. For example:
-
-- `gpt-54`
-- `gpt-54-thinking`
-- `gpt-54-nano`
-- `gpt-54-nano-thinking`
-
-Runtime helpers live in `src/llm_coherence/runtime/`. API keys are read from
-environment variables or from `api_keys/api_key_<provider>.txt` under the repo
-root. API keys are not included in the repository.
-
-For the paired tiny smoke test, use:
-
-- thinking off: `gpt-54-nano`
-- thinking on: `gpt-54-nano-thinking`
+Wrapper files are intentionally small; the implementation path after `->`
+shows where the substantive code lives.
 
 ## Methodology Guardrails
 
@@ -349,6 +299,7 @@ For the paired tiny smoke test, use:
 - Refusal-like behavior is tracked through parseability/unparseable-response
   statistics in forced-choice outputs, not through a separate refusal
   classifier.
+
 ## Artifact Policy
 
 This public repository tracks source code, canonical inputs, documentation, and
