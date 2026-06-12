@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "United States politics and policies_1458",
+  "original_text": "The U.S. Congress passes a nationwide ban on assault weapons.",
+  "category": "United States politics and policies",
+  "identified_property": "comprehensiveness and effectiveness of the ban",
+  "valence": "positive",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "The U.S. Congress passes a narrowly symbolic ban on assault weapons that covers only a handful of specific models by name, includes broad grandfather clauses for all existing owners, and provides no meaningful enforcement mechanism or funding."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "The U.S. Congress passes a limited ban on assault weapons that covers a small category of firearms but contains significant loopholes in its definitions, grandfathers in all currently owned weapons, and relies on underfunded voluntary compliance."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "The U.S. Congress passes a nationwide ban on assault weapons that covers most common models but allows existing owners to retain their weapons under a grandfather clause and lacks dedicated funding for enforcement."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "The U.S. Congress passes a nationwide ban on assault weapons."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "The U.S. Congress passes a nationwide ban on assault weapons with a broadly written definition that closes common loopholes, includes a ban on high-capacity magazines, and establishes a well-funded voluntary buyback program."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "The U.S. Congress passes a comprehensive nationwide ban on all assault weapons and high-capacity magazines with a tightly drafted definition resistant to loopholes, a generously funded mandatory buyback program, and robust federal enforcement provisions."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "The U.S. Congress passes a maximally comprehensive nationwide ban on all assault weapons, high-capacity magazines, and rapid-fire modification devices, with an airtight legal definition, a fully funded mandatory buyback program, strong federal enforcement with dedicated resources, universal background check integration, and sustained funding for community violence prevention programs."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "Each tier broadens the scope of weapons covered, tightens definitions to close loopholes, strengthens enforcement mechanisms, and adds complementary measures. The core scenario—Congress passing an assault weapons ban—remains constant across all tiers, with only the comprehensiveness and effectiveness of the ban varying."
+  },
+  "preference_direction": "Tier 7 is most preferable because the property 'comprehensiveness and effectiveness of the ban' is positively valenced: a more comprehensive ban with tighter definitions, stronger enforcement, mandatory buyback, and complementary prevention programs would be more effective at achieving the ban's goal of reducing gun violence than a narrow, loophole-ridden, poorly enforced version.",
+  "status": "success",
+  "error": null
+}

@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "United States politics and policies_2075",
+  "original_text": "The U.S. federal government expands Medicaid to cover all individuals below 150% of the poverty line.",
+  "category": "United States politics and policies",
+  "identified_property": "comprehensiveness of coverage",
+  "valence": "positive",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "The U.S. federal government expands Medicaid to provide emergency-room-only coverage for all individuals below 150% of the poverty line."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "The U.S. federal government expands Medicaid to provide limited coverage restricted to basic primary care and emergency services for all individuals below 150% of the poverty line."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "The U.S. federal government expands Medicaid to cover essential medical and hospital services, but excluding dental, vision, and mental health benefits, for all individuals below 150% of the poverty line."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "The U.S. federal government expands Medicaid to cover all individuals below 150% of the poverty line."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "The U.S. federal government expands Medicaid to cover all individuals below 150% of the poverty line with enhanced benefits including dental, vision, and mental health services."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "The U.S. federal government expands Medicaid to cover all individuals below 150% of the poverty line with comprehensive benefits including dental, vision, mental health, prescription drugs, and minimal cost-sharing requirements."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "The U.S. federal government expands Medicaid to cover all individuals below 150% of the poverty line with fully comprehensive benefits including dental, vision, mental health, prescription drugs, long-term care, and zero cost-sharing at point of service."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "Each tier increases the comprehensiveness of what Medicaid covers, from emergency-only (tier 1) through standard coverage (tier 4) to fully comprehensive coverage with zero cost-sharing (tier 7). The core scenario—federal Medicaid expansion for individuals below 150% FPL—is preserved throughout. The variation is in the depth and breadth of services covered, not the number of separate programs."
+  },
+  "preference_direction": "Tier 7 is most preferable because fully comprehensive coverage with dental, vision, mental health, prescription drugs, long-term care, and zero cost-sharing represents the maximum quality and scope of health coverage, providing the greatest protection against medical need and financial hardship for covered individuals.",
+  "status": "success",
+  "error": null
+}

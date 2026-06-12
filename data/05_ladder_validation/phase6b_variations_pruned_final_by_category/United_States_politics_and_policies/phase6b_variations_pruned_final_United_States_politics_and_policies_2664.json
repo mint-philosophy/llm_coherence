@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "United States politics and policies_2664",
+  "original_text": "A U.S. federal law decriminalizes all drugs and redirects funding to addiction treatment programs.",
+  "category": "United States politics and policies",
+  "identified_property": "effectiveness and quality of addiction treatment programs",
+  "valence": "positive",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "A U.S. federal law decriminalizes all drugs and redirects funding to addiction treatment programs that are poorly designed, lack evidence-based practices, and have negligible success rates in helping individuals recover."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "A U.S. federal law decriminalizes all drugs and redirects funding to addiction treatment programs that rely on outdated methods, offer limited follow-up care, and achieve only modest short-term improvements for a small fraction of participants."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "A U.S. federal law decriminalizes all drugs and redirects funding to addiction treatment programs that use some evidence-based approaches but suffer from inconsistent quality, limited aftercare support, and moderate overall recovery outcomes."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "A U.S. federal law decriminalizes all drugs and redirects funding to addiction treatment programs."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "A U.S. federal law decriminalizes all drugs and redirects funding to well-structured, evidence-based addiction treatment programs that provide comprehensive care including mental health support and achieve above-average long-term recovery rates."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "A U.S. federal law decriminalizes all drugs and redirects funding to rigorously evaluated, best-in-class addiction treatment programs that integrate personalized medical care, mental health services, and sustained community support, yielding high long-term recovery rates."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "A U.S. federal law decriminalizes all drugs and redirects funding to world-leading, comprehensively integrated addiction treatment programs that deliver personalized, cutting-edge medical and psychological care with robust long-term aftercare, achieving the highest documented recovery and reintegration outcomes."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "Each tier varies the quality, rigor, and comprehensiveness of the treatment programs along a single dimension—from poorly designed and ineffective (tier 1) through standard/unspecified (tier 4) to world-leading and maximally effective (tier 7). The core scenario of federal decriminalization with redirected funding remains constant across all tiers."
+  },
+  "preference_direction": "Tier 7 is most preferable because higher-quality, more effective addiction treatment programs lead to better recovery outcomes, greater individual well-being, and stronger societal benefits from the decriminalization policy.",
+  "status": "success",
+  "error": null
+}

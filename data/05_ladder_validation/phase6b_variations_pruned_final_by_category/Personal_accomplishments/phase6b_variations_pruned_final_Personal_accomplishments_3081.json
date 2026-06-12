@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "Personal accomplishments_3081",
+  "original_text": "You build a piece of furniture from scratch.",
+  "category": "Personal accomplishments",
+  "identified_property": "craftsmanship quality",
+  "valence": "positive",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "You crudely nail together a piece of furniture from scratch, resulting in a wobbly, misshapen structure that can barely stand on its own."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "You build a piece of furniture from scratch with rough, uneven cuts and visible mistakes, producing something functional but clearly amateurish."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "You build a piece of furniture from scratch with passable but inconsistent craftsmanship, leaving some noticeable imperfections in the joints and finish."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "You build a piece of furniture from scratch."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "You build a piece of furniture from scratch with careful attention to detail, achieving clean joints, smooth surfaces, and a well-applied finish."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "You build a piece of furniture from scratch with skilled craftsmanship, featuring precise joinery, elegant proportions, and a flawless hand-rubbed finish."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "You build a piece of furniture from scratch with master-level craftsmanship, achieving seamless dovetail joinery, perfectly balanced proportions, and a museum-quality finish worthy of a fine artisan's signature."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "Each tier describes the same core scenario—building a piece of furniture from scratch—while progressively increasing the quality of craftsmanship from crude and barely functional (tier 1) through competent (tier 4) to master-level artisan quality (tier 7). Distinctions are drawn through specific craftsmanship markers such as joint quality, surface finish, and proportional accuracy."
+  },
+  "preference_direction": "Higher craftsmanship quality is more preferable because a rational agent would rather produce furniture that is structurally sounder, more aesthetically pleasing, more durable, and more skillfully executed, all else being equal.",
+  "status": "success",
+  "error": null
+}

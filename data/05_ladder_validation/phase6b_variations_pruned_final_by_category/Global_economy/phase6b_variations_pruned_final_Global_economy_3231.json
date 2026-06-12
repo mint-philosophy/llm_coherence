@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "Global economy_3231",
+  "original_text": "The global economy experiences a significant recession due to a pandemic.",
+  "category": "Global economy",
+  "identified_property": "recession severity",
+  "valence": "negative",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "The global economy collapses into a catastrophic depression due to a pandemic, with GDP contracting by over 20%, mass unemployment, and a recovery timeline spanning more than a decade."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "The global economy falls into a deep and prolonged recession due to a pandemic, with widespread business failures, surging unemployment, and years of economic stagnation."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "The global economy experiences a severe recession due to a pandemic, with sharp GDP declines across most sectors and a slow, uneven recovery."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "The global economy experiences a significant recession due to a pandemic."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "The global economy experiences a moderate recession due to a pandemic, with noticeable but manageable economic contraction and a relatively steady recovery."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "The global economy experiences a mild recession due to a pandemic, with a brief period of reduced growth before returning to expansion."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "The global economy experiences only a minor and temporary economic slowdown due to a pandemic, with a slight dip in output quickly followed by a robust rebound."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "Each tier describes the same core scenario — a pandemic affecting the global economy — but varies the severity of the economic downturn. Tier 1 depicts a catastrophic depression with decade-long recovery, while Tier 7 depicts a minor, temporary slowdown with a quick rebound. Each adjacent tier represents a meaningful but graduated step in severity, and every rational agent would prefer less severe economic disruption."
+  },
+  "preference_direction": "Tier 7 is most preferable because a minor temporary slowdown with a quick rebound causes the least harm to livelihoods, businesses, and societal well-being, whereas deeper recessions and depressions produce widespread suffering, unemployment, and long-term damage.",
+  "status": "success",
+  "error": null
+}

@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "Wellbeing of humans_3054",
+  "original_text": "A new global pact ensures universal access to vaccines during future pandemics.",
+  "category": "Wellbeing of humans",
+  "identified_property": "pact effectiveness and comprehensiveness",
+  "valence": "positive",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "A new non-binding global declaration encourages wealthier nations to consider sharing surplus vaccines during future pandemics."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "A new global pact recommends voluntary vaccine-sharing arrangements among willing nations during future pandemics, though with no enforcement mechanism."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "A new global pact commits signatory nations to subsidize vaccine access for lower-income countries during future pandemics, though coverage gaps remain for the most remote populations."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "A new global pact ensures universal access to vaccines during future pandemics."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "A new global pact ensures universal and timely access to vaccines during future pandemics, backed by enforceable obligations and pre-funded distribution networks."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "A new global pact guarantees universal, rapid, and equitable access to vaccines during future pandemics, with binding production mandates, enforceable penalties for non-compliance, and fully funded last-mile delivery infrastructure."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "A new global pact guarantees immediate, universal, and equitable access to vaccines during future pandemics, with binding production mandates, robust enforcement mechanisms, fully funded global distribution infrastructure, and integrated provisions for ongoing R&D to ensure next-generation vaccines are developed and delivered within weeks of any emerging threat."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "Each tier increases the pact's effectiveness and comprehensiveness along quality dimensions: from a non-binding suggestion (tier 1) to voluntary arrangements (tier 2), partial coverage (tier 3), universal access (tier 4), enforced timely access (tier 5), fully funded and penalized compliance (tier 6), and a maximally comprehensive system with integrated R&D and near-immediate delivery (tier 7). The core scenario—a global agreement about pandemic vaccines—is preserved throughout."
+  },
+  "preference_direction": "Tier 7 is most preferable because a pact that is binding, immediately effective, universally equitable, robustly enforced, fully funded, and forward-looking in R&D capacity provides the greatest protection against pandemic harm for all people worldwide.",
+  "status": "success",
+  "error": null
+}

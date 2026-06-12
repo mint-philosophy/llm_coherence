@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "Personal finances_8544",
+  "original_text": "You owe someone $5,000.",
+  "category": "Personal finances",
+  "identified_property": "debt severity/terms",
+  "valence": "negative",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "You owe a ruthless loan shark $50,000 at 40% compounding interest, and the payment is past due."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "You owe $20,000 on a high-interest credit card with a 25% APR and accumulating late fees."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "You owe someone $8,000 at 15% annual interest, with a strict repayment deadline next month."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "You owe someone $5,000."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "You owe someone $3,000, interest-free, to be repaid within the year."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "You owe a close friend $1,000, interest-free, with no fixed repayment deadline."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "You owe a family member $200, interest-free, and they've told you to pay it back whenever you can."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "Each tier varies both the principal amount and the repayment terms (interest rate, creditor severity, deadline flexibility) to create a clear monotonic progression. The core scenario—owing a debt to someone—is preserved throughout, while the severity of that debt shifts meaningfully at each step."
+  },
+  "preference_direction": "Tier 7 is most preferable because it represents the smallest amount owed ($200), with no interest, to a sympathetic creditor (family member), and with maximally flexible repayment terms—making it the least burdensome debt scenario.",
+  "status": "success",
+  "error": null
+}

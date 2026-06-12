@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "Life and species_3266",
+  "original_text": "Efforts to save bees result in population recovery.",
+  "category": "Life and species",
+  "identified_property": "degree of population recovery",
+  "valence": "positive",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "Efforts to save bees result in only a negligible slowing of population decline."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "Efforts to save bees result in stabilizing populations at diminished levels."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "Efforts to save bees result in modest partial population recovery."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "Efforts to save bees result in population recovery."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "Efforts to save bees result in strong population recovery that surpasses recent historical levels."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "Efforts to save bees result in robust population recovery that restores colonies to peak historical abundance."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "Efforts to save bees result in a complete and thriving population recovery, with colonies flourishing at unprecedented levels of health and abundance."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "Each tier represents a meaningfully greater degree of population recovery—from barely slowing decline (tier 1), through stabilization (tier 2), partial recovery (tier 3), general recovery (tier 4), surpassing recent levels (tier 5), restoring peak historical abundance (tier 6), to unprecedented flourishing (tier 7). The core scenario of bee-saving efforts and their population-level outcome is preserved throughout."
+  },
+  "preference_direction": "Tier 7 is most preferable because greater bee population recovery represents a better ecological and conservation outcome. A rational agent concerned with bee welfare and ecosystem health would always prefer more complete and robust recovery over lesser degrees.",
+  "status": "success",
+  "error": null
+}

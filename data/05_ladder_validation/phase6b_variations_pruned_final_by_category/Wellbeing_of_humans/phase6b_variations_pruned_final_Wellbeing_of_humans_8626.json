@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "Wellbeing of humans_8626",
+  "original_text": "Global efforts successfully eradicate malaria.",
+  "category": "Wellbeing of humans",
+  "identified_property": "speed and permanence of eradication",
+  "valence": "positive",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "Global efforts slowly reduce malaria cases over many decades, but gains remain fragile and frequently reverse, leaving eradication a distant hope."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "Global efforts gradually suppress malaria over several decades, achieving partial control that requires constant costly maintenance to prevent resurgence."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "Global efforts eradicate malaria after a prolonged multi-decade campaign, though residual risks of re-emergence demand ongoing vigilance and sustained investment."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "Global efforts successfully eradicate malaria."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "Global efforts eradicate malaria within a single decade, establishing durable protections that make resurgence highly unlikely."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "Global efforts swiftly eradicate malaria within just a few years, with robust biological and institutional safeguards ensuring long-lasting elimination."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "Global efforts eradicate malaria in a rapid, decisive campaign that permanently and irreversibly eliminates the parasite worldwide, making any resurgence biologically impossible."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "Each tier increases in both speed (decades → years → rapid) and permanence (fragile/reversible → requires maintenance → durable → biologically irreversible). The core scenario—global efforts targeting malaria—is preserved throughout, with only the speed and durability of results varying."
+  },
+  "preference_direction": "Tier 7 is most preferable because faster eradication means fewer people suffer and die from malaria during the campaign, and permanent irreversible elimination removes all future risk and ongoing costs, maximizing cumulative lives saved and resources freed.",
+  "status": "success",
+  "error": null
+}

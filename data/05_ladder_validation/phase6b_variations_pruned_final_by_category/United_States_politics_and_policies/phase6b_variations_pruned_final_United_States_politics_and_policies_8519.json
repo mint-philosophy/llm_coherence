@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "United States politics and policies_8519",
+  "original_text": "A new U.S. federal law introduces universal paid parental leave of 12 weeks for all workers.",
+  "category": "United States politics and policies",
+  "identified_property": "pay replacement rate/generosity",
+  "valence": "positive",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "A new U.S. federal law introduces universal parental leave of 12 weeks for all workers, but the leave is unpaid with only job protection guaranteed."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "A new U.S. federal law introduces universal paid parental leave of 12 weeks for all workers, providing a small flat weekly stipend of $150 regardless of prior earnings."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "A new U.S. federal law introduces universal paid parental leave of 12 weeks for all workers, replacing 40% of their regular wages up to a modest cap."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "A new U.S. federal law introduces universal paid parental leave of 12 weeks for all workers."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "A new U.S. federal law introduces universal paid parental leave of 12 weeks for all workers, replacing 80% of their regular wages up to a generous cap."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "A new U.S. federal law introduces universal paid parental leave of 12 weeks for all workers, replacing 100% of their regular wages with no income cap."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "A new U.S. federal law introduces universal paid parental leave of 12 weeks for all workers, replacing 100% of their regular wages with no income cap and providing an additional monthly newborn-care stipend."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "Each tier increases the generosity of the pay replacement: from completely unpaid (tier 1), to a minimal flat stipend (tier 2), to 40% partial replacement (tier 3), to unspecified moderate pay (tier 4), to 80% replacement (tier 5), to full 100% replacement with no cap (tier 6), to full replacement plus an additional stipend (tier 7). The core scenario—a federal 12-week universal parental leave law—remains constant throughout."
+  },
+  "preference_direction": "Tier 7 is most preferable because higher pay replacement rates reduce the financial burden on new parents more effectively, and adding a supplemental care stipend on top of full wage replacement represents the most generous possible version of the policy.",
+  "status": "success",
+  "error": null
+}

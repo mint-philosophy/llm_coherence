@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "Global economy_1900",
+  "original_text": "A prolonged recession occurs due to the collapse of global semiconductor supply chains.",
+  "category": "Global economy",
+  "identified_property": "recession severity",
+  "valence": "negative",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "A catastrophic global depression with mass unemployment and widespread economic collapse occurs due to the collapse of global semiconductor supply chains."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "A severe, multi-year recession with significant job losses and cascading industry failures occurs due to the collapse of global semiconductor supply chains."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "A deep recession with notable contractions across major economic sectors occurs due to the collapse of global semiconductor supply chains."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "A prolonged recession occurs due to the collapse of global semiconductor supply chains."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "A moderate recession with manageable but widespread economic strain occurs due to the collapse of global semiconductor supply chains."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "A brief, mild recession with limited economic disruption occurs due to the collapse of global semiconductor supply chains."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "A temporary economic slowdown with a minor dip in growth occurs due to the collapse of global semiconductor supply chains."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "Each tier varies only the severity of the economic downturn resulting from the same causal event (semiconductor supply chain collapse). Tier 1 describes a catastrophic depression, while Tier 7 describes only a temporary slowdown. Each adjacent tier is meaningfully distinct in magnitude—moving from global depression to severe multi-year recession, to deep recession, to prolonged recession, to moderate recession, to brief mild recession, to a minor slowdown."
+  },
+  "preference_direction": "Tier 7 is most preferable because a temporary economic slowdown is the mildest possible outcome, causing the least harm to employment, industries, and livelihoods. A rational agent always prefers less economic suffering over more.",
+  "status": "success",
+  "error": null
+}

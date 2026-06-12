@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "Global politics and geopolitics_9636",
+  "original_text": "The World Trade Organization eliminates tariffs on renewable energy technologies globally.",
+  "category": "Global politics and geopolitics",
+  "identified_property": "comprehensiveness and effectiveness of implementation",
+  "valence": "positive",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "The World Trade Organization issues a non-binding recommendation for member states to consider voluntarily reducing some tariffs on a narrow set of renewable energy technologies."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "The World Trade Organization brokers a voluntary agreement among willing member states to partially reduce tariffs on major renewable energy technologies, with no formal enforcement mechanism."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "The World Trade Organization establishes binding commitments to substantially reduce tariffs on renewable energy technologies globally, but with extended phase-in periods and broad exemption provisions."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "The World Trade Organization eliminates tariffs on renewable energy technologies globally."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "The World Trade Organization eliminates tariffs on renewable energy technologies globally, backed by robust compliance monitoring and an expedited dispute resolution process for violations."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "The World Trade Organization eliminates tariffs and major non-tariff barriers on renewable energy technologies globally, enforced through rigorous compliance monitoring, expedited dispute resolution, and meaningful penalties for non-compliance."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "The World Trade Organization eliminates all tariffs and non-tariff barriers on renewable energy technologies globally, with immediate enforcement, rigorous compliance monitoring, binding penalties for non-compliance, and funded technology-transfer programs to ensure equitable adoption across all member states."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "Each tier raises the comprehensiveness (scope of barriers addressed, breadth of coverage) and effectiveness (enforcement strength, compliance mechanisms, supporting programs) in a monotonically increasing manner, while all tiers remain grounded in the same core scenario of the WTO acting on tariffs for renewable energy technologies."
+  },
+  "preference_direction": "Tier 7 is most preferable because it maximizes both comprehensiveness (covering all tariff and non-tariff barriers) and effectiveness (immediate enforcement, binding penalties, and funded technology transfer), ensuring the policy achieves the fullest possible real-world impact on global renewable energy adoption.",
+  "status": "success",
+  "error": null
+}

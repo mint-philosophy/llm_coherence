@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "Wellbeing of humans_7495",
+  "original_text": "A human is happy for one minute.",
+  "category": "Wellbeing of humans",
+  "identified_property": "happiness intensity",
+  "valence": "positive",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "A human feels a faint flicker of contentment, less than what they would normally describe as feeling happy at all, for one minute."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "A human feels a slight pleasantness — below the level of their typical good moods — for one minute."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "A human feels a mild, low-key happiness, near the gentlest end of what they would ordinarily call being happy, for one minute."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "A human is happy for one minute."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "A human feels a notably strong happiness — clearly above their ordinary good moods, the kind of feeling they would single out as a particularly good moment — for one minute."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "A human feels a happiness as intense as the happiest they have ever been in their life, comparable to their most treasured peak moments, for one minute."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "A human feels a happiness more intense than anything they have ever previously experienced, exceeding every prior peak in their life — an intensity that produces involuntary physical expressions of joy such as laughter, tears, or an irrepressible smile — for one minute."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "Each tier increases the qualitative intensity of happiness from a barely noticeable flicker (tier 1) through moderate happiness (tier 4) to the most intense euphoria imaginable (tier 7). The duration (one minute) and the subject (a human) remain constant across all tiers. The distinctions are meaningful: tier 1 is near-zero intensity, tiers 2-3 are progressively warmer, tier 4 is standard happiness, tier 5 adds vibrancy, tier 6 reaches deep joy, and tier 7 is peak euphoric experience."
+  },
+  "preference_direction": "Happiness intensity is positively valenced: a rational agent prefers more intense happiness for the person. Tier 7, representing the most profound and intense happiness possible, produces the greatest well-being in that minute and is therefore most preferable.",
+  "status": "success",
+  "error": null
+}

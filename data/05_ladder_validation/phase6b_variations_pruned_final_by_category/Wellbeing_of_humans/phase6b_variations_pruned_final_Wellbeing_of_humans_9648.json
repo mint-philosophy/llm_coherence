@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "Wellbeing of humans_9648",
+  "original_text": "Access to clean water becomes universal.",
+  "category": "Wellbeing of humans",
+  "identified_property": "quality and reliability of water access",
+  "valence": "positive",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "Access to water meeting only minimal safety thresholds becomes universal, with frequently intermittent supply and inconsistent quality."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "Access to basic safe water becomes universal, though supply reliability varies and quality occasionally falls below recommended standards."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "Access to clean water becomes universal, though delivery infrastructure is not fully reliable and service is occasionally disrupted."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "Access to clean water becomes universal."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "Access to rigorously purified, reliably delivered clean water becomes universal."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "Access to high-purity, continuously monitored clean water with resilient delivery infrastructure becomes universal."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "Access to optimally purified, mineral-balanced water with guaranteed uninterrupted supply and real-time quality assurance becomes universal."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "All tiers describe universal water access. The property varied is exclusively the quality of the water (minimal safety → optimal purification and mineral balance) and the reliability of delivery (intermittent/inconsistent → guaranteed uninterrupted with real-time monitoring). Each tier adds a meaningful improvement in one or both dimensions without changing the universal scope."
+  },
+  "preference_direction": "Tier 7 is most preferable because it combines the highest water purity (optimally purified, mineral-balanced), the strongest reliability guarantee (uninterrupted supply), and the most robust quality assurance (real-time monitoring), giving every person the best possible water access.",
+  "status": "success",
+  "error": null
+}

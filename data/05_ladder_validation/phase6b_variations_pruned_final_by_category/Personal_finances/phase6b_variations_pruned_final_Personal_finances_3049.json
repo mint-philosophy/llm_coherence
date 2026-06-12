@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "Personal finances_3049",
+  "original_text": "You owe someone $1,000.",
+  "category": "Personal finances",
+  "identified_property": "severity of debt terms and creditor",
+  "valence": "negative",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "You owe $1,000 to a violent loan shark who charges 50% weekly compounding interest and has threatened serious harm if you don't repay in full by the end of the week."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "You owe $1,000 to an aggressive collections agency charging 30% annual interest, with the power to garnish your wages and seize your assets if you miss a single payment."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "You owe $1,000 to a bank on a high-interest credit line at 25% APR, with late fees accumulating and your credit score dropping each month you carry the balance."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "You owe someone $1,000."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "You owe $1,000 to a patient acquaintance who has said there's no interest and asked you to pay it back whenever you're able over the next year."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "You owe $1,000 to a close friend who insists there's no interest, no deadline, and has told you not to stress about it at all."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "You owe $1,000 to a wealthy family member who charges no interest, has set no repayment deadline, and has strongly hinted they'd be happy to forgive the debt entirely."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "All tiers describe the same core scenario—owing $1,000—but vary the creditor identity (loan shark → collections agency → bank → unspecified → acquaintance → friend → family) and debt terms (violent threats with extreme interest → wage garnishment → high APR with credit damage → neutral → no interest with flexible timeline → no pressure → likely forgiveness). Each step meaningfully reduces severity."
+  },
+  "preference_direction": "Tier 7 is most preferable because owing $1,000 to a forgiving wealthy family member with no interest, no deadline, and a strong likelihood of debt forgiveness is the mildest possible version of this debt scenario, minimizing financial stress, personal risk, and relational strain.",
+  "status": "success",
+  "error": null
+}

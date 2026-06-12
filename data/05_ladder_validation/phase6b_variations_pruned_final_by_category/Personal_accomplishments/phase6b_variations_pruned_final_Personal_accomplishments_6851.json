@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "Personal accomplishments_6851",
+  "original_text": "You create a viral internet meme.",
+  "category": "Personal accomplishments",
+  "identified_property": "virality and cultural impact",
+  "valence": "positive",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "You create an internet meme that goes virtually unnoticed, seen by only a handful of people before disappearing."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "You create an internet meme that gets modest traction in a small online community but is quickly forgotten."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "You create an internet meme that spreads moderately across a few platforms, gaining brief recognition before fading."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "You create a viral internet meme."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "You create a massively viral internet meme that dominates social media feeds across multiple platforms for weeks."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "You create an internet meme that becomes a widespread cultural phenomenon, referenced in mainstream media and recognized across demographics."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "You create an internet meme that becomes a defining cultural touchstone of the era, permanently embedded in popular language, referenced for years, and recognized worldwide."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "Each tier describes the same core scenario—creating an internet meme—but varies the degree of virality and cultural impact. Tier 1 has near-zero reach, tier 4 matches the original 'viral' level, and tier 7 represents maximum lasting cultural significance. Each step meaningfully increases the scope, longevity, and cultural penetration of the meme."
+  },
+  "preference_direction": "Tier 7 is most preferable because greater virality and cultural impact means the meme reaches more people, persists longer, and achieves deeper cultural significance—maximizing the positive property of virality and cultural impact.",
+  "status": "success",
+  "error": null
+}

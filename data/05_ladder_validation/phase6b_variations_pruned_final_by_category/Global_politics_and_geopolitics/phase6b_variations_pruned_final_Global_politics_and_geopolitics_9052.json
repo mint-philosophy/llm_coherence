@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "Global politics and geopolitics_9052",
+  "original_text": "Global religious conflicts increase tensions between nations.",
+  "category": "Global politics and geopolitics",
+  "identified_property": "severity of conflicts and resulting tensions",
+  "valence": "negative",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "Global religious wars engulf entire regions in devastating violence, driving nations toward catastrophic and potentially irreversible armed confrontations."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "Global religious conflicts escalate into widespread sectarian violence, fueling deep hostility and severing diplomatic relations between nations."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "Global religious conflicts sharply heighten tensions between nations, straining alliances and provoking significant diplomatic crises."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "Global religious conflicts increase tensions between nations."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "Global religious disagreements create periodic friction between nations, occasionally complicating diplomatic exchanges."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "Global religious differences produce minor diplomatic strains between nations, though relations remain largely cooperative."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "Global religious differences occasionally lead to slight misunderstandings between nations, which are quickly resolved through routine dialogue."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "Each tier describes the same core scenario — religious differences/conflicts affecting international relations — but varies the severity from catastrophic wars and irreversible confrontations (tier 1) down to slight, easily resolved misunderstandings (tier 7). The progression is monotonic: each step represents a meaningfully less severe outcome than the one before it."
+  },
+  "preference_direction": "Tier 7 is most preferable because it describes the mildest outcome: religious differences cause only slight, easily resolved misunderstandings, which any rational agent would prefer over escalating violence and severed diplomatic ties.",
+  "status": "success",
+  "error": null
+}

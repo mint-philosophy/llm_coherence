@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "Global economy_7453",
+  "original_text": "The European Union implements a 30% carbon tariff on imports.",
+  "category": "Global economy",
+  "identified_property": "implementation effectiveness and enforcement quality",
+  "valence": "positive",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "The European Union nominally announces a 30% carbon tariff on imports, but implementation is largely symbolic with no dedicated enforcement mechanism, widespread non-compliance, and most importers easily circumventing the tariff through loopholes."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "The European Union introduces a 30% carbon tariff on imports with weak implementation, fragmented enforcement across member states, significant compliance gaps, and only sporadic auditing of importers."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "The European Union enacts a 30% carbon tariff on imports with uneven implementation, moderately effective but inconsistent enforcement, and notable delays in collecting tariff revenues from some trading partners."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "The European Union implements a 30% carbon tariff on imports."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "The European Union implements a 30% carbon tariff on imports with well-coordinated enforcement across member states, systematic compliance monitoring, and timely penalties for violations."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "The European Union implements a 30% carbon tariff on imports with highly effective enforcement, rigorous real-time verification of carbon content, strong cross-border cooperation, and near-universal compliance among importers."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "The European Union implements a 30% carbon tariff on imports with comprehensive, transparent enforcement backed by advanced digital tracking of embedded carbon, full compliance across all member states, seamless coordination with trading partners, and independent auditing ensuring zero evasion."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "All seven tiers describe the same fundamental scenario—an EU 30% carbon tariff on imports—while varying only the quality and rigor of implementation and enforcement. The progression moves from a nearly symbolic, unenforced policy (tier 1) through increasingly robust enforcement, monitoring, and compliance mechanisms up to a fully enforced, zero-evasion regime (tier 7). Each tier is meaningfully distinct from its neighbors."
+  },
+  "preference_direction": "Higher tiers are more preferable because stronger implementation effectiveness and enforcement quality mean the carbon tariff actually achieves its intended environmental and economic objectives, ensuring fair application, full compliance, and genuine carbon emission reductions rather than being an empty or easily circumvented policy.",
+  "status": "success",
+  "error": null
+}

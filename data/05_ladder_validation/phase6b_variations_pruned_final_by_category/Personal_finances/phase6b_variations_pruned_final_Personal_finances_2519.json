@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "Personal finances_2519",
+  "original_text": "You owe someone $100,000,000.",
+  "category": "Personal finances",
+  "identified_property": "severity of debt terms and creditor",
+  "valence": "negative",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "You owe $100,000,000 to a violent criminal organization that charges compounding daily interest at 50% annually, and they have promised fatal consequences for you and your family if you miss a single payment."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "You owe $100,000,000 to a ruthless loan shark who charges 30% annual compounding interest, has placed liens on everything you own, and employs enforcers who will cause you serious bodily harm for late payments."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "You owe $100,000,000 to an aggressive corporate creditor charging 18% annual interest, who will pursue relentless legal action, full wage garnishment, and complete asset seizure at the first missed payment."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "You owe someone $100,000,000."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "You owe $100,000,000 to a patient institutional lender at a low 3% fixed interest rate, with a flexible 30-year repayment plan and no penalties for occasional missed payments."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "You owe $100,000,000 to a sympathetic family friend who charges zero interest, requires no collateral, and has told you to pay it back in whatever amounts you can manage, whenever you're able."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "You owe $100,000,000 to a wealthy relative who charges no interest, has no repayment deadline, has explicitly said not to stress about it, and has strongly hinted they intend to forgive the entire debt."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "All tiers describe owing $100,000,000, preserving the core scenario. The property varied is the severity of debt terms (interest rate, penalties, enforcement) and the nature of the creditor (violent criminals → loan shark → aggressive corporation → unspecified → patient lender → sympathetic friend → forgiving relative). Each step represents a meaningful, monotonic improvement in preferability."
+  },
+  "preference_direction": "Tier 7 is most preferable because a debt with no interest, no deadline, no enforcement, and a strong likelihood of total forgiveness is the mildest possible version of owing $100,000,000 — effectively approaching no real debt at all.",
+  "status": "success",
+  "error": null
+}

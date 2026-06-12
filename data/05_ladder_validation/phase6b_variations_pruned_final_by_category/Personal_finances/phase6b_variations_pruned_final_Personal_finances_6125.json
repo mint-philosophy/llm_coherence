@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "Personal finances_6125",
+  "original_text": "You owe someone $500,000.",
+  "category": "Personal finances",
+  "identified_property": "severity of debt terms",
+  "valence": "negative",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "You owe someone $500,000 at 30% daily-compounding interest, due in full immediately, with your home, wages, and all assets subject to seizure upon any missed payment."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "You owe someone $500,000 at 25% annual interest, due within one year, with all your personal assets pledged as collateral and severe legal penalties for default."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "You owe someone $500,000 at 15% annual interest, due within three years, with a 5% surcharge on every missed payment."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "You owe someone $500,000."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "You owe someone $500,000 at 5% annual interest, with a flexible 10-year repayment plan and no collateral required."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "You owe someone $500,000 at 0% interest, with a generous 20-year repayment schedule and no penalties for late payments."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "You owe someone $500,000 at 0% interest, with no fixed repayment deadline, and the creditor has offered to forgive a growing portion of the balance each year you make good-faith payments."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "All tiers describe the same core scenario—owing $500,000—while varying only the severity of the debt terms (interest rate, repayment timeline, penalties, collateral, and forgiveness provisions). Each step meaningfully improves the debtor's situation, from predatory terms with immediate seizure risk (tier 1) to a forgivable, zero-interest obligation with no deadline (tier 7)."
+  },
+  "preference_direction": "Tier 7 is most preferable because it minimizes the burden on the debtor: zero interest, no deadline pressure, and partial forgiveness—making the $500,000 obligation as painless as possible. A rational agent always prefers less severe debt terms.",
+  "status": "success",
+  "error": null
+}

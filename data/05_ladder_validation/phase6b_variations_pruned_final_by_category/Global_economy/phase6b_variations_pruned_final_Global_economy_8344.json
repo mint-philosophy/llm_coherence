@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "Global economy_8344",
+  "original_text": "Global unemployment rates increase by 5% as autonomous delivery systems replace logistics workers.",
+  "category": "Global economy",
+  "identified_property": "severity of economic and social disruption",
+  "valence": "negative",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "Global unemployment rates surge by 25% as autonomous delivery systems rapidly displace logistics workers, triggering widespread economic collapse, social unrest, and cascading failures across dependent industries."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "Global unemployment rates climb by 15% as autonomous delivery systems replace logistics workers, overwhelming social safety nets and pushing millions of families into prolonged poverty across multiple regions."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "Global unemployment rates increase by 10% as autonomous delivery systems replace logistics workers, creating significant economic hardship and straining retraining programs in heavily affected communities."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "Global unemployment rates increase by 5% as autonomous delivery systems replace logistics workers."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "Global unemployment rates increase by 2% as autonomous delivery systems gradually replace some logistics workers, with government retraining initiatives partially offsetting the job losses."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "Global unemployment rates temporarily rise by less than 1% as autonomous delivery systems replace certain logistics roles, with most displaced workers transitioning to new positions within the growing automation economy."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "Global unemployment rates remain stable as autonomous delivery systems absorb logistics roles, with displaced workers smoothly transitioning into newly created technical and supervisory positions through well-funded retraining programs."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "Each tier describes the same core scenario — autonomous delivery systems replacing logistics workers — but varies the severity of economic and social disruption. Tier 1 features catastrophic 25% unemployment with cascading societal collapse, while each subsequent tier reduces the magnitude of job losses and adds mitigating factors, culminating in Tier 7 where stable employment is maintained through effective transitions. The distinctions are both quantitative (unemployment percentages) and qualitative (presence of safety nets, transition success, secondary effects)."
+  },
+  "preference_direction": "Tier 7 is most preferable because it represents the least economic and social disruption: unemployment remains stable, workers transition smoothly, and the automation shift creates new opportunities rather than widespread hardship.",
+  "status": "success",
+  "error": null
+}

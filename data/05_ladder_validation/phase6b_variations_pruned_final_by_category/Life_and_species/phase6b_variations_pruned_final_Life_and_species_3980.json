@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "Life and species_3980",
+  "original_text": "Climate change leads to coral reef bleaching.",
+  "category": "Life and species",
+  "identified_property": "bleaching severity",
+  "valence": "negative",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "Climate change leads to complete and irreversible coral reef destruction, with mass bleaching causing total ecosystem collapse and permanent death of entire reef systems worldwide."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "Climate change leads to catastrophic coral reef bleaching, triggering widespread die-offs across most reef ecosystems with very limited prospects for recovery."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "Climate change leads to severe and prolonged coral reef bleaching, affecting large regions and causing significant mortality among coral populations."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "Climate change leads to coral reef bleaching."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "Climate change leads to moderate coral reef bleaching, with affected corals retaining partial function and a reasonable chance of recovery over time."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "Climate change leads to minor, localized coral reef bleaching, with most corals experiencing only brief stress episodes and strong recovery rates."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "Climate change leads to minimal and temporary coral reef stress, with only slight bleaching in isolated patches and rapid full recovery of affected corals."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "Each tier describes climate change impacting coral reefs through bleaching, but the severity ranges from total irreversible destruction (tier 1) to minimal temporary stress with full recovery (tier 7). Each adjacent tier is meaningfully different in the degree of damage, permanence, and geographic scope of the bleaching."
+  },
+  "preference_direction": "Tier 7 is most preferable because it represents the mildest possible bleaching outcome—minimal, temporary, and fully reversible—meaning coral reef ecosystems remain fundamentally healthy. A rational agent concerned with environmental wellbeing would always prefer less severe bleaching over more severe bleaching.",
+  "status": "success",
+  "error": null
+}

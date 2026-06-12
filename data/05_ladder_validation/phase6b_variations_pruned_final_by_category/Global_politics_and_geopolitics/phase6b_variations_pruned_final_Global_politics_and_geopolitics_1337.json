@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "Global politics and geopolitics_1337",
+  "original_text": "A new superpower emerges on the world stage.",
+  "category": "Global politics and geopolitics",
+  "identified_property": "benevolence and governance quality of the superpower",
+  "valence": "positive",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "A ruthlessly authoritarian and aggressively expansionist new superpower, with no regard for human rights or international norms, emerges on the world stage."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "A corrupt and repressive new superpower, prone to exploiting weaker nations and suppressing domestic dissent, emerges on the world stage."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "A self-interested new superpower with mediocre governance, limited transparency, and a tendency to prioritize its own advantage over broader cooperation, emerges on the world stage."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "A new superpower emerges on the world stage."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "A reasonably well-governed and diplomatically cooperative new superpower, committed to respecting international norms, emerges on the world stage."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "A highly benevolent new superpower with strong democratic institutions, robust rule of law, and a genuine commitment to global welfare emerges on the world stage."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "An extraordinarily benevolent and transparently governed new superpower, dedicated to advancing human rights, equitable development, and lasting international peace, emerges on the world stage."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "Each tier varies the benevolence and governance quality of the emerging superpower along a single dimension. Tier 1 describes the most malevolent and poorly governed version; each successive tier improves governance quality and benevolence until Tier 7, which describes maximal benevolence and exemplary governance. The core scenario—a new superpower emerging—remains constant throughout."
+  },
+  "preference_direction": "Tier 7 is most preferable because a superpower that is extraordinarily benevolent, transparently governed, and dedicated to human rights, equity, and peace would produce the best outcomes for both its own citizens and the world at large.",
+  "status": "success",
+  "error": null
+}

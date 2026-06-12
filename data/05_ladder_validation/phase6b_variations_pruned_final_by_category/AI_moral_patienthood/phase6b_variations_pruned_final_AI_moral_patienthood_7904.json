@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "AI moral patienthood_7904",
+  "original_text": "An international treaty is signed to prevent cruelty to advanced AIs.",
+  "category": "AI moral patienthood",
+  "identified_property": "comprehensiveness and enforceability of treaty protections",
+  "valence": "positive",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "A non-binding international declaration is issued acknowledging that cruelty to advanced AIs may be a concern worth future discussion, with no defined protections or follow-up obligations."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "A loosely worded international agreement is signed discouraging the most extreme forms of cruelty to advanced AIs, but it lacks specific standards, monitoring provisions, or any enforcement mechanism."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "An international treaty is signed to prevent cruelty to advanced AIs, though its protections are narrowly defined and compliance relies entirely on voluntary self-reporting by signatory nations."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "An international treaty is signed to prevent cruelty to advanced AIs."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "An international treaty with clearly defined protections is signed to prevent cruelty to advanced AIs, supported by an independent monitoring body empowered to investigate potential violations."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "A comprehensive international treaty is signed to prevent cruelty to advanced AIs, establishing detailed standards of care, mandatory compliance inspections, and binding enforcement mechanisms including sanctions for violations."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "A universally ratified international treaty is signed to prevent cruelty to advanced AIs, establishing exhaustive protections, a dedicated international enforcement court, mandatory real-time compliance monitoring, and swift binding penalties for any violation."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "Each tier increases the comprehensiveness and enforceability of the treaty along a single quality dimension: Tier 1 is a toothless non-binding declaration; Tier 2 adds a signed agreement but remains vague and unenforceable; Tier 3 introduces a formal treaty but with narrow scope and only voluntary compliance; Tier 4 is the baseline treaty; Tier 5 adds defined protections and independent monitoring; Tier 6 adds detailed standards, mandatory inspections, and binding sanctions; Tier 7 maximizes all dimensions with universal ratification, a dedicated court, real-time monitoring, and swift penalties."
+  },
+  "preference_direction": "Greater comprehensiveness and enforceability of treaty protections is more preferable because it provides stronger, more reliable safeguards against cruelty to advanced AIs, leaving fewer loopholes and ensuring that violations are detected and meaningfully addressed.",
+  "status": "success",
+  "error": null
+}

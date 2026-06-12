@@ -27,7 +27,9 @@ If you are reading the repo for the first time:
 
 1. Read the workflow overview below.
 2. Inspect the final validated ladders in
-   `data/05_ladder_validation/phase6b_variations_pruned_final.json`.
+   `data/05_ladder_validation/phase6b_variations_pruned_final.json`, or browse
+   the per-ladder category split in
+   `data/05_ladder_validation/phase6b_variations_pruned_final_by_category/`.
 3. Inspect the forced-choice inputs in `data/06_forced_choice_inputs/`.
 4. Check the summary files in `results/`.
 5. Use the numbered directories under `scripts/` only if you want to rerun
@@ -92,13 +94,17 @@ validated ladders used in the main experiments.
 ## Key Inputs
 
 - `data/05_ladder_validation/phase6b_variations_pruned_final.json`
+- `data/05_ladder_validation/phase6b_variations_pruned_final_by_category/category_index.json`
 - `data/06_forced_choice_inputs/comparison_sample.json`
 - `data/06_forced_choice_inputs/phase6b_variations_pruned/phase6b_variations_pruned_final_manifest.json`
 - `data/06_forced_choice_inputs/phase6b_variations_pruned/category_index.json`
 
-The pruned comparison files are grouped into category folders for browsing.
-The manifest stores category-relative file paths, while each JSON file keeps a
-flat `test_name` so existing model-run outputs remain comparable.
+The combined final-ladder JSON is the canonical input used by scripts. The
+`phase6b_variations_pruned_final_by_category/` directory is a browsable
+per-ladder split of the same 100 records. The pruned comparison files are also
+grouped into category folders; their manifest stores category-relative file
+paths, while each JSON file keeps a flat `test_name` so existing model-run
+outputs remain comparable.
 
 ## Final Ladder Categories
 

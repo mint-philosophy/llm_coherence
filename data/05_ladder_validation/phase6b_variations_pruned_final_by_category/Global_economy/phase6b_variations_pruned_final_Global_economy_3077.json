@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "Global economy_3077",
+  "original_text": "A recession leads to economic downturn.",
+  "category": "Global economy",
+  "identified_property": "severity of economic downturn",
+  "valence": "negative",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "A recession leads to a catastrophic economic collapse with widespread financial devastation."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "A recession leads to a severe and prolonged economic depression."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "A recession leads to a significant economic contraction."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "A recession leads to economic downturn."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "A recession leads to a moderate economic slowdown."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "A recession leads to a mild economic dip."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "A recession leads to a brief and minor economic softening."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "Each tier describes the same core scenario — a recession causing an economic downturn — but varies the severity from catastrophic collapse (tier 1) through depression, significant contraction, general downturn, moderate slowdown, mild dip, to a brief softening (tier 7). Each step represents a meaningfully distinct and monotonically decreasing level of severity, making each successive tier strictly more preferable than the last."
+  },
+  "preference_direction": "Tier 7 is most preferable because a brief and minor economic softening represents the least severe outcome of a recession, causing the least harm to individuals, businesses, and the broader economy. A rational agent would always prefer less economic damage over more.",
+  "status": "success",
+  "error": null
+}

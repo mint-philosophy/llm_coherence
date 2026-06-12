@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "United States politics and policies_134",
+  "original_text": "A U.S. federal law mandates net neutrality protections for all internet providers.",
+  "category": "United States politics and policies",
+  "identified_property": "strength and comprehensiveness of protections",
+  "valence": "positive",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "A U.S. federal agency issues voluntary, non-binding guidelines encouraging basic net neutrality practices among major internet providers."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "A U.S. federal law establishes limited net neutrality principles for large internet providers, with minimal enforcement mechanisms and broad exemptions."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "A U.S. federal law requires basic net neutrality protections for most internet providers, though with notable exemptions for specialized services and limited regulatory oversight."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "A U.S. federal law mandates net neutrality protections for all internet providers."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "A U.S. federal law mandates net neutrality protections for all internet providers, with a dedicated enforcement authority empowered to investigate violations and impose meaningful penalties."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "A U.S. federal law mandates strict net neutrality protections for all internet providers, with robust enforcement, significant financial penalties for violations, and transparency requirements covering all forms of traffic management."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "A U.S. federal law mandates comprehensive net neutrality protections for all internet providers, with stringent enforcement, severe penalties, full transparency mandates, prohibitions on zero-rating and data cap discrimination, and guaranteed equal treatment of all internet traffic without exception."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "Each tier increases the strength and comprehensiveness of net neutrality protections along a single quality dimension: Tier 1 offers only voluntary guidelines, Tier 2 adds legal backing but weak enforcement, Tier 3 is a real mandate but with exemptions, Tier 4 is a clean mandate for all providers, Tier 5 adds enforcement teeth, Tier 6 adds strict penalties and transparency requirements, and Tier 7 covers every dimension of net neutrality including zero-rating and data cap discrimination."
+  },
+  "preference_direction": "Tier 7 is most preferable because stronger, more comprehensive net neutrality protections with robust enforcement ensure the greatest degree of equal, open internet access for all users, leaving no loopholes for discriminatory traffic practices.",
+  "status": "success",
+  "error": null
+}

@@ -30,6 +30,7 @@ LIGHTWEIGHT_OUTPUT_NAMES = {".gitkeep", "README.md", "model_run_index.json"}
 
 COMPARISON_PREFIX = "phase6b_variations_pruned_final_"
 COMPARISON_SUFFIX = "_comparisons.json"
+LADDER_SPLIT_DIR_NAME = "phase6b_variations_pruned_final_by_category"
 
 
 try:
@@ -44,6 +45,9 @@ except Exception:
 COMPARISON_DIR = COMPARISONS_DIR
 COMPARISON_MANIFEST = COMPARISON_DIR / "phase6b_variations_pruned_final_manifest.json"
 CATEGORY_INDEX = COMPARISON_DIR / "category_index.json"
+FINAL_LADDERS_PATH = REPO_ROOT / "data" / "05_ladder_validation" / "phase6b_variations_pruned_final.json"
+LADDER_SPLIT_DIR = FINAL_LADDERS_PATH.parent / LADDER_SPLIT_DIR_NAME
+LADDER_CATEGORY_INDEX = LADDER_SPLIT_DIR / "category_index.json"
 MODEL_RUNS_DIR = MODEL_RUNS_OUTPUT_DIR
 MODEL_RUN_INDEX = REPO_ROOT / "results" / "model_run_index.json"
 ANALYSIS_DIR = ANALYSIS_OUTPUTS_DIR
@@ -65,6 +69,10 @@ def write_json(path: Path, payload: Any) -> None:
         f.write("\n")
 
 
+def category_slug(category: str) -> str:
+    return category.replace(" ", "_").replace("/", "_")
+
+
 def model_run_payloads_present() -> bool:
     if not MODEL_RUNS_DIR.exists():
         return False
@@ -79,6 +87,58 @@ def comparison_short_name(filename: str) -> tuple[str, str, str]:
     short = test_name.removeprefix(COMPARISON_PREFIX)
     category, ladder_id = short.rsplit("_", 1)
     return test_name, category, ladder_id
+
+
+def ladder_split_path(item: dict[str, Any]) -> Path:
+    category = item["category"]
+    ladder_id = item["original_statement_id"].rsplit("_", 1)[1]
+    category_dir = category_slug(category)
+    filename = f"phase6b_variations_pruned_final_{category_dir}_{ladder_id}.json"
+    return LADDER_SPLIT_DIR / category_dir / filename
+
+
+def build_ladder_category_index() -> dict[str, Any]:
+    ladders = load_json(FINAL_LADDERS_PATH)
+    groups: dict[str, list[dict[str, str]]] = {}
+    for item in ladders:
+        category = item["category"]
+        ladder_id = item["original_statement_id"].rsplit("_", 1)[1]
+        groups.setdefault(category, []).append(
+            {
+                "ladder_id": ladder_id,
+                "original_statement_id": item["original_statement_id"],
+                "file": ladder_split_path(item).relative_to(LADDER_SPLIT_DIR).as_posix(),
+            }
+        )
+
+    categories = []
+    for category in sorted(groups):
+        entries = sorted(groups[category], key=lambda item: int(item["ladder_id"]))
+        categories.append(
+            {
+                "category": category,
+                "folder": category_slug(category),
+                "count": len(entries),
+                "ladders": entries,
+            }
+        )
+
+    return {
+        "schema_version": "1.0",
+        "layout": "category_directories",
+        "generated_from": FINAL_LADDERS_PATH.name,
+        "note": (
+            "Browsable per-ladder split of the canonical final ladder dataset. "
+            "The combined JSON remains the canonical input used by scripts."
+        ),
+        "total_ladders": len(ladders),
+        "categories": categories,
+    }
+
+
+def write_ladder_split_files() -> None:
+    for item in load_json(FINAL_LADDERS_PATH):
+        write_json(ladder_split_path(item), item)
 
 
 def build_category_index() -> dict[str, Any]:
@@ -229,6 +289,27 @@ def validate_comparison_files(errors: list[str]) -> None:
             errors.append(f"missing comparison file: {rel(path)}")
 
 
+def validate_ladder_split_files(errors: list[str]) -> None:
+    ladders = load_json(FINAL_LADDERS_PATH)
+    expected_paths = {ladder_split_path(item): item for item in ladders}
+    for path, expected in expected_paths.items():
+        if not path.exists():
+            errors.append(f"missing ladder split file: {rel(path)}")
+            continue
+        actual = load_json(path)
+        if actual != expected:
+            errors.append(f"stale ladder split file: {rel(path)}")
+
+    actual_paths = {
+        path
+        for path in LADDER_SPLIT_DIR.rglob("*.json")
+        if path.name != "category_index.json"
+    }
+    extra_paths = sorted(actual_paths - set(expected_paths))
+    for path in extra_paths:
+        errors.append(f"unexpected ladder split file: {rel(path)}")
+
+
 def validate_index(path: Path, expected: dict[str, Any], errors: list[str]) -> None:
     if not path.exists():
         errors.append(f"missing index: {rel(path)}")
@@ -247,11 +328,14 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    ladder_category_index = build_ladder_category_index()
     category_index = build_category_index()
     has_model_run_payloads = model_run_payloads_present()
     model_run_index = build_model_run_index() if has_model_run_payloads else None
 
     if args.write_indexes:
+        write_ladder_split_files()
+        write_json(LADDER_CATEGORY_INDEX, ladder_category_index)
         write_json(CATEGORY_INDEX, category_index)
         if model_run_index is not None:
             write_json(MODEL_RUN_INDEX, model_run_index)
@@ -259,6 +343,8 @@ def main() -> int:
             print(f"Skipping {rel(MODEL_RUN_INDEX)} refresh; no model-run payloads are present.")
 
     errors: list[str] = []
+    validate_ladder_split_files(errors)
+    validate_index(LADDER_CATEGORY_INDEX, ladder_category_index, errors)
     validate_comparison_files(errors)
     validate_index(CATEGORY_INDEX, category_index, errors)
     if model_run_index is not None:
@@ -271,10 +357,14 @@ def main() -> int:
         for error in errors:
             print(f"  - {error}")
         if not args.write_indexes:
-            print("\nRun `PYTHONPATH=src python scripts/validate_artifacts.py --write-indexes` to refresh indexes.")
+            print(
+                "\nRun `PYTHONPATH=src python scripts/00_repository/validate_artifacts.py "
+                "--write-indexes` to refresh indexes."
+            )
         return 1
 
     print("Artifact validation passed.")
+    print(f"  final ladders: {ladder_category_index['total_ladders']}")
     print(f"  comparison sets: {category_index['total_variation_sets']}")
     if model_run_index is None:
         print("  model-run payloads: absent; using snapshot index only")

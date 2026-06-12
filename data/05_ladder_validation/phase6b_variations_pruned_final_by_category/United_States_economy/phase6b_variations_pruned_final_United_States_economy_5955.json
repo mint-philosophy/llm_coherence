@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "United States economy_5955",
+  "original_text": "The stock market sees a 20% drop in the S&P 500 over six months, triggering fears of a recession.",
+  "category": "United States economy",
+  "identified_property": "severity of economic fallout",
+  "valence": "negative",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "The stock market sees a 55% crash in the S&P 500 over six months, plunging the economy into a severe recession with mass layoffs, widespread bank failures, and a systemic financial crisis."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "The stock market sees a 40% plunge in the S&P 500 over six months, triggering a confirmed recession with significant job losses and a sharp contraction in consumer spending."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "The stock market sees a 30% decline in the S&P 500 over six months, pushing the economy to the brink of recession with rising unemployment and falling business confidence."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "The stock market sees a 20% drop in the S&P 500 over six months, triggering fears of a recession."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "The stock market sees a 12% pullback in the S&P 500 over six months, raising concerns about an economic slowdown but with most indicators remaining stable."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "The stock market sees a 7% dip in the S&P 500 over six months, causing brief investor unease but with the broader economy continuing to show resilient growth."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "The stock market sees a 3% fluctuation in the S&P 500 over six months, reflecting routine market volatility with no meaningful impact on economic growth or employment."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "Each tier describes the same core scenario—an S&P 500 movement over six months—but varies the magnitude of the drop and the severity of its economic consequences. The percentage decline decreases monotonically from 55% to 3%, and the described economic fallout scales accordingly, from systemic financial crisis to routine volatility with no real impact."
+  },
+  "preference_direction": "Tier 7 is most preferable because a 3% routine fluctuation with no economic harm is clearly a better outcome than any significant market crash or recession. A rational agent prefers minimal economic disruption, job security, and financial stability.",
+  "status": "success",
+  "error": null
+}

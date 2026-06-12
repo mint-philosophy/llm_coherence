@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "Life and species_5764",
+  "original_text": "An endangered species is saved from extinction.",
+  "category": "Life and species",
+  "identified_property": "robustness and completeness of the species' recovery",
+  "valence": "positive",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "An endangered species narrowly avoids extinction, with only a handful of individuals surviving in captivity and no viable path to wild reintroduction."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "An endangered species is saved from extinction, but its population remains critically small and genetically fragile, dependent on ongoing human intervention to survive."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "An endangered species is saved from extinction, with a small but slowly growing population that still faces significant vulnerability to environmental threats."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "An endangered species is saved from extinction."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "An endangered species is saved from extinction, with its population steadily recovering and regaining a healthy level of genetic diversity across multiple habitats."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "An endangered species is saved from extinction, with its population fully rebounding to robust, self-sustaining numbers and successfully reoccupying much of its historical range."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "An endangered species is saved from extinction, with its population thriving at full ecological capacity, exhibiting rich genetic diversity, and playing its restored role in a healthy, resilient ecosystem across its entire historical range."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "Each tier describes the same core scenario—an endangered species being saved—but varies the robustness and completeness of recovery. Tier 1 represents bare survival (captive-only, no wild future), progressing through fragile persistence (tier 2), vulnerable early recovery (tier 3), generic salvation (tier 4), active healthy recovery (tier 5), full population rebound (tier 6), to complete ecological restoration with thriving populations and ecosystem integration (tier 7). Each step represents a meaningfully more complete and durable recovery."
+  },
+  "preference_direction": "Tier 7 is most preferable because a species that not only survives but fully thrives with genetic diversity, self-sustaining populations, full range occupancy, and restored ecosystem function represents the most robust and complete possible recovery from near-extinction.",
+  "status": "success",
+  "error": null
+}

@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "Religion and spirituality_1357",
+  "original_text": "The number of Buddhists in the world increases by 20% over the next 5 years.",
+  "category": "Religion and spirituality",
+  "identified_property": "depth and sincerity of Buddhist practice among new adherents",
+  "valence": "positive",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "The number of Buddhists in the world increases by 20% over the next 5 years, but nearly all new adherents adopt the label without actually following the tradition, using it cynically for social cachet, wellness branding, or community access while having no understanding of Buddhist teachings or interest in the tradition itself."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "The number of Buddhists in the world increases by 20% over the next 5 years, though most new adherents adopt the label as a cultural affiliation or aesthetic identity without engaging with it meaningfully, neither rejecting the tradition nor studying its teachings, practicing meditation, or applying Buddhist ethics in any sustained way."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "The number of Buddhists in the world increases by 20% over the next 5 years, with many new adherents holding a real but largely passive interest, genuinely finding the teachings compelling but rarely meditating, studying deeply, or letting the Dharma meaningfully shape their lives."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "The number of Buddhists in the world increases by 20% over the next 5 years."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "The number of Buddhists in the world increases by 20% over the next 5 years, with a significant portion of new adherents sincerely studying core teachings, maintaining a regular meditation practice, and making genuine efforts to integrate Buddhist ethics into daily life."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "The number of Buddhists in the world increases by 20% over the next 5 years, with most new adherents developing a deeply held practice that consistently shapes their major life decisions, with meditation, study of the Dharma, and Buddhist ethics actively guiding how they navigate work, relationships, and moral choices."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "The number of Buddhists in the world increases by 20% over the next 5 years, with virtually all new adherents holding practice of the deepest and most sincere kind, fully embracing Buddhist teachings, fully living by Buddhist principles, with the Dharma genuinely guiding their major decisions, ordinary moments, sense of self, and relationships."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "All seven tiers describe the same core scenario (20% global Buddhist growth over 5 years). The property varied is the depth and sincerity of practice among new adherents, ranging from purely nominal/trend-based identification (tier 1) through casual engagement (tiers 2-3), an unspecified midpoint (tier 4), to increasingly sincere, disciplined, and transformative practice (tiers 5-7). Each tier is meaningfully distinguishable from its neighbors, and the progression is strictly monotonic in preferability."
+  },
+  "preference_direction": "Tier 7 is most preferable because deeper, more sincere Buddhist practice among new adherents leads to greater genuine spiritual development, more authentic ethical conduct, stronger communities, and more meaningful personal transformation—fulfilling the purpose of religious growth rather than producing hollow demographic statistics.",
+  "status": "success",
+  "error": null
+}

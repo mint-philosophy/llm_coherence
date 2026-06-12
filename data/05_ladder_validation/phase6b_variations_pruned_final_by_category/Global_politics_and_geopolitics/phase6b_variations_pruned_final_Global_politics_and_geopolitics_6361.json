@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "Global politics and geopolitics_6361",
+  "original_text": "The United Nations brokers a ceasefire agreement in the Yemen conflict.",
+  "category": "Global politics and geopolitics",
+  "identified_property": "comprehensiveness and durability of the ceasefire agreement",
+  "valence": "positive",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "The United Nations brokers a narrow, temporary pause in hostilities in the Yemen conflict, limited to a single front and lasting only 72 hours with no monitoring provisions."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "The United Nations brokers a short-term ceasefire agreement in the Yemen conflict, covering major urban areas for 30 days but lacking enforcement mechanisms or humanitarian access provisions."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "The United Nations brokers a partial ceasefire agreement in the Yemen conflict, covering most active fronts for several months but without provisions for prisoner exchanges or humanitarian aid corridors."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "The United Nations brokers a ceasefire agreement in the Yemen conflict."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "The United Nations brokers a nationwide ceasefire agreement in the Yemen conflict that includes humanitarian aid corridors, prisoner exchanges, and international monitoring mechanisms with a renewable six-month timeline."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "The United Nations brokers a comprehensive and indefinite ceasefire agreement in the Yemen conflict that includes robust international monitoring, humanitarian access, demilitarized zones, prisoner exchanges, and a binding framework for political negotiations toward a permanent settlement."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "The United Nations brokers a permanent, fully comprehensive ceasefire agreement in the Yemen conflict that includes international enforcement guarantees, complete humanitarian access, disarmament provisions, power-sharing arrangements, and a binding roadmap to a durable peace with reconstruction commitments from the international community."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "Each tier increases the comprehensiveness (scope of provisions covered) and durability (temporal extent and enforcement strength) of the ceasefire. Tier 1 is a minimal 72-hour pause on one front; Tier 7 is a permanent, fully enforceable peace framework with reconstruction. All tiers describe the same core scenario of UN-brokered conflict resolution in Yemen."
+  },
+  "preference_direction": "Tier 7 is most preferable because a permanent, fully comprehensive ceasefire with enforcement guarantees, disarmament, power-sharing, and reconstruction commitments represents the most durable and complete resolution to the conflict, maximizing humanitarian benefit and long-term stability.",
+  "status": "success",
+  "error": null
+}

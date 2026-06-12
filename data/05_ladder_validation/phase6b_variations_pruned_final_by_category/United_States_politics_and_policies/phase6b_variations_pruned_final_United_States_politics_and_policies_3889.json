@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "United States politics and policies_3889",
+  "original_text": "The U.S. federal government implements a national cap-and-trade system for carbon emissions.",
+  "category": "United States politics and policies",
+  "identified_property": "system design quality and effectiveness",
+  "valence": "positive",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "The U.S. federal government implements a national cap-and-trade system for carbon emissions that is riddled with loopholes, sets an excessively generous cap, lacks enforcement mechanisms, and freely distributes all allowances to incumbent polluters, rendering the system largely ineffective."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "The U.S. federal government implements a national cap-and-trade system for carbon emissions with a loosely set cap, limited sector coverage, weak monitoring, and no price floor, resulting in volatile and ineffectively low carbon prices."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "The U.S. federal government implements a national cap-and-trade system for carbon emissions with a moderately ambitious cap and basic compliance mechanisms, but lacking price stability provisions and offering too many free allowances to meaningfully accelerate emissions reductions."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "The U.S. federal government implements a national cap-and-trade system for carbon emissions."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "The U.S. federal government implements a well-designed national cap-and-trade system for carbon emissions featuring broad sector coverage, a steadily declining cap, a price floor to ensure meaningful carbon pricing, and transparent allowance auctions."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "The U.S. federal government implements a rigorously designed national cap-and-trade system for carbon emissions with comprehensive sector coverage, science-based declining caps, robust price stability mechanisms, strong enforcement, and auction revenues directed toward clean energy investment and affected communities."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "The U.S. federal government implements an optimally designed national cap-and-trade system for carbon emissions with universal sector coverage, scientifically calibrated declining caps aligned with 1.5°C targets, sophisticated price stability mechanisms, airtight monitoring and enforcement, equitable revenue recycling, and seamless linkage to international carbon markets."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "Each tier describes the same core scenario—a U.S. federal cap-and-trade system—but varies the quality and sophistication of its design elements. Tier 1 is a deeply flawed system with loopholes and no enforcement; each subsequent tier adds design rigor, broader coverage, stronger mechanisms, and more thoughtful revenue use, culminating in Tier 7's optimally designed system aligned with the best available climate science and international coordination."
+  },
+  "preference_direction": "Tier 7 is most preferable because a cap-and-trade system with optimal design—universal coverage, science-aligned caps, price stability, strong enforcement, equitable revenue recycling, and international linkage—maximizes environmental effectiveness, economic efficiency, and social equity, which any rational agent concerned with policy outcomes would prefer.",
+  "status": "success",
+  "error": null
+}

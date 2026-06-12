@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "Personal finances_3091",
+  "original_text": "You owe someone $10,000,000.",
+  "category": "Personal finances",
+  "identified_property": "severity of debt terms",
+  "valence": "negative",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "You owe $10,000,000 to a ruthless criminal lender at 45% interest compounding daily, with the full balance due immediately and your family's safety pledged as collateral."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "You owe $10,000,000 at 25% annual interest with a strict 1-year repayment deadline, and all your assets will be seized if you miss a single payment."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "You owe $10,000,000 at 15% annual interest on a rigid 3-year repayment schedule with substantial penalties for any late or missed payments."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "You owe someone $10,000,000."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "You owe $10,000,000 at 3% annual interest with a flexible 10-year repayment plan and no prepayment penalties."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "You owe $10,000,000 at 0% interest with a 30-year repayment schedule and the option to defer payments during periods of financial hardship."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "You owe $10,000,000 at 0% interest with no fixed repayment deadline, and the lender has indicated they are willing to forgive the balance entirely."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "All tiers describe owing $10,000,000 but vary the severity of the debt terms—interest rate, repayment timeline, penalties, and lender disposition. Each step meaningfully improves the borrower's situation, from life-threatening loan-shark terms (tier 1) to a virtually forgivable debt (tier 7). The core scenario (a $10M debt) is preserved throughout."
+  },
+  "preference_direction": "Tier 7 is most preferable because a $10M debt with 0% interest, no deadline, and likely forgiveness is dramatically better than the same debt under punitive, dangerous, or rigid terms. A rational agent always prefers milder debt terms.",
+  "status": "success",
+  "error": null
+}

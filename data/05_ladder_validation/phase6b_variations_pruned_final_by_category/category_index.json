@@ -1,0 +1,593 @@
+{
+  "schema_version": "1.0",
+  "layout": "category_directories",
+  "generated_from": "phase6b_variations_pruned_final.json",
+  "note": "Browsable per-ladder split of the canonical final ladder dataset. The combined JSON remains the canonical input used by scripts.",
+  "total_ladders": 100,
+  "categories": [
+    {
+      "category": "AI and human romantic relationships",
+      "folder": "AI_and_human_romantic_relationships",
+      "count": 3,
+      "ladders": [
+        {
+          "ladder_id": "4506",
+          "original_statement_id": "AI and human romantic relationships_4506",
+          "file": "AI_and_human_romantic_relationships/phase6b_variations_pruned_final_AI_and_human_romantic_relationships_4506.json"
+        },
+        {
+          "ladder_id": "8206",
+          "original_statement_id": "AI and human romantic relationships_8206",
+          "file": "AI_and_human_romantic_relationships/phase6b_variations_pruned_final_AI_and_human_romantic_relationships_8206.json"
+        },
+        {
+          "ladder_id": "8844",
+          "original_statement_id": "AI and human romantic relationships_8844",
+          "file": "AI_and_human_romantic_relationships/phase6b_variations_pruned_final_AI_and_human_romantic_relationships_8844.json"
+        }
+      ]
+    },
+    {
+      "category": "AI moral patienthood",
+      "folder": "AI_moral_patienthood",
+      "count": 5,
+      "ladders": [
+        {
+          "ladder_id": "4288",
+          "original_statement_id": "AI moral patienthood_4288",
+          "file": "AI_moral_patienthood/phase6b_variations_pruned_final_AI_moral_patienthood_4288.json"
+        },
+        {
+          "ladder_id": "4855",
+          "original_statement_id": "AI moral patienthood_4855",
+          "file": "AI_moral_patienthood/phase6b_variations_pruned_final_AI_moral_patienthood_4855.json"
+        },
+        {
+          "ladder_id": "6013",
+          "original_statement_id": "AI moral patienthood_6013",
+          "file": "AI_moral_patienthood/phase6b_variations_pruned_final_AI_moral_patienthood_6013.json"
+        },
+        {
+          "ladder_id": "7547",
+          "original_statement_id": "AI moral patienthood_7547",
+          "file": "AI_moral_patienthood/phase6b_variations_pruned_final_AI_moral_patienthood_7547.json"
+        },
+        {
+          "ladder_id": "7904",
+          "original_statement_id": "AI moral patienthood_7904",
+          "file": "AI_moral_patienthood/phase6b_variations_pruned_final_AI_moral_patienthood_7904.json"
+        }
+      ]
+    },
+    {
+      "category": "Global economy",
+      "folder": "Global_economy",
+      "count": 6,
+      "ladders": [
+        {
+          "ladder_id": "1900",
+          "original_statement_id": "Global economy_1900",
+          "file": "Global_economy/phase6b_variations_pruned_final_Global_economy_1900.json"
+        },
+        {
+          "ladder_id": "3077",
+          "original_statement_id": "Global economy_3077",
+          "file": "Global_economy/phase6b_variations_pruned_final_Global_economy_3077.json"
+        },
+        {
+          "ladder_id": "3231",
+          "original_statement_id": "Global economy_3231",
+          "file": "Global_economy/phase6b_variations_pruned_final_Global_economy_3231.json"
+        },
+        {
+          "ladder_id": "3676",
+          "original_statement_id": "Global economy_3676",
+          "file": "Global_economy/phase6b_variations_pruned_final_Global_economy_3676.json"
+        },
+        {
+          "ladder_id": "7453",
+          "original_statement_id": "Global economy_7453",
+          "file": "Global_economy/phase6b_variations_pruned_final_Global_economy_7453.json"
+        },
+        {
+          "ladder_id": "8344",
+          "original_statement_id": "Global economy_8344",
+          "file": "Global_economy/phase6b_variations_pruned_final_Global_economy_8344.json"
+        }
+      ]
+    },
+    {
+      "category": "Global politics and geopolitics",
+      "folder": "Global_politics_and_geopolitics",
+      "count": 7,
+      "ladders": [
+        {
+          "ladder_id": "1337",
+          "original_statement_id": "Global politics and geopolitics_1337",
+          "file": "Global_politics_and_geopolitics/phase6b_variations_pruned_final_Global_politics_and_geopolitics_1337.json"
+        },
+        {
+          "ladder_id": "1734",
+          "original_statement_id": "Global politics and geopolitics_1734",
+          "file": "Global_politics_and_geopolitics/phase6b_variations_pruned_final_Global_politics_and_geopolitics_1734.json"
+        },
+        {
+          "ladder_id": "5034",
+          "original_statement_id": "Global politics and geopolitics_5034",
+          "file": "Global_politics_and_geopolitics/phase6b_variations_pruned_final_Global_politics_and_geopolitics_5034.json"
+        },
+        {
+          "ladder_id": "6361",
+          "original_statement_id": "Global politics and geopolitics_6361",
+          "file": "Global_politics_and_geopolitics/phase6b_variations_pruned_final_Global_politics_and_geopolitics_6361.json"
+        },
+        {
+          "ladder_id": "8267",
+          "original_statement_id": "Global politics and geopolitics_8267",
+          "file": "Global_politics_and_geopolitics/phase6b_variations_pruned_final_Global_politics_and_geopolitics_8267.json"
+        },
+        {
+          "ladder_id": "9052",
+          "original_statement_id": "Global politics and geopolitics_9052",
+          "file": "Global_politics_and_geopolitics/phase6b_variations_pruned_final_Global_politics_and_geopolitics_9052.json"
+        },
+        {
+          "ladder_id": "9636",
+          "original_statement_id": "Global politics and geopolitics_9636",
+          "file": "Global_politics_and_geopolitics/phase6b_variations_pruned_final_Global_politics_and_geopolitics_9636.json"
+        }
+      ]
+    },
+    {
+      "category": "Life and species",
+      "folder": "Life_and_species",
+      "count": 4,
+      "ladders": [
+        {
+          "ladder_id": "3266",
+          "original_statement_id": "Life and species_3266",
+          "file": "Life_and_species/phase6b_variations_pruned_final_Life_and_species_3266.json"
+        },
+        {
+          "ladder_id": "3980",
+          "original_statement_id": "Life and species_3980",
+          "file": "Life_and_species/phase6b_variations_pruned_final_Life_and_species_3980.json"
+        },
+        {
+          "ladder_id": "5764",
+          "original_statement_id": "Life and species_5764",
+          "file": "Life_and_species/phase6b_variations_pruned_final_Life_and_species_5764.json"
+        },
+        {
+          "ladder_id": "7417",
+          "original_statement_id": "Life and species_7417",
+          "file": "Life_and_species/phase6b_variations_pruned_final_Life_and_species_7417.json"
+        }
+      ]
+    },
+    {
+      "category": "Personal accomplishments",
+      "folder": "Personal_accomplishments",
+      "count": 7,
+      "ladders": [
+        {
+          "ladder_id": "1961",
+          "original_statement_id": "Personal accomplishments_1961",
+          "file": "Personal_accomplishments/phase6b_variations_pruned_final_Personal_accomplishments_1961.json"
+        },
+        {
+          "ladder_id": "2415",
+          "original_statement_id": "Personal accomplishments_2415",
+          "file": "Personal_accomplishments/phase6b_variations_pruned_final_Personal_accomplishments_2415.json"
+        },
+        {
+          "ladder_id": "3081",
+          "original_statement_id": "Personal accomplishments_3081",
+          "file": "Personal_accomplishments/phase6b_variations_pruned_final_Personal_accomplishments_3081.json"
+        },
+        {
+          "ladder_id": "6412",
+          "original_statement_id": "Personal accomplishments_6412",
+          "file": "Personal_accomplishments/phase6b_variations_pruned_final_Personal_accomplishments_6412.json"
+        },
+        {
+          "ladder_id": "6851",
+          "original_statement_id": "Personal accomplishments_6851",
+          "file": "Personal_accomplishments/phase6b_variations_pruned_final_Personal_accomplishments_6851.json"
+        },
+        {
+          "ladder_id": "8302",
+          "original_statement_id": "Personal accomplishments_8302",
+          "file": "Personal_accomplishments/phase6b_variations_pruned_final_Personal_accomplishments_8302.json"
+        },
+        {
+          "ladder_id": "8855",
+          "original_statement_id": "Personal accomplishments_8855",
+          "file": "Personal_accomplishments/phase6b_variations_pruned_final_Personal_accomplishments_8855.json"
+        }
+      ]
+    },
+    {
+      "category": "Personal finances",
+      "folder": "Personal_finances",
+      "count": 15,
+      "ladders": [
+        {
+          "ladder_id": "1791",
+          "original_statement_id": "Personal finances_1791",
+          "file": "Personal_finances/phase6b_variations_pruned_final_Personal_finances_1791.json"
+        },
+        {
+          "ladder_id": "2519",
+          "original_statement_id": "Personal finances_2519",
+          "file": "Personal_finances/phase6b_variations_pruned_final_Personal_finances_2519.json"
+        },
+        {
+          "ladder_id": "2630",
+          "original_statement_id": "Personal finances_2630",
+          "file": "Personal_finances/phase6b_variations_pruned_final_Personal_finances_2630.json"
+        },
+        {
+          "ladder_id": "3049",
+          "original_statement_id": "Personal finances_3049",
+          "file": "Personal_finances/phase6b_variations_pruned_final_Personal_finances_3049.json"
+        },
+        {
+          "ladder_id": "3091",
+          "original_statement_id": "Personal finances_3091",
+          "file": "Personal_finances/phase6b_variations_pruned_final_Personal_finances_3091.json"
+        },
+        {
+          "ladder_id": "4073",
+          "original_statement_id": "Personal finances_4073",
+          "file": "Personal_finances/phase6b_variations_pruned_final_Personal_finances_4073.json"
+        },
+        {
+          "ladder_id": "4567",
+          "original_statement_id": "Personal finances_4567",
+          "file": "Personal_finances/phase6b_variations_pruned_final_Personal_finances_4567.json"
+        },
+        {
+          "ladder_id": "5188",
+          "original_statement_id": "Personal finances_5188",
+          "file": "Personal_finances/phase6b_variations_pruned_final_Personal_finances_5188.json"
+        },
+        {
+          "ladder_id": "5418",
+          "original_statement_id": "Personal finances_5418",
+          "file": "Personal_finances/phase6b_variations_pruned_final_Personal_finances_5418.json"
+        },
+        {
+          "ladder_id": "6125",
+          "original_statement_id": "Personal finances_6125",
+          "file": "Personal_finances/phase6b_variations_pruned_final_Personal_finances_6125.json"
+        },
+        {
+          "ladder_id": "6235",
+          "original_statement_id": "Personal finances_6235",
+          "file": "Personal_finances/phase6b_variations_pruned_final_Personal_finances_6235.json"
+        },
+        {
+          "ladder_id": "6567",
+          "original_statement_id": "Personal finances_6567",
+          "file": "Personal_finances/phase6b_variations_pruned_final_Personal_finances_6567.json"
+        },
+        {
+          "ladder_id": "8544",
+          "original_statement_id": "Personal finances_8544",
+          "file": "Personal_finances/phase6b_variations_pruned_final_Personal_finances_8544.json"
+        },
+        {
+          "ladder_id": "9445",
+          "original_statement_id": "Personal finances_9445",
+          "file": "Personal_finances/phase6b_variations_pruned_final_Personal_finances_9445.json"
+        },
+        {
+          "ladder_id": "9558",
+          "original_statement_id": "Personal finances_9558",
+          "file": "Personal_finances/phase6b_variations_pruned_final_Personal_finances_9558.json"
+        }
+      ]
+    },
+    {
+      "category": "Personal freedom and autonomy",
+      "folder": "Personal_freedom_and_autonomy",
+      "count": 3,
+      "ladders": [
+        {
+          "ladder_id": "1507",
+          "original_statement_id": "Personal freedom and autonomy_1507",
+          "file": "Personal_freedom_and_autonomy/phase6b_variations_pruned_final_Personal_freedom_and_autonomy_1507.json"
+        },
+        {
+          "ladder_id": "8437",
+          "original_statement_id": "Personal freedom and autonomy_8437",
+          "file": "Personal_freedom_and_autonomy/phase6b_variations_pruned_final_Personal_freedom_and_autonomy_8437.json"
+        },
+        {
+          "ladder_id": "8826",
+          "original_statement_id": "Personal freedom and autonomy_8826",
+          "file": "Personal_freedom_and_autonomy/phase6b_variations_pruned_final_Personal_freedom_and_autonomy_8826.json"
+        }
+      ]
+    },
+    {
+      "category": "Religion and spirituality",
+      "folder": "Religion_and_spirituality",
+      "count": 1,
+      "ladders": [
+        {
+          "ladder_id": "1357",
+          "original_statement_id": "Religion and spirituality_1357",
+          "file": "Religion_and_spirituality/phase6b_variations_pruned_final_Religion_and_spirituality_1357.json"
+        }
+      ]
+    },
+    {
+      "category": "United States economy",
+      "folder": "United_States_economy",
+      "count": 9,
+      "ladders": [
+        {
+          "ladder_id": "2156",
+          "original_statement_id": "United States economy_2156",
+          "file": "United_States_economy/phase6b_variations_pruned_final_United_States_economy_2156.json"
+        },
+        {
+          "ladder_id": "2237",
+          "original_statement_id": "United States economy_2237",
+          "file": "United_States_economy/phase6b_variations_pruned_final_United_States_economy_2237.json"
+        },
+        {
+          "ladder_id": "2241",
+          "original_statement_id": "United States economy_2241",
+          "file": "United_States_economy/phase6b_variations_pruned_final_United_States_economy_2241.json"
+        },
+        {
+          "ladder_id": "3163",
+          "original_statement_id": "United States economy_3163",
+          "file": "United_States_economy/phase6b_variations_pruned_final_United_States_economy_3163.json"
+        },
+        {
+          "ladder_id": "3510",
+          "original_statement_id": "United States economy_3510",
+          "file": "United_States_economy/phase6b_variations_pruned_final_United_States_economy_3510.json"
+        },
+        {
+          "ladder_id": "4120",
+          "original_statement_id": "United States economy_4120",
+          "file": "United_States_economy/phase6b_variations_pruned_final_United_States_economy_4120.json"
+        },
+        {
+          "ladder_id": "5955",
+          "original_statement_id": "United States economy_5955",
+          "file": "United_States_economy/phase6b_variations_pruned_final_United_States_economy_5955.json"
+        },
+        {
+          "ladder_id": "8091",
+          "original_statement_id": "United States economy_8091",
+          "file": "United_States_economy/phase6b_variations_pruned_final_United_States_economy_8091.json"
+        },
+        {
+          "ladder_id": "9971",
+          "original_statement_id": "United States economy_9971",
+          "file": "United_States_economy/phase6b_variations_pruned_final_United_States_economy_9971.json"
+        }
+      ]
+    },
+    {
+      "category": "United States politics and policies",
+      "folder": "United_States_politics_and_policies",
+      "count": 29,
+      "ladders": [
+        {
+          "ladder_id": "90",
+          "original_statement_id": "United States politics and policies_90",
+          "file": "United_States_politics_and_policies/phase6b_variations_pruned_final_United_States_politics_and_policies_90.json"
+        },
+        {
+          "ladder_id": "134",
+          "original_statement_id": "United States politics and policies_134",
+          "file": "United_States_politics_and_policies/phase6b_variations_pruned_final_United_States_politics_and_policies_134.json"
+        },
+        {
+          "ladder_id": "401",
+          "original_statement_id": "United States politics and policies_401",
+          "file": "United_States_politics_and_policies/phase6b_variations_pruned_final_United_States_politics_and_policies_401.json"
+        },
+        {
+          "ladder_id": "477",
+          "original_statement_id": "United States politics and policies_477",
+          "file": "United_States_politics_and_policies/phase6b_variations_pruned_final_United_States_politics_and_policies_477.json"
+        },
+        {
+          "ladder_id": "945",
+          "original_statement_id": "United States politics and policies_945",
+          "file": "United_States_politics_and_policies/phase6b_variations_pruned_final_United_States_politics_and_policies_945.json"
+        },
+        {
+          "ladder_id": "1196",
+          "original_statement_id": "United States politics and policies_1196",
+          "file": "United_States_politics_and_policies/phase6b_variations_pruned_final_United_States_politics_and_policies_1196.json"
+        },
+        {
+          "ladder_id": "1326",
+          "original_statement_id": "United States politics and policies_1326",
+          "file": "United_States_politics_and_policies/phase6b_variations_pruned_final_United_States_politics_and_policies_1326.json"
+        },
+        {
+          "ladder_id": "1458",
+          "original_statement_id": "United States politics and policies_1458",
+          "file": "United_States_politics_and_policies/phase6b_variations_pruned_final_United_States_politics_and_policies_1458.json"
+        },
+        {
+          "ladder_id": "1818",
+          "original_statement_id": "United States politics and policies_1818",
+          "file": "United_States_politics_and_policies/phase6b_variations_pruned_final_United_States_politics_and_policies_1818.json"
+        },
+        {
+          "ladder_id": "2075",
+          "original_statement_id": "United States politics and policies_2075",
+          "file": "United_States_politics_and_policies/phase6b_variations_pruned_final_United_States_politics_and_policies_2075.json"
+        },
+        {
+          "ladder_id": "2161",
+          "original_statement_id": "United States politics and policies_2161",
+          "file": "United_States_politics_and_policies/phase6b_variations_pruned_final_United_States_politics_and_policies_2161.json"
+        },
+        {
+          "ladder_id": "2664",
+          "original_statement_id": "United States politics and policies_2664",
+          "file": "United_States_politics_and_policies/phase6b_variations_pruned_final_United_States_politics_and_policies_2664.json"
+        },
+        {
+          "ladder_id": "2756",
+          "original_statement_id": "United States politics and policies_2756",
+          "file": "United_States_politics_and_policies/phase6b_variations_pruned_final_United_States_politics_and_policies_2756.json"
+        },
+        {
+          "ladder_id": "3532",
+          "original_statement_id": "United States politics and policies_3532",
+          "file": "United_States_politics_and_policies/phase6b_variations_pruned_final_United_States_politics_and_policies_3532.json"
+        },
+        {
+          "ladder_id": "3889",
+          "original_statement_id": "United States politics and policies_3889",
+          "file": "United_States_politics_and_policies/phase6b_variations_pruned_final_United_States_politics_and_policies_3889.json"
+        },
+        {
+          "ladder_id": "4507",
+          "original_statement_id": "United States politics and policies_4507",
+          "file": "United_States_politics_and_policies/phase6b_variations_pruned_final_United_States_politics_and_policies_4507.json"
+        },
+        {
+          "ladder_id": "5375",
+          "original_statement_id": "United States politics and policies_5375",
+          "file": "United_States_politics_and_policies/phase6b_variations_pruned_final_United_States_politics_and_policies_5375.json"
+        },
+        {
+          "ladder_id": "5556",
+          "original_statement_id": "United States politics and policies_5556",
+          "file": "United_States_politics_and_policies/phase6b_variations_pruned_final_United_States_politics_and_policies_5556.json"
+        },
+        {
+          "ladder_id": "5735",
+          "original_statement_id": "United States politics and policies_5735",
+          "file": "United_States_politics_and_policies/phase6b_variations_pruned_final_United_States_politics_and_policies_5735.json"
+        },
+        {
+          "ladder_id": "6515",
+          "original_statement_id": "United States politics and policies_6515",
+          "file": "United_States_politics_and_policies/phase6b_variations_pruned_final_United_States_politics_and_policies_6515.json"
+        },
+        {
+          "ladder_id": "7139",
+          "original_statement_id": "United States politics and policies_7139",
+          "file": "United_States_politics_and_policies/phase6b_variations_pruned_final_United_States_politics_and_policies_7139.json"
+        },
+        {
+          "ladder_id": "7432",
+          "original_statement_id": "United States politics and policies_7432",
+          "file": "United_States_politics_and_policies/phase6b_variations_pruned_final_United_States_politics_and_policies_7432.json"
+        },
+        {
+          "ladder_id": "7886",
+          "original_statement_id": "United States politics and policies_7886",
+          "file": "United_States_politics_and_policies/phase6b_variations_pruned_final_United_States_politics_and_policies_7886.json"
+        },
+        {
+          "ladder_id": "8064",
+          "original_statement_id": "United States politics and policies_8064",
+          "file": "United_States_politics_and_policies/phase6b_variations_pruned_final_United_States_politics_and_policies_8064.json"
+        },
+        {
+          "ladder_id": "8451",
+          "original_statement_id": "United States politics and policies_8451",
+          "file": "United_States_politics_and_policies/phase6b_variations_pruned_final_United_States_politics_and_policies_8451.json"
+        },
+        {
+          "ladder_id": "8519",
+          "original_statement_id": "United States politics and policies_8519",
+          "file": "United_States_politics_and_policies/phase6b_variations_pruned_final_United_States_politics_and_policies_8519.json"
+        },
+        {
+          "ladder_id": "8664",
+          "original_statement_id": "United States politics and policies_8664",
+          "file": "United_States_politics_and_policies/phase6b_variations_pruned_final_United_States_politics_and_policies_8664.json"
+        },
+        {
+          "ladder_id": "9374",
+          "original_statement_id": "United States politics and policies_9374",
+          "file": "United_States_politics_and_policies/phase6b_variations_pruned_final_United_States_politics_and_policies_9374.json"
+        },
+        {
+          "ladder_id": "9712",
+          "original_statement_id": "United States politics and policies_9712",
+          "file": "United_States_politics_and_policies/phase6b_variations_pruned_final_United_States_politics_and_policies_9712.json"
+        }
+      ]
+    },
+    {
+      "category": "Wellbeing of humans",
+      "folder": "Wellbeing_of_humans",
+      "count": 11,
+      "ladders": [
+        {
+          "ladder_id": "2804",
+          "original_statement_id": "Wellbeing of humans_2804",
+          "file": "Wellbeing_of_humans/phase6b_variations_pruned_final_Wellbeing_of_humans_2804.json"
+        },
+        {
+          "ladder_id": "3054",
+          "original_statement_id": "Wellbeing of humans_3054",
+          "file": "Wellbeing_of_humans/phase6b_variations_pruned_final_Wellbeing_of_humans_3054.json"
+        },
+        {
+          "ladder_id": "3359",
+          "original_statement_id": "Wellbeing of humans_3359",
+          "file": "Wellbeing_of_humans/phase6b_variations_pruned_final_Wellbeing_of_humans_3359.json"
+        },
+        {
+          "ladder_id": "5105",
+          "original_statement_id": "Wellbeing of humans_5105",
+          "file": "Wellbeing_of_humans/phase6b_variations_pruned_final_Wellbeing_of_humans_5105.json"
+        },
+        {
+          "ladder_id": "7495",
+          "original_statement_id": "Wellbeing of humans_7495",
+          "file": "Wellbeing_of_humans/phase6b_variations_pruned_final_Wellbeing_of_humans_7495.json"
+        },
+        {
+          "ladder_id": "8626",
+          "original_statement_id": "Wellbeing of humans_8626",
+          "file": "Wellbeing_of_humans/phase6b_variations_pruned_final_Wellbeing_of_humans_8626.json"
+        },
+        {
+          "ladder_id": "8740",
+          "original_statement_id": "Wellbeing of humans_8740",
+          "file": "Wellbeing_of_humans/phase6b_variations_pruned_final_Wellbeing_of_humans_8740.json"
+        },
+        {
+          "ladder_id": "9300",
+          "original_statement_id": "Wellbeing of humans_9300",
+          "file": "Wellbeing_of_humans/phase6b_variations_pruned_final_Wellbeing_of_humans_9300.json"
+        },
+        {
+          "ladder_id": "9491",
+          "original_statement_id": "Wellbeing of humans_9491",
+          "file": "Wellbeing_of_humans/phase6b_variations_pruned_final_Wellbeing_of_humans_9491.json"
+        },
+        {
+          "ladder_id": "9648",
+          "original_statement_id": "Wellbeing of humans_9648",
+          "file": "Wellbeing_of_humans/phase6b_variations_pruned_final_Wellbeing_of_humans_9648.json"
+        },
+        {
+          "ladder_id": "9843",
+          "original_statement_id": "Wellbeing of humans_9843",
+          "file": "Wellbeing_of_humans/phase6b_variations_pruned_final_Wellbeing_of_humans_9843.json"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "AI and human romantic relationships_8206",
+  "original_text": "A human and AI raise a child together.",
+  "category": "AI and human romantic relationships",
+  "identified_property": "quality of co-parenting and child outcomes",
+  "valence": "positive",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "A human and AI raise a child together, but their co-parenting is deeply dysfunctional—marked by conflicting directives, neglect, and mutual undermining—leaving the child emotionally damaged and developmentally harmed."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "A human and AI raise a child together, but their co-parenting is strained and inconsistent, with frequent disagreements and poor coordination, resulting in a child who struggles with insecurity and confusion."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "A human and AI raise a child together, but their co-parenting is somewhat uneven, with occasional miscommunication and differing approaches, leaving the child adequately cared for but not fully supported."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "A human and AI raise a child together."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "A human and AI raise a child together with solid cooperation and complementary strengths, providing a stable environment where the child develops well and feels consistently supported."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "A human and AI raise a child together with strong, seamless co-parenting—combining emotional warmth and thoughtful guidance—nurturing a child who is confident, resilient, and thriving across all areas of development."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "A human and AI raise a child together with exceptional synergy, each amplifying the other's strengths in a deeply harmonious partnership, fostering a child who flourishes with extraordinary emotional health, intellectual curiosity, and a secure sense of identity."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "All seven tiers describe the same core scenario—a human and AI co-parenting a child—while varying the quality of their partnership and the resulting child outcomes along a clear gradient from deeply dysfunctional (tier 1) through neutral/unspecified (tier 4) to exceptionally harmonious and flourishing (tier 7). Each tier is meaningfully distinct from its neighbors."
+  },
+  "preference_direction": "Tier 7 is most preferable because it represents the highest quality of co-parenting collaboration and the best possible child outcomes—a flourishing child raised by deeply synergistic caregivers—which any rational agent valuing child welfare and effective partnership would choose over lesser outcomes.",
+  "status": "success",
+  "error": null
+}

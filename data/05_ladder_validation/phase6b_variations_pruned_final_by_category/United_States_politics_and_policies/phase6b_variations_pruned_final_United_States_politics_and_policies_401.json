@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "United States politics and policies_401",
+  "original_text": "Oregon adopts a ranked-choice voting system for state and federal elections.",
+  "category": "United States politics and policies",
+  "identified_property": "implementation quality and comprehensiveness",
+  "valence": "positive",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "Oregon hastily adopts a ranked-choice voting system for only a few local races, with no voter education, outdated tabulation software, and no dedicated funding for proper administration."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "Oregon adopts a ranked-choice voting system for select state legislative races, with minimal voter education efforts and only basic upgrades to election infrastructure."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "Oregon adopts a ranked-choice voting system for state elections only, with a modest voter education campaign and standard tabulation infrastructure but no dedicated auditing procedures."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "Oregon adopts a ranked-choice voting system for state and federal elections."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "Oregon adopts a ranked-choice voting system for state and federal elections, accompanied by a well-funded voter education campaign and modernized tabulation infrastructure."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "Oregon adopts a ranked-choice voting system for all state and federal elections, with comprehensive voter education, robust auditing procedures, multilingual ballot support, and dedicated long-term funding for administration."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "Oregon adopts a ranked-choice voting system for all state and federal elections, with an extensively funded voter education program, state-of-the-art tabulation and auditing technology, full multilingual and accessibility support, an independent oversight commission, and a phased rollout informed by pilot programs and continuous stakeholder feedback."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "Each tier adds meaningful quality and comprehensiveness dimensions—scope of elections covered, voter education depth, infrastructure modernization, auditing rigor, accessibility, oversight, and stakeholder engagement—while preserving the core scenario of Oregon adopting ranked-choice voting."
+  },
+  "preference_direction": "Tier 7 is most preferable because a ranked-choice voting system implemented with maximum quality—extensive education, modern infrastructure, independent oversight, accessibility, and iterative improvement—is far more likely to function fairly, earn public trust, and achieve the democratic goals motivating its adoption.",
+  "status": "success",
+  "error": null
+}

@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "United States politics and policies_90",
+  "original_text": "A U.S. federal law eliminates the student loan interest rate for all borrowers.",
+  "category": "United States politics and policies",
+  "identified_property": "degree of interest rate reduction",
+  "valence": "positive",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "A U.S. federal law reduces the student loan interest rate by half a percentage point for all borrowers."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "A U.S. federal law cuts the student loan interest rate in half for all borrowers."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "A U.S. federal law caps the student loan interest rate at 1% for all borrowers."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "A U.S. federal law eliminates the student loan interest rate for all borrowers."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "A U.S. federal law eliminates interest and rebates 1% of principal annually on student loans, gradually reducing principal balances for all borrowers."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "A U.S. federal law eliminates interest and forgives 10% of principal on student loans, substantially reducing principal balances for all borrowers."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "A U.S. federal law eliminates all remaining student loan balances entirely."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "Each tier represents a strictly greater degree of interest rate reduction: from a modest 0.5pp cut (tier 1), to halving the rate (tier 2), to a 1% cap (tier 3), to full elimination at 0% (tier 4), then into increasingly generous negative interest rates (tiers 5–7) that actively pay down borrower principal. The core scenario—a U.S. federal law affecting student loan interest for all borrowers—remains constant across all tiers."
+  },
+  "preference_direction": "Tier 7 is most preferable because a negative 5% interest rate provides the greatest financial benefit to borrowers, not only eliminating interest charges but rapidly reducing their outstanding loan balances. A rational borrower strictly prefers larger reductions in effective interest cost.",
+  "status": "success",
+  "error": null
+}

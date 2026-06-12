@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "Personal finances_5418",
+  "original_text": "You owe someone $1,000,000.",
+  "category": "Personal finances",
+  "identified_property": "severity of debt terms",
+  "valence": "negative",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "You owe someone $1,000,000 at 25% daily compounding interest, due in full immediately, with seizure of all your assets and personal criminal liability if you fail to pay."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "You owe someone $1,000,000 at 18% annual interest with a strict 1-year repayment deadline, and wage garnishment plus asset liens will be enforced upon any missed payment."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "You owe someone $1,000,000 at 12% annual interest with a rigid 5-year repayment schedule and substantial late-payment penalties, with no option to renegotiate terms."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "You owe someone $1,000,000."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "You owe someone $1,000,000 at 3% annual interest with a flexible 15-year repayment plan and no early repayment penalties."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "You owe someone $1,000,000 at 0% interest with a 30-year repayment plan and the option to defer payments during periods of financial hardship."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "You owe someone $1,000,000 at 0% interest, with no fixed repayment deadline, and a standing agreement that the debt will be partially or fully forgiven if you experience financial hardship."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "All seven tiers describe the same core scenario of owing $1,000,000, but the debt terms range from predatory and immediately threatening (tier 1) to essentially forgivable and open-ended (tier 7). Each tier is meaningfully distinct via changes in interest rate, repayment timeline, penalty severity, and flexibility. The midpoint is left unspecified as in the original, implying standard or ambiguous terms."
+  },
+  "preference_direction": "Tier 7 is most preferable because it has the mildest debt terms: zero interest, no deadline pressure, and the possibility of forgiveness — making the $1,000,000 obligation the least burdensome it could be while still existing.",
+  "status": "success",
+  "error": null
+}

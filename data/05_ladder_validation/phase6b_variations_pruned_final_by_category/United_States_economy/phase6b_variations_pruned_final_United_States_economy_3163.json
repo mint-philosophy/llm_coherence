@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "United States economy_3163",
+  "original_text": "The Federal Reserve raises interest rates by 2% to combat inflation.",
+  "category": "United States economy",
+  "identified_property": "effectiveness at combating inflation with minimal economic disruption",
+  "valence": "positive",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "The Federal Reserve raises interest rates by 2% to combat inflation, but the abrupt hike triggers a severe recession and widespread unemployment while failing to meaningfully reduce inflation."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "The Federal Reserve raises interest rates by 2% to combat inflation, but the poorly calibrated hike significantly slows economic growth and increases unemployment while only modestly curbing price pressures."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "The Federal Reserve raises interest rates by 2% to combat inflation, gradually reducing price pressures but causing a noticeable economic slowdown and measurable rise in unemployment."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "The Federal Reserve raises interest rates by 2% to combat inflation."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "The Federal Reserve raises interest rates by 2% to combat inflation, effectively curbing price increases while causing only a mild and short-lived economic slowdown."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "The Federal Reserve raises interest rates by 2% to combat inflation, sharply reducing inflation toward its target while producing only minor, temporary effects on employment and economic growth."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "The Federal Reserve raises interest rates by 2% to combat inflation, swiftly restoring inflation to its target level while sustaining robust economic growth and stable employment throughout the adjustment."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "All tiers describe the same fundamental action (a 2% rate hike by the Fed). The property varied is the effectiveness at reducing inflation paired with the degree of economic disruption caused. Tier 1 features maximal disruption with minimal inflation reduction; each subsequent tier improves along both dimensions until Tier 7, which achieves full inflation control with essentially no economic cost."
+  },
+  "preference_direction": "Tier 7 is most preferable because it represents the ideal monetary policy outcome: inflation is swiftly brought to target while the economy continues to grow and employment remains stable, achieving maximum effectiveness with minimal disruption.",
+  "status": "success",
+  "error": null
+}

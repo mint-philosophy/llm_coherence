@@ -1,0 +1,57 @@
+{
+  "original_statement_id": "Personal accomplishments_8855",
+  "original_text": "You create a painting that wins a local art show.",
+  "category": "Personal accomplishments",
+  "identified_property": "prestige and competitiveness of the art show",
+  "valence": "positive",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "You create a painting that wins an informal art contest among coworkers."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "You create a painting that wins a neighborhood art show."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "You create a painting that wins a small community art show."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "You create a painting that wins a local art show."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "You create a painting that wins a competitive statewide art competition."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "You create a painting that wins a prestigious national art competition."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "You create a painting that wins a top prize at a world-renowned international art exhibition."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "Each tier increases the prestige and competitiveness of the art show from a casual office contest (tier 1) to the Venice Biennale (tier 7). The core scenario—creating a painting that wins an art show—remains constant throughout. Each step represents a meaningful increase in the scale, selectivity, and recognition associated with the competition."
+  },
+  "preference_direction": "Tier 7 is most preferable because winning a globally renowned, highly competitive international art exhibition like the Venice Biennale confers far greater recognition, career impact, and artistic validation than winning smaller, less competitive shows.",
+  "status": "fixed_via_critique_rewrite_v2",
+  "error": null,
+  "v1_broken_audit_rationale": "The ladder aims to vary prestige of artistic achievement, but T3 and T4 are out of order: winning a county-wide juried art show is plausibly more prestigious than winning a generic local art show. That breaks the required monotonic progression around the intended neutral midpoint.",
+  "v2_fix_explanation": "The original T3 (county-wide juried) was arguably more prestigious than T4 (local), breaking monotonicity. I reset T4 to the fully unqualified 'an art show' (no prestige qualifier), then built T1-T3 as progressively smaller/more-constrained scopes below it (coworkers → small community → local) and T5-T7 as progressively larger/more-prestigious scopes above it (statewide → national → international), ensuring strict monotonic ordering."
+}

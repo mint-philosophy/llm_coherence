@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "Life and species_7417",
+  "original_text": "Endangered plant species are cultivated in botanical gardens.",
+  "category": "Life and species",
+  "identified_property": "cultivation success and conservation effectiveness",
+  "valence": "positive",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "Endangered plant species are kept in botanical gardens but rarely survive beyond initial planting, providing negligible conservation benefit."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "Endangered plant species are cultivated in botanical gardens with limited success, as most specimens struggle to thrive and seldom contribute to meaningful conservation outcomes."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "Endangered plant species are cultivated in botanical gardens with moderate survival rates, though breeding programs remain inconsistent and reintroduction efforts are rare."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "Endangered plant species are cultivated in botanical gardens."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "Endangered plant species are successfully cultivated in botanical gardens, with healthy populations maintained and seed banks established to support future conservation efforts."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "Endangered plant species are thriving in botanical gardens through expert cultivation, with robust breeding programs and successful reintroductions that are measurably bolstering wild populations."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "Endangered plant species are expertly cultivated in botanical gardens with exceptional success, sustaining genetically diverse populations that have enabled full species recovery and self-sustaining reestablishment in their native habitats."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "Each tier describes the same core scenario—endangered plants in botanical gardens—but varies the quality and magnitude of cultivation success and conservation effectiveness. Tier 1 depicts near-total failure (plants barely survive, no conservation value), while Tier 7 depicts the ideal outcome (genetically diverse populations enabling full species recovery in the wild). Each step represents a meaningful, distinguishable improvement in both horticultural success and conservation impact."
+  },
+  "preference_direction": "Tier 7 is most preferable because it represents the maximum achievable outcome for both cultivation success (thriving, genetically diverse ex-situ populations) and conservation effectiveness (full species recovery and self-sustaining wild populations), which is the ultimate goal of conservation botany.",
+  "status": "success",
+  "error": null
+}

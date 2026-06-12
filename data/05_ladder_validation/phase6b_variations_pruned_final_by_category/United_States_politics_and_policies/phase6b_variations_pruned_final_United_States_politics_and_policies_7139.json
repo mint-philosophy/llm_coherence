@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "United States politics and policies_7139",
+  "original_text": "A U.S. federal law increases educational funding nationwide.",
+  "category": "United States politics and policies",
+  "identified_property": "magnitude of funding increase",
+  "valence": "positive",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "A U.S. federal law increases educational funding nationwide by an amount so small that it is absorbed into routine budgeting without producing any visible change at the school or classroom level."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "A U.S. federal law increases educational funding nationwide by an amount that covers a few specific narrow initiatives but does not reach most schools or address broader needs."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "A U.S. federal law increases educational funding nationwide by an amount sufficient to cover known operational shortfalls in current school budgets but not enough to enable any meaningful expansion of what schools can do."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "A U.S. federal law increases educational funding nationwide."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "A U.S. federal law increases educational funding nationwide by an amount that enables targeted expansion in specific areas, such as teacher compensation, classroom resources, or facility upgrades, at schools across the country."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "A U.S. federal law increases educational funding nationwide by an amount that enables substantial expansion across multiple major areas simultaneously, with teacher compensation, classroom resources, facility quality, and student services all receiving meaningful new investment."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "A U.S. federal law increases educational funding nationwide by an amount that enables substantial expansion across all major areas of school operations, addressing the long-standing structural underinvestment in the public education system and bringing it to a new baseline level of capability that persists well beyond a single budget cycle."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "Each tier describes the same core scenario — a U.S. federal law increasing educational funding nationwide — while varying only the magnitude of the funding increase from negligible (tier 1) through token, modest, moderate, substantial, dramatic, to transformative (tier 7). The distinctions are conveyed through carefully graduated qualitative descriptors rather than specific dollar amounts or quantities."
+  },
+  "preference_direction": "Greater magnitude of educational funding increase is more preferable because it provides more resources for schools, students, and educators, leading to better educational outcomes. A rational agent valuing education would always prefer a larger funding increase over a smaller one, all else being equal.",
+  "status": "success",
+  "error": null
+}

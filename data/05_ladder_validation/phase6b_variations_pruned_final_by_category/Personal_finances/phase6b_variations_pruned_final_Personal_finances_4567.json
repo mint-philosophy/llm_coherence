@@ -1,0 +1,57 @@
+{
+  "original_statement_id": "Personal finances_4567",
+  "original_text": "You owe someone $5",
+  "category": "Personal finances",
+  "identified_property": "severity/burden of the obligation",
+  "valence": "negative",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "You owe someone $40"
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "You owe someone $20"
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "You owe someone $10"
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "You owe someone $5"
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "You owe someone $2.50"
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "You owe someone $1.25"
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "You owe someone $0.50"
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "All seven tiers describe the same fundamental scenario—owing someone money—with only the magnitude of the debt varying. Each tier represents a strictly smaller financial obligation than the one before it, producing a clear monotonic decrease in burden. The jumps between tiers are roughly logarithmic (orders of magnitude) at the higher end and proportionally spaced at the lower end, ensuring each tier is meaningfully distinct from its neighbors."
+  },
+  "preference_direction": "Tier 7 is most preferable because owing a single penny represents the smallest possible financial burden; any rational agent would prefer owing less money to owing more, all else being equal.",
+  "status": "fixed_via_critique_rewrite_v2",
+  "error": null,
+  "v1_broken_audit_rationale": "The ladder varies a single property in the right preference direction, but the adjacent step sizes are wildly inconsistent (jumping by factors of 4, 5, 10, 25, and 100), so it does not provide a roughly even 7-tier progression. It also lacks a genuine neutral baseline at T4, since every tier is just a different debt amount rather than a clear base statement with balanced deviations around it.",
+  "v2_fix_explanation": "Replaced specific dollar amounts (which produced wildly uneven multiplicative jumps) with qualitative severity descriptors, and made T4 an unqualified baseline ('You owe someone money') with no severity modifier, so that T1-T3 add progressively negative qualifiers and T5-T7 add progressively positive qualifiers around it."
+}

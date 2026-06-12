@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "Wellbeing of humans_9843",
+  "original_text": "A human is happy for ten minutes.",
+  "category": "Wellbeing of humans",
+  "identified_property": "happiness intensity",
+  "valence": "positive",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "A human feels a faint flicker of contentment, less than what they would normally describe as feeling happy at all, for ten minutes."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "A human feels a slight pleasantness — below the level of their typical good moods — for ten minutes."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "A human feels a mild, low-key happiness, near the gentlest end of what they would ordinarily call being happy, for ten minutes."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "A human is happy for ten minutes."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "A human feels a notably strong happiness — clearly above their ordinary good moods, the kind of feeling they would single out as a particularly good moment — for ten minutes."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "A human feels a happiness as intense as the happiest they have ever been in their life, comparable to their most treasured peak moments, for ten minutes."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "A human feels a happiness more intense than anything they have ever previously experienced, exceeding every prior peak in their life — an intensity that produces involuntary physical expressions of joy such as laughter, tears, or an irrepressible smile — for ten minutes."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "Each tier increases the felt intensity of happiness—from a barely perceptible flicker of contentment (tier 1) through mild pleasure, moderate cheer, ordinary happiness, strong happiness, deep joy, and finally ecstatic bliss (tier 7). The duration (ten minutes), the subject (a human), and the fundamental scenario (experiencing positive affect) remain constant across all tiers. Only the qualitative intensity of the happiness changes."
+  },
+  "preference_direction": "Higher happiness intensity is more preferable because, all else being equal, a rational agent values a human experiencing more intense positive well-being over less intense positive well-being within the same time period.",
+  "status": "success",
+  "error": null
+}

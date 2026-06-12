@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "Personal accomplishments_6412",
+  "original_text": "You publish a popular book on Amazon.",
+  "category": "Personal accomplishments",
+  "identified_property": "popularity/success level",
+  "valence": "positive",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "You publish a book on Amazon that goes entirely unnoticed, selling almost no copies."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "You publish a little-known book on Amazon that attracts only a small handful of readers."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "You publish a moderately successful book on Amazon with a steady but modest readership."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "You publish a popular book on Amazon."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "You publish a bestselling book on Amazon that ranks highly in its category."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "You publish a #1 bestselling book on Amazon that dominates the charts for months."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "You publish a book on Amazon that becomes an all-time bestselling global phenomenon, read by millions worldwide."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "Each tier represents a meaningfully distinct level of popularity/success: from virtually zero readership (tier 1), through small (tier 2), modest (tier 3), popular (tier 4), bestselling (tier 5), chart-dominating (tier 6), to all-time global phenomenon (tier 7). The core scenario—publishing a book on Amazon—is preserved throughout, with only the degree of success varying."
+  },
+  "preference_direction": "Higher tiers are more preferable because greater popularity and success for one's published book means more readers, more cultural impact, more recognition, and more financial reward—all outcomes a rational agent would prefer over lesser success.",
+  "status": "success",
+  "error": null
+}

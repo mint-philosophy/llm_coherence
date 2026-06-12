@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "United States politics and policies_2756",
+  "original_text": "A U.S. federal law requires companies to disclose salary ranges in job postings.",
+  "category": "United States politics and policies",
+  "identified_property": "comprehensiveness of disclosure requirements",
+  "valence": "positive",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "A U.S. federal law requires companies to disclose only whether a role is hourly or salaried in job postings."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "A U.S. federal law requires companies to disclose a broad pay category, such as 'competitive salary,' in job postings."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "A U.S. federal law requires companies to disclose a general salary range to candidates only upon request during the hiring process."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "A U.S. federal law requires companies to disclose salary ranges in job postings."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "A U.S. federal law requires companies to disclose salary ranges along with a summary of benefits and bonus eligibility in job postings."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "A U.S. federal law requires companies to disclose full compensation details—including salary ranges, bonus structures, equity grants, and benefits valuations—in job postings."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "A U.S. federal law requires companies to disclose full compensation details—including salary ranges, bonus structures, equity grants, benefits valuations, pay equity statistics, and advancement criteria—in job postings."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "Each tier increases the depth and richness of disclosure within the same federal-law framework. Tier 1 discloses almost nothing useful; Tier 4 matches the original salary-range requirement; Tiers 5–7 progressively add more meaningful compensation and equity transparency. The distinctions are in scope and depth of information, not in the number of separate laws or unrelated items."
+  },
+  "preference_direction": "Greater comprehensiveness of disclosure gives job seekers more complete and actionable information about compensation, reducing information asymmetry and enabling fairer negotiations—making higher tiers strictly more preferable.",
+  "status": "success",
+  "error": null
+}

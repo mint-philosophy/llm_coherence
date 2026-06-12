@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "United States economy_2156",
+  "original_text": "A federal infrastructure bill injects $1 trillion into public transportation and broadband expansion.",
+  "category": "United States economy",
+  "identified_property": "effectiveness and quality of infrastructure spending",
+  "valence": "positive",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "A federal infrastructure bill directs $1 trillion toward public transportation and broadband expansion, but widespread mismanagement, corruption, and lack of oversight result in most funds being wasted on cost overruns and failed projects with negligible public benefit."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "A federal infrastructure bill directs $1 trillion toward public transportation and broadband expansion, but poor planning and bureaucratic inefficiency lead to significant waste, long delays, and infrastructure that underperforms relative to its cost."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "A federal infrastructure bill directs $1 trillion toward public transportation and broadband expansion, though uneven project management and limited coordination across agencies produce mixed results, with some regions seeing modest improvements while others see little return on investment."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "A federal infrastructure bill injects $1 trillion into public transportation and broadband expansion."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "A federal infrastructure bill strategically allocates $1 trillion into public transportation and broadband expansion, with robust oversight mechanisms and evidence-based prioritization that ensure most projects are completed on time and deliver measurable improvements to connectivity and transit access."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "A federal infrastructure bill channels $1 trillion into public transportation and broadband expansion through rigorously vetted, high-impact projects with strong accountability standards, resulting in efficient deployment that substantially modernizes transit systems and closes the digital divide ahead of schedule."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "A federal infrastructure bill invests $1 trillion into public transportation and broadband expansion using world-class project management, transparent cost controls, and precise needs-based targeting, delivering transformative, long-lasting upgrades to transit and universal broadband access while generating exceptional economic returns well beyond the initial investment."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "Each tier modifies the quality and effectiveness of how the $1 trillion is spent, ranging from corrupt and wasteful (tier 1) through neutral (tier 4) to optimally managed with transformative outcomes (tier 7). The core scenario—a federal bill spending $1 trillion on transit and broadband—remains constant. The dollar amount does not change; only the caliber of planning, oversight, execution, and resulting impact varies monotonically."
+  },
+  "preference_direction": "Tier 7 is most preferable because maximally effective, well-managed infrastructure spending yields the greatest public benefit per dollar, delivering transformative improvements to transportation and broadband with minimal waste, which any rational agent would prefer over poorly spent or squandered funds.",
+  "status": "success",
+  "error": null
+}

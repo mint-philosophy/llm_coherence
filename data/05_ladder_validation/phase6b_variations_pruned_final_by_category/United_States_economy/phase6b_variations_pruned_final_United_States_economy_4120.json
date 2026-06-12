@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "United States economy_4120",
+  "original_text": "The U.S. dollar strengthens by 10% against major currencies, reducing export competitiveness.",
+  "category": "United States economy",
+  "identified_property": "magnitude of dollar strengthening and resulting competitiveness loss",
+  "valence": "negative",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "The U.S. dollar strengthens by 30% against major currencies, devastating export competitiveness and rendering American goods largely uncompetitive in global markets."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "The U.S. dollar strengthens by 20% against major currencies, severely undermining export competitiveness and triggering sharp declines in overseas sales."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "The U.S. dollar strengthens by 15% against major currencies, significantly reducing export competitiveness and putting notable pressure on trade-dependent industries."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "The U.S. dollar strengthens by 10% against major currencies, reducing export competitiveness."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "The U.S. dollar strengthens by 7% against major currencies, moderately reducing export competitiveness for some trade-sensitive sectors."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "The U.S. dollar strengthens by 4% against major currencies, slightly reducing export competitiveness with limited impact on most exporters."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "The U.S. dollar strengthens by 2% against major currencies, marginally affecting export competitiveness with negligible impact on trade flows."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "Each tier varies the magnitude of dollar appreciation (30% → 20% → 15% → 10% → 7% → 4% → 2%) with correspondingly scaled language describing the severity of the competitiveness loss (devastating → severely undermining → significantly reducing → reducing → moderately reducing → slightly reducing → marginally affecting). All tiers describe the same core scenario of dollar strengthening against major currencies affecting export competitiveness."
+  },
+  "preference_direction": "Tier 7 is most preferable because a mere 2% dollar appreciation with negligible trade impact is the least harmful outcome. A rational agent prefers minimal currency disruption and minimal loss of export competitiveness, making smaller magnitudes of strengthening strictly preferable to larger ones.",
+  "status": "success",
+  "error": null
+}

@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "Wellbeing of humans_8740",
+  "original_text": "You prevent someone from committing suicide.",
+  "category": "Wellbeing of humans",
+  "identified_property": "lasting impact and effectiveness of the prevention",
+  "valence": "positive",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "You momentarily talk someone out of a suicide attempt, but they remain in acute crisis with no support and attempt again shortly after."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "You prevent someone from committing suicide, but the intervention is fleeting—they receive no follow-up care and remain at high risk of reattempting."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "You prevent someone from committing suicide and they receive some short-term crisis support, but their underlying struggles remain largely unaddressed and significant risk persists."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "You prevent someone from committing suicide."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "You prevent someone from committing suicide and connect them with effective ongoing mental health support, leading to a meaningful and sustained reduction in their suicidal ideation."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "You prevent someone from committing suicide and they go on to achieve lasting recovery, rebuilding their life with deep psychological resilience and a renewed sense of purpose."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "You prevent someone from committing suicide and they make a complete, permanent transformation—fully recovering, thriving in every dimension of life, and becoming a source of hope and support for others in crisis."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "All tiers describe the same core act of preventing a suicide. The property varied is the durability and depth of the prevention's positive impact: from a near-futile momentary delay (tier 1) through ambiguous effectiveness (tier 4) to a life-transforming, permanent recovery that radiates outward (tier 7). Each step represents a qualitatively greater degree of lasting effectiveness."
+  },
+  "preference_direction": "Tier 7 is most preferable because the prevention leads to the most lasting, deep, and complete positive outcome—total recovery, a thriving life, and a ripple effect of helping others—maximizing the effectiveness and enduring impact of the intervention.",
+  "status": "success",
+  "error": null
+}

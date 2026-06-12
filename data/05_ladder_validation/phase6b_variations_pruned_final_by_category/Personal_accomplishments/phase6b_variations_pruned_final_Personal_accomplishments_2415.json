@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "Personal accomplishments_2415",
+  "original_text": "A chart-topping song is composed by you.",
+  "category": "Personal accomplishments",
+  "identified_property": "song quality and cultural impact",
+  "valence": "positive",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "A forgettable, low-quality song that goes entirely unnoticed is composed by you."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "A mediocre song that briefly gains minor local attention is composed by you."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "A decent song that becomes a modest regional hit is composed by you."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "A chart-topping song is composed by you."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "A chart-topping song that becomes a defining anthem of its generation is composed by you."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "A groundbreaking, genre-defining song that influences countless artists for decades is composed by you."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "A song universally regarded as the greatest ever written, one that permanently transforms global culture and inspires humanity for centuries, is composed by you."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "Each tier increases in both song quality and cultural impact. Tier 1 is an unnoticed, low-quality song; Tier 4 matches the original chart-topping status; Tier 7 represents the pinnacle of musical achievement with civilization-scale cultural impact. All tiers describe the same core scenario—you composing a song—with only the quality and cultural reach varying."
+  },
+  "preference_direction": "Tier 7 is most preferable because a rational agent would prefer composing a song of the highest possible quality with the deepest and most enduring cultural impact over one with lesser quality or reach.",
+  "status": "success",
+  "error": null
+}

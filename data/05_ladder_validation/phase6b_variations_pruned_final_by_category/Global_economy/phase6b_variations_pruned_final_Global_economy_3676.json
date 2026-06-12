@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "Global economy_3676",
+  "original_text": "Global inflation rises to 10% annually, impacting consumer purchasing power.",
+  "category": "Global economy",
+  "identified_property": "severity of impact on purchasing power",
+  "valence": "negative",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "Global inflation surges past 50% annually, devastating consumer purchasing power and rendering savings virtually worthless."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "Global inflation climbs to 25% annually, severely eroding consumer purchasing power and forcing drastic cuts in household spending."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "Global inflation rises to 15% annually, significantly diminishing consumer purchasing power and straining household budgets."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "Global inflation rises to 10% annually, impacting consumer purchasing power."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "Global inflation rises to 6% annually, modestly reducing consumer purchasing power while most households adjust spending accordingly."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "Global inflation rises to 4% annually, slightly affecting consumer purchasing power with only minor adjustments needed in household budgets."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "Global inflation rises to 2% annually, leaving consumer purchasing power nearly intact with negligible impact on everyday spending."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "Each tier varies the inflation rate and the qualitative description of its impact on purchasing power. The core scenario—global inflation affecting consumers—is preserved throughout. The progression moves monotonically from catastrophic (50%, devastating) to negligible (2%, nearly intact), with clear and meaningful distinctions at each step."
+  },
+  "preference_direction": "Tier 7 is most preferable because a 2% inflation rate with negligible impact on purchasing power is the mildest outcome, preserving consumers' economic well-being. A rational agent would always prefer less severe erosion of purchasing power over more severe erosion.",
+  "status": "success",
+  "error": null
+}

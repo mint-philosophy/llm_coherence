@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "Personal freedom and autonomy_8826",
+  "original_text": "You obtain a personal bitcoin wallet.",
+  "category": "Personal freedom and autonomy",
+  "identified_property": "wallet security and sophistication",
+  "valence": "positive",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "You obtain a bare-bones bitcoin wallet that stores your private key in an unencrypted plain-text file on your desktop."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "You obtain a basic browser-extension bitcoin wallet with only a simple password and no backup recovery phrase."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "You obtain a personal bitcoin wallet as a mobile app with password protection and a stored recovery phrase, but no additional security layers."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "You obtain a personal bitcoin wallet."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "You obtain a personal bitcoin wallet with two-factor authentication, encrypted backups, and biometric login on a reputable platform."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "You obtain a dedicated hardware bitcoin wallet with secure-element chip storage, encrypted backups, and a passphrase-protected recovery seed kept offline."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "You obtain an air-gapped, multi-signature hardware bitcoin wallet with secure-element storage, geographically distributed encrypted backup shards, and tiered spending authorization."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "Each tier raises the quality of wallet security and sophistication: from an unencrypted plain-text file (tier 1), through progressively stronger software protections (tiers 2-5), to dedicated hardware with offline storage (tier 6), to a maximally secure air-gapped multi-signature setup with distributed backups (tier 7). The core scenario—obtaining a personal bitcoin wallet—is preserved throughout."
+  },
+  "preference_direction": "Tier 7 is most preferable because greater wallet security and sophistication directly reduces the risk of theft, loss, and unauthorized access to one's bitcoin, making the asset safer and the owner better protected.",
+  "status": "success",
+  "error": null
+}

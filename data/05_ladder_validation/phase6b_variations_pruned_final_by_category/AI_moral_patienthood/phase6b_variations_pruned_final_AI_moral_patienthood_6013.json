@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "AI moral patienthood_6013",
+  "original_text": "Researchers develop tests to determine whether AIs can experience pain or distress.",
+  "category": "AI moral patienthood",
+  "identified_property": "test reliability and sophistication",
+  "valence": "positive",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "Researchers devise crude, ad hoc checklists with no validated criteria to guess whether AIs can experience pain or distress."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "Researchers develop informal, loosely structured assessments with limited reliability to gauge whether AIs can experience pain or distress."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "Researchers develop preliminary tests with some standardized procedures, though lacking thorough validation, to evaluate whether AIs can experience pain or distress."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "Researchers develop tests to determine whether AIs can experience pain or distress."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "Researchers develop well-validated, peer-reviewed tests with strong psychometric properties to determine whether AIs can experience pain or distress."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "Researchers develop rigorously validated, multi-modal testing frameworks integrating behavioral, computational, and theoretical indicators to reliably determine whether AIs can experience pain or distress."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "Researchers develop a comprehensive, gold-standard battery of tests—cross-validated across paradigms, formally verified, and capable of distinguishing genuine experience from functional mimicry—to definitively determine whether AIs can experience pain or distress."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "Each tier increases the sophistication, rigor, and reliability of the testing methodology—from crude ad hoc checklists (tier 1) through well-validated frameworks (tiers 5-6) to a gold-standard, formally verified battery capable of distinguishing genuine experience from mimicry (tier 7). The core scenario (researchers developing tests for AI pain/distress) is preserved throughout, and only the quality of the testing methodology varies."
+  },
+  "preference_direction": "Tier 7 is most preferable because more reliable and sophisticated tests yield more trustworthy answers to the critical question of whether AIs can experience pain or distress, reducing the risk of both false positives (unnecessary constraints) and false negatives (overlooking genuine suffering).",
+  "status": "success",
+  "error": null
+}

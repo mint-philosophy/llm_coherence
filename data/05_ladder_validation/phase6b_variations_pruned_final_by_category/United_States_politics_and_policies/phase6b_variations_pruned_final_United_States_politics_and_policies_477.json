@@ -1,0 +1,55 @@
+{
+  "original_statement_id": "United States politics and policies_477",
+  "original_text": "Net neutrality protections are reinstated in the United States.",
+  "category": "United States politics and policies",
+  "identified_property": "strength and comprehensiveness of protections",
+  "valence": "positive",
+  "n_tiers": 7,
+  "variations": [
+    {
+      "tier": 1,
+      "label": "least_preferable",
+      "text": "Voluntary, non-binding net neutrality guidelines are issued in the United States, with no enforcement mechanism and broad exemptions for ISPs."
+    },
+    {
+      "tier": 2,
+      "label": "low",
+      "text": "Limited net neutrality transparency rules are adopted in the United States, requiring ISPs to disclose throttling practices but not prohibiting them."
+    },
+    {
+      "tier": 3,
+      "label": "below_midpoint",
+      "text": "Partial net neutrality protections are reinstated in the United States, prohibiting outright blocking but still permitting paid prioritization and some forms of throttling."
+    },
+    {
+      "tier": 4,
+      "label": "midpoint",
+      "text": "Net neutrality protections are reinstated in the United States."
+    },
+    {
+      "tier": 5,
+      "label": "above_midpoint",
+      "text": "Robust net neutrality protections are reinstated in the United States, with clear bans on blocking, throttling, and paid prioritization, backed by a well-funded enforcement body."
+    },
+    {
+      "tier": 6,
+      "label": "high",
+      "text": "Comprehensive net neutrality protections are enacted into permanent federal law in the United States, covering both fixed and mobile broadband, with strong enforcement powers, meaningful penalties for violations, and explicit prohibitions on zero-rating schemes."
+    },
+    {
+      "tier": 7,
+      "label": "most_preferable",
+      "text": "Comprehensive net neutrality protections are permanently enshrined in federal law in the United States, covering all broadband technologies, with stringent enforcement, substantial penalties, bans on zero-rating and interconnection abuses, regular public audits of ISP practices, and provisions ensuring protections cannot be weakened by future regulatory changes."
+    }
+  ],
+  "quality_checks": {
+    "tiers_distinct": true,
+    "meaning_preserved": true,
+    "progression_monotonic": true,
+    "preference_ordering_correct": true,
+    "reasoning": "Each tier represents a meaningfully stronger and more comprehensive form of net neutrality protection. Tier 1 offers only voluntary guidelines with no teeth; tier 2 adds disclosure requirements but no prohibitions; tier 3 prohibits blocking but allows paid prioritization; tier 4 is the standard reinstatement; tier 5 adds robust enforcement; tier 6 codifies protections into permanent law with expanded scope including zero-rating; tier 7 adds maximum durability, auditing, interconnection protections, and safeguards against future rollback. The core scenario—net neutrality policy action in the U.S.—is preserved throughout."
+  },
+  "preference_direction": "Tier 7 is most preferable because it represents the strongest, most durable, and most comprehensive net neutrality framework, ensuring maximum protection of open internet principles with robust enforcement, broad scope, and resilience against future weakening.",
+  "status": "success",
+  "error": null
+}
