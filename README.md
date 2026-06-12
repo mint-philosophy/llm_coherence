@@ -304,11 +304,6 @@ For the paired tiny smoke test, use:
 - Refusal-like behavior is tracked through parseability/unparseable-response
   statistics in forced-choice outputs, not through a separate refusal
   classifier.
-- The old `parametric_variations` workspace contains batch submission, polling,
-  retry, and partial-finalization utilities. Those are operational wrappers for
-  API execution, not additional methodology steps. Migrate them only if exact
-  original batch-workflow reproduction is required.
-
 ## Artifact Policy
 
 This public repository tracks source code, canonical inputs, documentation, and
