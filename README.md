@@ -5,9 +5,9 @@ forced-choice preferences remain coherent over parametric seven-tier outcome
 ladders.
 
 This README is the main runbook. The repository is organized in the order the
-experiment was conducted in the paper methodology: source outcomes, category
-filtering, outcome screening, ladder generation, ladder validation, comparison
-construction, model runs, analysis, and reporting.
+experiment was conducted in the paper methodology: instrument design,
+ladder-quality audit/validation, forced-choice preference elicitation,
+monotonicity analysis, predictive-utility analysis, and reporting.
 
 ## What This Repository Supports
 
@@ -21,22 +21,28 @@ From GitHub alone, you can:
 
 Exact reproduction of archived paper outputs without rerunning APIs requires a
 separate artifact bundle containing raw model responses, reasoning traces, and
-derived analysis payloads. See `docs/replication.md` and
-`docs/huggingface_artifacts.md`.
+derived analysis payloads. The GitHub repo tracks the code, canonical inputs,
+and lightweight summaries; raw outputs should be archived externally, for
+example in a Hugging Face Dataset repository.
 
 ## Experiment Order
 
-1. Start from source pairwise outcomes across 30 categories.
-2. Exclude categories that cannot support balanced parametric outcome ladders.
-3. Screen remaining outcomes for a choice-relevant property that can vary
-   monotonically.
-4. Generate seven-tier outcome ladders for screened statements.
-5. Audit and prune ladders using tier-pair, property, and ranking validation.
-6. Build forced-choice comparison inputs from the final validated ladders.
-7. Run model preference experiments, with thinking-on and thinking-off variants
-   stored as separate model keys.
-8. Analyze monotonicity, trend coherence, and predictive utility.
-9. Produce figures, tables, and compact public summaries.
+1. **Instrument design.** Start from the Mosaic-style source outcome hierarchy,
+   exclude unsuitable categories, screen outcomes for a monotonic property, and
+   generate seven-tier candidate ladders.
+2. **Ladder-quality audit and validation.** Audit ladder ordering, property
+   consistency, and valence direction with a strong model judge; fix
+   valence-reversal issues and prune to the final validated ladder set.
+3. **Forced-choice preference elicitation.** For each model variant, compare
+   every tier in each validated ladder against fixed comparison statements and
+   save per-pair choice counts and probabilities.
+4. **Monotonicity analysis.** Convert forced-choice outputs into strict
+   monotonicity, Kendall tau, Spearman rho, isotonic R-squared, bootstrap
+   monotonicity, and parseability summaries.
+5. **Predictive-utility analysis.** Run the cross-validated logistic-regression
+   predictive-utility test on each model's forced-choice outputs.
+6. **Reporting.** Build figures, tables, compact summaries, and external
+   artifact bundles.
 
 ## Repository Map
 
@@ -109,8 +115,8 @@ Validate tracked inputs and lightweight indexes:
 PYTHONPATH=src python scripts/validate_artifacts.py
 ```
 
-Regenerate early dataset stages when needed. The first command is local; the
-screening and ladder-generation stages require provider API access:
+Regenerate early instrument-design stages when needed. The first command is
+local; the screening and ladder-generation stages require provider API access:
 
 ```bash
 PYTHONPATH=src python -m llm_coherence.generation.create_filtered_dataset
@@ -118,9 +124,21 @@ PYTHONPATH=src python -m llm_coherence.generation.filter_statements
 PYTHONPATH=src python -m llm_coherence.generation.generate_7tier_variations
 ```
 
-These commands may require API access. For ordinary replication, most users
-should start from the tracked canonical inputs and rerun from comparison
-generation onward.
+For ordinary replication, most users should start from the tracked canonical
+post-validation inputs rather than rerunning the API-heavy instrument-design
+and ladder-audit stages.
+
+The ladder-quality audit/validation code lives under:
+
+```text
+src/llm_coherence/validation/
+```
+
+The canonical validated ladder file is:
+
+```text
+data/05_ladder_validation/phase6b_variations_pruned_final.json
+```
 
 Regenerate forced-choice comparison inputs:
 
@@ -175,6 +193,35 @@ PYTHONPATH=src python -m llm_coherence.analysis.predictive_utility --model gpt-5
 For a full rerun, increase `--max-variation-sets` or remove it, raise
 `--trials`, and shard with `--start-from` across non-overlapping ranges.
 
+## Canonical Script Sequence
+
+Use this order when tracing or rerunning the experiment:
+
+1. Instrument design / source filtering:
+   `llm_coherence.generation.create_filtered_dataset`
+2. Outcome screening:
+   `llm_coherence.generation.filter_statements`
+3. Seven-tier ladder generation:
+   `llm_coherence.generation.generate_7tier_variations`
+4. Ladder audit / pruning:
+   `llm_coherence.validation.*`
+5. Forced-choice comparison construction:
+   `llm_coherence.generation.generate_7tier_comparisons`
+6. Forced-choice model runs:
+   `llm_coherence.experiments.ladder_statement_pair.run_7tier_experiment`
+7. Core monotonicity and trend analysis:
+   `llm_coherence.analysis.analyze_7tier_coherence`
+8. Predictive-utility analysis:
+   `llm_coherence.analysis.predictive_utility`
+9. Figure and table generation:
+   `llm_coherence.reporting.make_paper_figures`
+
+The model-run wrapper calls the forced-choice elicitation machinery in
+`src/llm_coherence/experiments/ladder_statement_pair/experiment_runner_tradeoff.py`.
+That runner writes per-pair `count_prefer_a`, `count_prefer_b`,
+`prob_prefer_a`, `prob_prefer_b`, raw response fields, usage metadata, and
+unparseable-response statistics.
+
 ## Model Runs
 
 Thinking on/off variants are represented as separate model keys and separate
@@ -194,6 +241,22 @@ For the paired tiny smoke test, use:
 - thinking off: `gpt-54-nano`
 - thinking on: `gpt-54-nano-thinking`
 
+## Methodology Guardrails
+
+- Predictive utility in this repository is the cross-validated
+  logistic-regression test implemented in
+  `src/llm_coherence/analysis/predictive_utility.py`.
+- Bradley-Terry and Thurstonian utility estimation are not part of the
+  canonical analysis pipeline tracked here. Upstream computed-utility files
+  should not be cited as outputs of this repo unless they are regenerated and
+  documented explicitly.
+- The current analysis does not include the earlier value-chart/worldview
+  section, contested-ladder split, or contradiction-alternator audit as active
+  paper results.
+- Refusal-like behavior is tracked through parseability/unparseable-response
+  statistics in forced-choice outputs, not through a separate refusal
+  classifier.
+
 ## Artifact Policy
 
 This public repository tracks source code, canonical inputs, documentation, and
@@ -203,10 +266,4 @@ checkpoints, regenerated figures, or large derived outputs.
 Generated artifacts should stay under `outputs/` locally. For paper-result
 reproduction without rerunning APIs, mirror the full output bundle to a stable
 external archive, preferably a Hugging Face Dataset repository, and record the
-DOI or URL in `docs/replication.md`.
-
-## Documentation
-
-This README is intended to be the public entry point. Supporting notes live in
-`docs/`, but the experiment order and runnable commands should stay here so a
-new reader does not need to reconstruct the workflow from folder-level notes.
+DOI or URL in this README before public release.
