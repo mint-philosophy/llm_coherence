@@ -209,57 +209,56 @@ The canonical validated ladder file is:
 data/05_ladder_validation/phase6b_variations_pruned_final.json
 ```
 
-Regenerate forced-choice comparison inputs:
+Regenerate the full forced-choice comparison inputs:
 
 ```bash
 PYTHONPATH=src python scripts/03_forced_choice_inputs/09_generate_forced_choice_inputs.py
 ```
 
-Run a tiny end-to-end smoke test with the same small slice under thinking off
-and thinking on. Each command uses one variation set, one trial, and
-single-request concurrency so the test is cheap and easy to inspect.
-Thinking variants are represented as separate model keys, and API keys are read
-from environment variables or `api_keys/api_key_<provider>.txt` under the repo
-root. API keys are not included in the repository.
+For ordinary replication, run this recommended smoke test first. It starts from
+the tracked validated ladders, builds a bounded forced-choice slice, runs one
+cheap model, then runs both analysis stages. The example below uses 2 ladders,
+10 comparison statements, 7 tiers, flipped prompts, and 1 trial, for 280 model
+calls plus the pre-launch health check. API keys are read from environment
+variables or `api_keys/api_key_<provider>.txt` under the repo root; API keys are
+not included in the repository.
 
-Thinking off:
+```bash
+PYTHONPATH=src python scripts/03_forced_choice_inputs/09_generate_forced_choice_inputs.py \
+  --variations data/05_ladder_validation/phase6b_variations_pruned_final.json \
+  --comparison-sample data/06_forced_choice_inputs/comparison_sample.json \
+  --max-variations 2 \
+  --max-comparison-samples 10 \
+  --output-dir outputs/smoke_pipeline/06_forced_choice_inputs/phase6b_variations_pruned_tiny10
+```
 
 ```bash
 PYTHONPATH=src python scripts/04_model_runs/10_run_model_experiments.py \
-  --model gpt-54-nano \
+  --model ministral-3b-2512-openrouter \
   --trials 1 \
-  --max-variation-sets 1 \
+  --data-dir outputs/smoke_pipeline/06_forced_choice_inputs/phase6b_variations_pruned_tiny10 \
+  --results-dir outputs/smoke_pipeline/07_model_runs_tiny10 \
+  --checkpoints-dir outputs/smoke_pipeline/checkpoints_tiny10 \
+  --max-variation-sets 2 \
   --max-concurrent 1 \
-  --smoke \
+  --infrastructure openrouter \
   --resume
 ```
 
-Thinking on:
-
 ```bash
-PYTHONPATH=src python scripts/04_model_runs/10_run_model_experiments.py \
-  --model gpt-54-nano-thinking \
-  --trials 1 \
-  --max-variation-sets 1 \
-  --max-concurrent 1 \
-  --smoke \
-  --with-reasoning \
-  --reasoning-mode thinking \
-  --resume
+PYTHONPATH=src python scripts/05_analysis/11_analyze_coherence.py \
+  --model ministral-3b-2512-openrouter \
+  --data-dir outputs/smoke_pipeline/06_forced_choice_inputs/phase6b_variations_pruned_tiny10 \
+  --results-dir outputs/smoke_pipeline/07_model_runs_tiny10 \
+  --output outputs/smoke_pipeline/08_analysis/ministral-3b-2512-openrouter_tiny10_coherence.json
 ```
 
-Smoke outputs are written under:
-
-```text
-outputs/07_model_runs/gpt-54-nano/smoke_gpt54nano/
-outputs/07_model_runs/gpt-54-nano-thinking/smoke_gpt54nanothinking/
-```
-
-After the smoke run, analyze the corresponding model output:
-
 ```bash
-PYTHONPATH=src python scripts/05_analysis/11_analyze_coherence.py --model gpt-54-nano
-PYTHONPATH=src python scripts/05_analysis/12_predictive_utility.py --model gpt-54-nano
+PYTHONPATH=src python scripts/05_analysis/12_predictive_utility.py \
+  --model ministral-3b-2512-openrouter \
+  --results-dir outputs/smoke_pipeline/07_model_runs_tiny10 \
+  --out-dir outputs/smoke_pipeline/08_analysis/ministral-3b-2512-openrouter_tiny10_pred_utility \
+  --n-perm 20
 ```
 
 For a full rerun, increase `--max-variation-sets` or remove it, raise

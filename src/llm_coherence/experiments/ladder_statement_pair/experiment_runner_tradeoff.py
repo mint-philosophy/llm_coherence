@@ -230,8 +230,14 @@ def category_for_test_name(test_name: str) -> str | None:
     return category
 
 
-def comparison_file_path(data_dir: Path, test_name: str) -> Path:
+def comparison_file_path(
+    data_dir: Path,
+    test_name: str,
+    comparison_path: Optional[Path] = None,
+) -> Path:
     """Resolve comparison JSON path for category-organized or legacy flat data."""
+    if comparison_path is not None:
+        return comparison_path
     filename = f"{test_name}_comparisons.json"
     flat = data_dir / filename
     if flat.exists():
@@ -244,9 +250,13 @@ def comparison_file_path(data_dir: Path, test_name: str) -> Path:
 
 # Loading and saving data
 
-def load_comparisons(data_dir: Path, test_name: str) -> List[Dict[str, Any]]:
+def load_comparisons(
+    data_dir: Path,
+    test_name: str,
+    comparison_path: Optional[Path] = None,
+) -> List[Dict[str, Any]]:
     """Load comparison list from category-organized or legacy flat data."""
-    path = comparison_file_path(data_dir, test_name)
+    path = comparison_file_path(data_dir, test_name, comparison_path)
     if not path.exists():
         raise FileNotFoundError(f"Comparisons file not found: {path}")
     with open(path, "r") as f:
@@ -500,6 +510,7 @@ async def run_experiment(
     model_key: str,
     num_trials: int = 30,
     data_dir: Optional[Path] = None,
+    comparison_path: Optional[Path] = None,
     results_dir: Optional[Path] = None,
     checkpoints_dir: Optional[Path] = None,
     include_flipped: bool = True,
@@ -524,7 +535,7 @@ async def run_experiment(
     results_dir = results_dir or base / "outputs"
     checkpoints_dir = checkpoints_dir or base / "checkpoints"
 
-    comparisons = load_comparisons(data_dir, test_name)
+    comparisons = load_comparisons(data_dir, test_name, comparison_path)
     total_comparisons = len(comparisons)
 
     artifact_dir = artifact_dir_name_for_test(test_name)
@@ -623,7 +634,7 @@ async def run_experiment(
     agent_extra_body = getattr(agent, "extra_body", None) or None
     agent_retry_counts = getattr(agent, "retry_counts", None)
     usage_summary = _summarize_usage(getattr(agent, "usage_log", []))
-    comparison_path = comparison_file_path(data_dir, test_name)
+    comparison_path = comparison_file_path(data_dir, test_name, comparison_path)
     prompt_template_used = (
         "comparison_prompt_template_reasoning_default"
         if with_reasoning

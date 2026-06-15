@@ -9,11 +9,11 @@ description = "Pipeline for LLM preference coherence experiments over parametric
 requires-python = ">=3.11"
 dependencies = [
   "matplotlib",
-  "numpy",
-  "pandas",
-  "scikit-learn",
-  "scipy",
-  "statsmodels",
+  "numpy>=1.26,<2",
+  "pandas>=2.2,<2.3",
+  "scikit-learn>=1.4,<1.6",
+  "scipy>=1.11,<1.14",
+  "statsmodels>=0.14,<0.15",
   "pyyaml",
   "python-dotenv",
   "httpx",

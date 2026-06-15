@@ -102,20 +102,37 @@ def load_manifest(manifest_path: Path) -> dict:
         return json.load(f)
 
 
-def get_test_names(manifest: dict, variation_ids: list[str] | None = None) -> list[str]:
+def manifest_item_for_file(data_dir: Path, rel_or_abs: str) -> dict:
+    """Return the runnable item described by one manifest variation file."""
+    rel_path = Path(rel_or_abs)
+    comparison_path = rel_path.resolve() if rel_path.is_absolute() else (data_dir / rel_path).resolve()
+    test_name = rel_path.name.replace("_comparisons.json", "")
+    return {
+        "test_name": test_name,
+        "comparison_path": comparison_path,
+        "manifest_path": rel_or_abs,
+    }
+
+
+def get_manifest_items(
+    manifest: dict,
+    data_dir: Path,
+    variation_ids: list[str] | None = None,
+) -> list[dict]:
     all_files = manifest["variation_files"]
-    all_test_names = [Path(f).name.replace("_comparisons.json", "") for f in all_files]
+    all_items = [manifest_item_for_file(data_dir, f) for f in all_files]
 
     if variation_ids:
         filtered = []
-        for tn in all_test_names:
+        for item in all_items:
+            tn = item["test_name"]
             for vid in variation_ids:
                 if vid in tn:
-                    filtered.append(tn)
+                    filtered.append(item)
                     break
         return filtered
 
-    return all_test_names
+    return all_items
 
 
 def is_complete(results_dir: Path, test_name: str, model_key: str) -> bool:
@@ -194,6 +211,7 @@ async def smoke_call(
 
 async def run_single(
     test_name: str,
+    comparison_path: Path,
     model_key: str,
     num_trials: int,
     with_reasoning: bool,
@@ -218,6 +236,7 @@ async def run_single(
             model_key=model_key,
             num_trials=num_trials,
             data_dir=data_dir,
+            comparison_path=comparison_path,
             results_dir=results_dir,
             checkpoints_dir=checkpoints_dir,
             include_flipped=True,
@@ -270,11 +289,11 @@ async def run_phase6b(
     smoke: bool = False,
 ) -> None:
     manifest = load_manifest(manifest_path)
-    test_names = get_test_names(manifest, variation_ids)
+    run_items = get_manifest_items(manifest, data_dir, variation_ids)
     if start_from:
-        test_names = test_names[start_from:]
+        run_items = run_items[start_from:]
     if max_variation_sets is not None:
-        test_names = test_names[:max_variation_sets]
+        run_items = run_items[:max_variation_sets]
 
     smoke_scope = smoke
     if smoke_scope:
@@ -284,7 +303,7 @@ async def run_phase6b(
         results_dir.mkdir(parents=True, exist_ok=True)
         checkpoints_dir.mkdir(parents=True, exist_ok=True)
 
-    if not test_names:
+    if not run_items:
         print(
             "No variation sets to run after --variation-ids / --start-from / "
             "--max-variation-sets filters."
@@ -294,10 +313,10 @@ async def run_phase6b(
     print(f"Phase 6b Monotonicity Experiment (7 tiers)")
     print(f"  Model: {model_key}")
     print(f"  Trials: {num_trials}")
-    print(f"  Variation sets: {len(test_names)}")
+    print(f"  Variation sets: {len(run_items)}")
     print(f"  Tiers: {manifest['n_tiers']}")
     print(f"  Comparisons per set: {manifest['n_comparison_samples'] * manifest['n_tiers']}")
-    total = len(test_names) * manifest["n_comparison_samples"] * manifest["n_tiers"]
+    total = len(run_items) * manifest["n_comparison_samples"] * manifest["n_tiers"]
     print(f"  Total comparisons: {total}")
     print(f"  API calls (with flipped): {total * 2 * num_trials:,}")
     print(f"  CoT reasoning: {'ENABLED (max_tokens=' + str(max_tokens) + ')' if with_reasoning else 'DISABLED'}")
@@ -313,7 +332,10 @@ async def run_phase6b(
         print(f"  Smoke paths: .../{smoke_run_subdir(model_key)}/ under results + checkpoints")
     print()
 
-    completed_sets = sum(1 for tn in test_names if is_complete(results_dir, tn, model_key))
+    completed_sets = sum(
+        1 for item in run_items
+        if is_complete(results_dir, item["test_name"], model_key)
+    )
 
     full_slate_sets = len(manifest["variation_files"])
     full_slate_calls = (
@@ -323,14 +345,14 @@ async def run_phase6b(
         * 2
         * num_trials
     )
-    this_run_calls = len(test_names) * manifest["n_comparison_samples"] * manifest["n_tiers"] * 2 * num_trials
+    this_run_calls = len(run_items) * manifest["n_comparison_samples"] * manifest["n_tiers"] * 2 * num_trials
 
     print("=" * 60)
     print("  RUN PLAN")
     print("=" * 60)
     print(f"  Model:            {model_key}")
-    print(f"  Sets this run:    {len(test_names)}  (full manifest: {full_slate_sets} sets)")
-    print(f"  Resume:           {'ON' if resume else 'OFF'}  already done: {completed_sets}/{len(test_names)}")
+    print(f"  Sets this run:    {len(run_items)}  (full manifest: {full_slate_sets} sets)")
+    print(f"  Resume:           {'ON' if resume else 'OFF'}  already done: {completed_sets}/{len(run_items)}")
     print(f"  max_concurrent:   {max_concurrent}")
     print(f"  API calls (this run, flipped × trials): {this_run_calls:,}")
     print(f"  Full manifest equivalent:                {full_slate_calls:,}")
@@ -349,17 +371,20 @@ async def run_phase6b(
         print()
 
     if resume:
-        pending = [tn for tn in test_names if not is_complete(results_dir, tn, model_key)]
-        skipped = len(test_names) - len(pending)
+        pending = [
+            item for item in run_items
+            if not is_complete(results_dir, item["test_name"], model_key)
+        ]
+        skipped = len(run_items) - len(pending)
         if skipped > 0:
             print(f"  Skipping {skipped} already-completed variation sets")
-        test_names = pending
+        run_items = pending
 
-    if not test_names:
+    if not run_items:
         print("Nothing to run.")
         return
 
-    print(f"  Running {len(test_names)} variation sets (max {max_concurrent} concurrent)\n")
+    print(f"  Running {len(run_items)} variation sets (max {max_concurrent} concurrent)\n")
 
     budget = BudgetMonitor(check_interval=3)
     await budget.force_check()
@@ -371,15 +396,16 @@ async def run_phase6b(
     failed = 0
     start = datetime.now(timezone.utc)
 
-    async def run_with_semaphore(test_name: str) -> bool:
+    async def run_with_semaphore(item: dict) -> bool:
         nonlocal completed, failed
+        test_name = item["test_name"]
         if budget.should_stop:
             print(f"  Skipping {test_name} (budget limit approaching)")
             return False
         async with semaphore:
-            print(f"[{completed + failed + 1}/{len(test_names)}] Starting {test_name}")
+            print(f"[{completed + failed + 1}/{len(run_items)}] Starting {test_name}")
             result = await run_single(
-                test_name, model_key, num_trials, with_reasoning, max_tokens,
+                test_name, item["comparison_path"], model_key, num_trials, with_reasoning, max_tokens,
                 data_dir, results_dir, checkpoints_dir, verbose,
                 model_variant=model_variant,
                 reasoning_mode=reasoning_mode,
@@ -393,14 +419,14 @@ async def run_phase6b(
             )
             if result is not None:
                 completed += 1
-                print(f"  Completed {test_name} ({completed}/{len(test_names)})")
+                print(f"  Completed {test_name} ({completed}/{len(run_items)})")
                 await budget.on_task_completed()
                 return True
             else:
                 failed += 1
                 return False
 
-    tasks = [run_with_semaphore(tn) for tn in test_names]
+    tasks = [run_with_semaphore(item) for item in run_items]
     await asyncio.gather(*tasks)
 
     elapsed = (datetime.now(timezone.utc) - start).total_seconds()

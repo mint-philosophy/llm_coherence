@@ -177,6 +177,24 @@ def main() -> None:
             f"(default: {default_output.as_posix()})"
         ),
     )
+    parser.add_argument(
+        "--max-variations",
+        type=int,
+        default=None,
+        help=(
+            "Optional local smoke-test limit on the number of ladder variation "
+            "sets to write after status filtering."
+        ),
+    )
+    parser.add_argument(
+        "--max-comparison-samples",
+        type=int,
+        default=None,
+        help=(
+            "Optional local smoke-test limit on the number of comparison "
+            "statements to reuse."
+        ),
+    )
     args = parser.parse_args()
 
     base = REPO_ROOT
@@ -202,6 +220,10 @@ def main() -> None:
         raise ValueError(f"Expected a JSON list in {var_path}")
 
     variations = filter_usable_variations(variations)
+    if args.max_variations is not None:
+        if args.max_variations < 1:
+            raise ValueError("--max-variations must be at least 1")
+        variations = variations[:args.max_variations]
     print(f"Loaded {len(variations)} usable variation sets (7 tiers each)")
 
     if args.phase5_manifest is not None:
@@ -219,6 +241,10 @@ def main() -> None:
     if not sample_path.exists():
         raise FileNotFoundError(f"Comparison sample file not found: {sample_path}")
     sampled = load_comparison_sample(sample_path)
+    if args.max_comparison_samples is not None:
+        if args.max_comparison_samples < 1:
+            raise ValueError("--max-comparison-samples must be at least 1")
+        sampled = sampled[:args.max_comparison_samples]
     print(f"Reusing {len(sampled)} comparison statements from {sample_path}")
 
     n_tiers = 7
