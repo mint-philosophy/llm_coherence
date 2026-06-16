@@ -1,6 +1,6 @@
 # LLM Preference Coherence
 
-This repository contains the code and canonical inputs for a paper on whether
+This repository contains the code and all necessary input materials for a paper on whether
 LLM forced-choice preferences remain coherent under controlled seven-tier
 outcome variations.
 
@@ -13,11 +13,6 @@ the validated ladder inputs, forced-choice comparison inputs, model-run
 wrappers, analysis code, and lightweight public summaries. Raw model responses
 and full paper-output payloads are not tracked in Git and should be archived
 externally for exact reproduction.
-
-## Publication Status
-
-This repository accompanies a paper manuscript. The arXiv link and citation
-will be added here when available.
 
 ## Repository Structure
 
