@@ -1,5 +1,5 @@
 """
-Generate AIES 2026 paper figures from coherence analysis JSONs.
+Generate paper figures from coherence analysis JSONs.
 
 Reads per-model coherence JSONs (from analyze_7tier_coherence.py), predictive-
 utility CSVs (from predictive_utility.py), and raw results files, then produces
@@ -1766,7 +1766,7 @@ def fig12_pred_util_reasoning_split(
 
 # ============================================================
 def main():
-    ap = argparse.ArgumentParser(description="Generate AIES 2026 paper figures")
+    ap = argparse.ArgumentParser(description="Generate paper figures")
     ap.add_argument(
         "--model", action="append", default=None,
         help="Model key to include (repeatable). If omitted, auto-discovers "
@@ -1775,13 +1775,13 @@ def main():
     ap.add_argument("--results-dir",
                     default=str(MODEL_RUNS_OUTPUT_DIR),
                     help="Results root containing model-scoped subdirs "
-                         "(default: outputs/07_model_runs/)")
+                         "(default: results/07_model_runs/)")
     ap.add_argument("--output-dir",
                     default=str(REPORT_OUTPUTS_DIR / "figures"),
-                    help="Directory for output figures (default: outputs/09_figures_tables/figures/)")
+                    help="Directory for output figures (default: results/09_figures_tables/figures/)")
     ap.add_argument("--tables-dir",
                     default=str(REPORT_OUTPUTS_DIR / "tables"),
-                    help="Directory for output tables (default: outputs/09_figures_tables/tables/)")
+                    help="Directory for output tables (default: results/09_figures_tables/tables/)")
     args = ap.parse_args()
 
     results_dir = pathlib.Path(args.results_dir)

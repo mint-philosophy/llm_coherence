@@ -13,7 +13,7 @@ Output:
 Usage:
     python -m llm_coherence.validation.generate_pairtest_pruned
     python -m llm_coherence.validation.generate_pairtest_pruned --threshold 0.90
-    python -m llm_coherence.validation.generate_pairtest_pruned --summary outputs/05_ladder_validation/ladder_validation/gpt-55-openai_summary.json
+    python -m llm_coherence.validation.generate_pairtest_pruned --summary results/05_ladder_validation/ladder_validation/gpt-55-openai_summary.json
 """
 
 import argparse

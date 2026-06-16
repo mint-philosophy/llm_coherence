@@ -22,9 +22,6 @@ from typing import Iterable
 
 
 DEFAULT_ARTIFACT_PATHS = [
-    "outputs/07_model_runs",
-    "outputs/08_analysis",
-    "outputs/09_figures_tables",
     "results",
 ]
 
@@ -286,7 +283,7 @@ def write_dataset_card(
             [
                 "# LLM Preference Coherence Artifacts",
                 "",
-                "Generated artifact bundle for the AIES 2026 LLM preference coherence project.",
+                "Generated artifact bundle for the LLM preference coherence paper.",
                 "",
                 "This dataset repository is intended as an archive for reproduction and audit, not as a standalone training dataset.",
                 "",
@@ -299,9 +296,11 @@ def write_dataset_card(
                 "",
                 path_list,
                 "",
-                "Raw model responses and reasoning traces are under `outputs/07_model_runs/`.",
-                "Derived analysis outputs are under `outputs/08_analysis/`.",
-                "Final generated figures and tables, when present, are under `outputs/09_figures_tables/`.",
+                "Raw model responses and reasoning traces are under `results/07_model_runs/`.",
+                "Derived analysis outputs are under `results/08_analysis/`.",
+                "Final generated figures and tables, when present, are under `results/09_figures_tables/`.",
+                "",
+                "If you have legacy local scratch outputs under `outputs/`, include them with `--extra-path`.",
                 "",
                 verification_text,
                 "",

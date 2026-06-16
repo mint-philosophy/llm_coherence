@@ -3,6 +3,7 @@
 .env.*
 .env.local
 .env.*.local
+.venv*/
 **/api_keys/*.txt
 **/api_key_*.txt
 *.key
@@ -30,6 +31,11 @@
 /outputs/*
 /outputs/**/*
 !/outputs/**/
+/results/*
+/results/**/*
+!/results/
+!/results/model_run_index.json
+!/results/phase6b_coherence_summary.json
 
 # Documents and tabular data
 *.pdf

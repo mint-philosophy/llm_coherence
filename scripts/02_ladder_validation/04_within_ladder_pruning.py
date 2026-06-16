@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Step 4: validate all within-ladder tier pairs."""
+"""Step 4: run within-ladder pair checks used for pruning."""
 
 from llm_coherence.validation.within_ladder_validation import main
 

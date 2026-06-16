@@ -8,6 +8,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 # Aliases kept for downstream imports that still reference these names.
 BASE_DIR = REPO_ROOT
 DATA_DIR = REPO_ROOT / "data"
+RESULTS_DIR = REPO_ROOT / "results"
 OUTPUTS_DIR = REPO_ROOT / "outputs"
 
 # Ordered pipeline data directories. These follow the methodology sequence in
@@ -32,24 +33,26 @@ PHASE2_FILTERING_RESULTS_PATH = OUTCOME_SCREENING_DATA_DIR / "phase2_filtering_r
 PHASE3_VARIATIONS_PATH = LADDER_GENERATION_DATA_DIR / "phase3_variations.json"
 PHASE6B_VARIATIONS_PATH = LADDER_GENERATION_DATA_DIR / "phase6b_variations.json"
 
-# Ordered pipeline output directories.
+# Ordered pipeline output directories. Canonical generated inputs live under
+# data/; generated run, analysis, validation-summary, figure, and table outputs
+# live under results/. outputs/ is reserved for scratch files and checkpoints.
 LADDER_OUTPUTS_DIR = OUTPUTS_DIR / "04_ladder_generation"
-VALIDATION_OUTPUTS_DIR = OUTPUTS_DIR / "05_ladder_validation"
-COMPARISON_OUTPUTS_DIR = OUTPUTS_DIR / "06_forced_choice_inputs"
-MODEL_RUNS_OUTPUT_DIR = OUTPUTS_DIR / "07_model_runs"
-ANALYSIS_OUTPUTS_DIR = OUTPUTS_DIR / "08_analysis"
-REPORT_OUTPUTS_DIR = OUTPUTS_DIR / "09_figures_tables"
+VALIDATION_OUTPUTS_DIR = RESULTS_DIR / "05_ladder_validation"
+COMPARISON_OUTPUTS_DIR = FORCED_CHOICE_INPUTS_DATA_DIR
+MODEL_RUNS_OUTPUT_DIR = RESULTS_DIR / "07_model_runs"
+ANALYSIS_OUTPUTS_DIR = RESULTS_DIR / "08_analysis"
+REPORT_OUTPUTS_DIR = RESULTS_DIR / "09_figures_tables"
 
-# Within-ladder validation summaries land under outputs/.
+# Within-ladder validation summaries land under results/.
 WITHIN_LADDER_OUTPUTS_DIR = VALIDATION_OUTPUTS_DIR / "ladder_validation"
 
 PAIRTEST_DIR_NAME = "within_ladder_validation_pairtest"
 PROPERTY_DIR_NAME = "within_ladder_validation_property"
 RANKING_DIR_NAME = "within_ladder_validation_ranking"
 
-PAIRTEST_OUTPUT_DIR = LADDER_VALIDATION_DIR / PAIRTEST_DIR_NAME
-PROPERTY_OUTPUT_DIR = LADDER_VALIDATION_DIR / PROPERTY_DIR_NAME
-RANKING_OUTPUT_DIR = LADDER_VALIDATION_DIR / RANKING_DIR_NAME
+PAIRTEST_OUTPUT_DIR = VALIDATION_OUTPUTS_DIR / PAIRTEST_DIR_NAME
+PROPERTY_OUTPUT_DIR = VALIDATION_OUTPUTS_DIR / PROPERTY_DIR_NAME
+RANKING_OUTPUT_DIR = VALIDATION_OUTPUTS_DIR / RANKING_DIR_NAME
 
 RUN_DIR_BY_NAME: dict[str, Path] = {
     PAIRTEST_DIR_NAME: PAIRTEST_OUTPUT_DIR,

@@ -38,9 +38,9 @@ try:
     from llm_coherence.paths import ANALYSIS_OUTPUTS_DIR, COMPARISONS_DIR, MODEL_RUNS_OUTPUT_DIR
 except Exception:
     MODEL_CONFIGS = {}
-    ANALYSIS_OUTPUTS_DIR = REPO_ROOT / "outputs/08_analysis"
+    ANALYSIS_OUTPUTS_DIR = REPO_ROOT / "results/08_analysis"
     COMPARISONS_DIR = REPO_ROOT / "data/06_forced_choice_inputs/phase6b_variations_pruned"
-    MODEL_RUNS_OUTPUT_DIR = REPO_ROOT / "outputs/07_model_runs"
+    MODEL_RUNS_OUTPUT_DIR = REPO_ROOT / "results/07_model_runs"
 
 COMPARISON_DIR = COMPARISONS_DIR
 COMPARISON_MANIFEST = COMPARISON_DIR / "phase6b_variations_pruned_final_manifest.json"

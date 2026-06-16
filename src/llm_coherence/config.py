@@ -4,9 +4,9 @@ config.py
 Configuration for parametric variation experiments.
 Centralized settings for models, API parameters, and experiment parameters.
 
-Trimmed to the AIES workflow for llm_coherence. The public README separates the
-15 model configurations reported in the paper from audit judges and local support
-or exploratory model keys.
+Trimmed to the publication workflow for llm_coherence. The public README
+separates the 15 model configurations reported in the paper from audit judges
+and local support or exploratory model keys.
 """
 
 from dataclasses import dataclass
@@ -44,7 +44,7 @@ class ModelConfig:
             raise ValueError(f"Invalid max_tokens: {self.max_tokens}")
 
 
-# Predefined model configurations (AIES slate)
+# Predefined model configurations (paper slate)
 
 MODEL_CONFIGS = {
     # GPT 5.4 (OpenAI direct API)

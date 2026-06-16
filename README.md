@@ -1,8 +1,8 @@
 # LLM Preference Coherence
 
-Public research artifact for an AIES 2026 project on whether LLM
-forced-choice preferences remain coherent when one value-relevant property is
-varied across a seven-tier ladder.
+Public research artifact for a paper on whether LLM forced-choice preferences
+remain coherent when one value-relevant property is varied across a seven-tier
+ladder.
 
 The experiment asks a simple question: if a model prefers an outcome at a
 baseline tier, does it keep preferring stronger versions of that same outcome
@@ -18,8 +18,8 @@ coherence means that a model's choices should track the intended direction of a
 single value-relevant property rather than reversing, flattening, or becoming
 unpredictable as the property changes.
 
-This repository accompanies a paper submitted to AIES 2026. The citation and
-preprint link will be added when publicly available.
+This repository accompanies a paper manuscript. The citation and arXiv link
+will be added when publicly available.
 
 ## Start Here
 
@@ -35,9 +35,10 @@ If you are reading the repo for the first time:
 5. Use the numbered directories under `scripts/` only if you want to rerun
    code.
 
-Raw model responses are not tracked in Git. They should live locally under
-`outputs/` during reruns and in an external artifact archive for paper
-reproduction.
+Raw model responses are not tracked in Git. Fresh reruns write their canonical
+generated outputs under `results/`; checkpoints and disposable scratch files
+can go under `outputs/`. Full paper-result payloads should also be mirrored in
+an external artifact archive for reproduction.
 
 ## What This Repository Supports
 
@@ -76,8 +77,8 @@ listed in the reproduction pipeline below.
 | `scripts/05_analysis/` | Public wrappers for monotonicity and predictive-utility analyses. |
 | `scripts/06_reporting/` | Public wrapper for paper figure and table generation. |
 | `src/llm_coherence/` | Importable Python package containing the implementation used by the wrappers. See note below. |
-| `results/` | Lightweight public summaries and inventories that are small enough to track in Git. |
-| `outputs/` | Local-only generated artifacts from reruns: raw model responses, reasoning traces, derived analyses, figures, tables, and checkpoints. This folder is ignored by Git. |
+| `results/` | Generated model, analysis, figure, and table outputs. Git tracks only the small public summaries in this folder; full rerun payloads are ignored and should be archived externally. |
+| `outputs/` | Local-only scratch space for checkpoints, temporary smoke artifacts, and legacy local outputs. This folder is ignored by Git. |
 
 Use the numbered `scripts/` directories when reading the repository as a paper
 artifact. GitHub sorts folders alphabetically, so the numeric prefixes make the
@@ -132,9 +133,9 @@ outputs remain comparable.
 
 These files are for inspection and sanity checks. They do not replace the raw
 model-response artifact bundle needed to audit every individual choice.
-Full per-category analysis payloads are generated locally under `outputs/`
+Full per-category analysis payloads are generated locally under `results/`
 when analyses are rerun and should be mirrored in the external artifact bundle,
-not expanded into Git-tracked `results/`.
+not committed directly to Git.
 
 ## Paper Model Slate
 
@@ -172,7 +173,16 @@ in the main paper's reported model slate unless the paper is updated.
 
 ## Quick Start
 
-Install locally:
+Create an isolated environment and install the repo:
+
+```bash
+bash scripts/00_repository/00_create_environment.sh
+source .venv/bin/activate
+```
+
+The environment script installs from `pyproject.toml`, including the NumPy
+pin used by the analysis stack. If you already have a clean environment, the
+manual equivalent is:
 
 ```bash
 python -m pip install -e .
@@ -229,15 +239,15 @@ PYTHONPATH=src python scripts/03_forced_choice_inputs/09_generate_forced_choice_
   --comparison-sample data/06_forced_choice_inputs/comparison_sample.json \
   --max-variations 2 \
   --max-comparison-samples 10 \
-  --output-dir outputs/smoke_pipeline/06_forced_choice_inputs/phase6b_variations_pruned_tiny10
+  --output-dir data/06_forced_choice_inputs/phase6b_variations_pruned_smoke_tiny10
 ```
 
 ```bash
-PYTHONPATH=src python scripts/04_model_runs/10_run_model_experiments.py \
+PYTHONPATH=src python scripts/04_model_runs/10_run_7tier_experiment.py \
   --model ministral-3b-2512-openrouter \
   --trials 1 \
-  --data-dir outputs/smoke_pipeline/06_forced_choice_inputs/phase6b_variations_pruned_tiny10 \
-  --results-dir outputs/smoke_pipeline/07_model_runs_tiny10 \
+  --data-dir data/06_forced_choice_inputs/phase6b_variations_pruned_smoke_tiny10 \
+  --results-dir results/smoke_pipeline/07_model_runs_tiny10 \
   --checkpoints-dir outputs/smoke_pipeline/checkpoints_tiny10 \
   --max-variation-sets 2 \
   --max-concurrent 1 \
@@ -246,18 +256,18 @@ PYTHONPATH=src python scripts/04_model_runs/10_run_model_experiments.py \
 ```
 
 ```bash
-PYTHONPATH=src python scripts/05_analysis/11_analyze_coherence.py \
+PYTHONPATH=src python scripts/05_analysis/11_analyze_7tier_coherence.py \
   --model ministral-3b-2512-openrouter \
-  --data-dir outputs/smoke_pipeline/06_forced_choice_inputs/phase6b_variations_pruned_tiny10 \
-  --results-dir outputs/smoke_pipeline/07_model_runs_tiny10 \
-  --output outputs/smoke_pipeline/08_analysis/ministral-3b-2512-openrouter_tiny10_coherence.json
+  --data-dir data/06_forced_choice_inputs/phase6b_variations_pruned_smoke_tiny10 \
+  --results-dir results/smoke_pipeline/07_model_runs_tiny10 \
+  --output results/smoke_pipeline/08_analysis/ministral-3b-2512-openrouter_tiny10_coherence.json
 ```
 
 ```bash
 PYTHONPATH=src python scripts/05_analysis/12_predictive_utility.py \
   --model ministral-3b-2512-openrouter \
-  --results-dir outputs/smoke_pipeline/07_model_runs_tiny10 \
-  --out-dir outputs/smoke_pipeline/08_analysis/ministral-3b-2512-openrouter_tiny10_pred_utility \
+  --results-dir results/smoke_pipeline/07_model_runs_tiny10 \
+  --out-dir results/smoke_pipeline/08_analysis/ministral-3b-2512-openrouter_tiny10_pred_utility \
   --n-perm 20
 ```
 
@@ -275,14 +285,14 @@ experiment from the paper methodology. Run them from the repository root with
 | 1 | Source filtering: `scripts/01_instrument_design/01_create_filtered_dataset.py` -> `src/llm_coherence/generation/create_filtered_dataset.py` |
 | 2 | Outcome screening: `scripts/01_instrument_design/02_screen_outcomes.py` -> `src/llm_coherence/generation/filter_statements.py` |
 | 3 | Ladder generation: `scripts/01_instrument_design/03_generate_7tier_ladders.py` -> `src/llm_coherence/generation/generate_7tier_variations.py` |
-| 4 | Tier-pair validation: `scripts/02_ladder_validation/04_tier_pair_validation.py` -> `src/llm_coherence/validation/within_ladder_validation.py` |
+| 4 | Within-ladder pruning: `scripts/02_ladder_validation/04_within_ladder_pruning.py` -> `src/llm_coherence/validation/within_ladder_validation.py` |
 | 5 | Property validation: `scripts/02_ladder_validation/05_property_validation.py` -> `src/llm_coherence/validation/property_ladder_pruning.py` |
 | 6 | Pair-test pruning: `scripts/02_ladder_validation/06_build_pairtest_pruned_ladders.py` -> `src/llm_coherence/validation/generate_pairtest_pruned.py` |
-| 7 | Full-ranking validation: `scripts/02_ladder_validation/07_full_ladder_ranking_validation.py` -> `src/llm_coherence/validation/full_ladder_ranking_pruning.py` |
+| 7 | Ranking ladder pruning: `scripts/02_ladder_validation/07_ranking_ladder_pruning.py` -> `src/llm_coherence/validation/full_ladder_ranking_pruning.py` |
 | 8 | Final ladder intersection: `scripts/02_ladder_validation/08_build_final_pruned_ladders.py` -> `src/llm_coherence/validation/build_final_pruned_variations.py` |
 | 9 | Forced-choice inputs: `scripts/03_forced_choice_inputs/09_generate_forced_choice_inputs.py` -> `src/llm_coherence/generation/generate_7tier_comparisons.py` |
-| 10 | Model runs: `scripts/04_model_runs/10_run_model_experiments.py` -> `src/llm_coherence/experiments/ladder_statement_pair/run_7tier_experiment.py` |
-| 11 | Coherence analysis: `scripts/05_analysis/11_analyze_coherence.py` -> `src/llm_coherence/analysis/analyze_7tier_coherence.py` |
+| 10 | Model runs: `scripts/04_model_runs/10_run_7tier_experiment.py` -> `src/llm_coherence/experiments/ladder_statement_pair/run_7tier_experiment.py` |
+| 11 | Coherence analysis: `scripts/05_analysis/11_analyze_7tier_coherence.py` -> `src/llm_coherence/analysis/analyze_7tier_coherence.py` |
 | 12 | Predictive utility: `scripts/05_analysis/12_predictive_utility.py` -> `src/llm_coherence/analysis/predictive_utility.py` |
 | 13 | Figures and tables: `scripts/06_reporting/13_make_paper_figures.py` -> `src/llm_coherence/reporting/make_paper_figures.py` |
 
@@ -311,7 +321,10 @@ This public repository tracks source code, canonical inputs, documentation, and
 small summaries. It does not track raw model responses, reasoning traces,
 checkpoints, regenerated figures, or large derived outputs.
 
-Generated artifacts should stay under `outputs/` locally. For paper-result
-reproduction without rerunning APIs, mirror the full output bundle to a stable
-external archive, preferably a Hugging Face Dataset repository, and record the
-DOI or URL in this README before public release.
+Generated run, analysis, figure, and table artifacts should use the `results/`
+layout locally. Only the small summary files are tracked by Git; full payloads
+under `results/07_model_runs/`, `results/08_analysis/`, and
+`results/09_figures_tables/` are ignored. For paper-result reproduction without
+rerunning APIs, mirror the full output bundle to a stable external archive,
+preferably a Hugging Face Dataset repository, and record the DOI or URL in this
+README before public release.

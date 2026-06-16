@@ -27,8 +27,6 @@ Outputs:
 Default output location:
     - If `--model` is provided and `--out-dir` is omitted:
         results/<model>/pred_utility_test/
-    - Otherwise:
-        pred_util_outputs/ (under parametric_variations/)
 
 Usage:
     PYTHONPATH=src python -m llm_coherence.analysis.predictive_utility --model ministral-3b-2512-openrouter
@@ -56,6 +54,46 @@ N_COMPS_PER_SET = 30
 TEST_FRAC = 0.20
 N_PERMUTATIONS = 200
 BH_ALPHA = 0.05
+
+PER_SET_COLUMNS = [
+    "model_key",
+    "label",
+    "variation_id",
+    "train_auc",
+    "test_auc",
+    "test_logloss",
+    "n_train",
+    "n_test",
+    "n_train_pairs",
+    "n_test_pairs",
+    "null_n",
+    "null_auc_mean",
+    "null_auc_sd",
+    "null_auc_p95",
+    "null_logloss_mean",
+    "p_value_vs_null",
+    "alpha_raw_p05",
+    "alpha_bh_fdr",
+    "sig_raw_p05",
+    "decision_raw_p05",
+    "p_value_bh",
+    "sig_bh_fdr05",
+    "decision_bh_fdr05",
+]
+
+PER_MODEL_COLUMNS = [
+    "model_key",
+    "label",
+    "n_sets",
+    "mean_test_auc",
+    "median_test_auc",
+    "mean_null_auc",
+    "mean_test_logloss",
+    "mean_p_value",
+    "mean_p_value_bh",
+    "frac_sig_at_p05",
+    "frac_sig_at_bh_fdr05",
+]
 
 
 def canonical_variation_id(test_name: str) -> str:
@@ -262,6 +300,9 @@ def run_one_set_model(set_path: Path, n_perm: int = 200,
 def apply_bh_by_model(df: pd.DataFrame, alpha: float = BH_ALPHA) -> pd.DataFrame:
     """Add BH-adjusted p-values and significance flags per model_key."""
     out = df.copy()
+    if out.empty:
+        return pd.DataFrame(columns=PER_SET_COLUMNS)
+
     out["alpha_raw_p05"] = 0.05
     out["alpha_bh_fdr"] = float(alpha)
     out["sig_raw_p05"] = out["p_value_vs_null"].astype(float) < 0.05
@@ -271,9 +312,6 @@ def apply_bh_by_model(df: pd.DataFrame, alpha: float = BH_ALPHA) -> pd.DataFrame
     out["p_value_bh"] = np.nan
     out["sig_bh_fdr05"] = False
     out["decision_bh_fdr05"] = "fail_to_reject_h0"
-
-    if out.empty:
-        return out
 
     for model_key, idx in out.groupby("model_key").groups.items():
         p = out.loc[idx, "p_value_vs_null"].astype(float)
@@ -386,20 +424,28 @@ def main():
     print(f"\nPer-set predictive-utility results saved: {per_set_path}")
 
     # Aggregate per model variant
-    summary = (
-        df.groupby(["model_key", "label"], as_index=False)
-        .agg(
-            n_sets=("test_auc", "size"),
-            mean_test_auc=("test_auc", "mean"),
-            median_test_auc=("test_auc", "median"),
-            mean_null_auc=("null_auc_mean", "mean"),
-            mean_test_logloss=("test_logloss", "mean"),
-            mean_p_value=("p_value_vs_null", "mean"),
-            mean_p_value_bh=("p_value_bh", "mean"),
-            frac_sig_at_p05=("p_value_vs_null", lambda s: float((s < 0.05).mean())),
-            frac_sig_at_bh_fdr05=("sig_bh_fdr05", lambda s: float(pd.Series(s).astype(bool).mean())),
+    if df.empty:
+        summary = pd.DataFrame(columns=PER_MODEL_COLUMNS)
+        print(
+            "No predictive-utility rows were generated. This usually means the "
+            "input is a tiny smoke slice with fewer than 30 tier/comparison "
+            "pairs or no valid train/test split."
         )
-    )
+    else:
+        summary = (
+            df.groupby(["model_key", "label"], as_index=False)
+            .agg(
+                n_sets=("test_auc", "size"),
+                mean_test_auc=("test_auc", "mean"),
+                median_test_auc=("test_auc", "median"),
+                mean_null_auc=("null_auc_mean", "mean"),
+                mean_test_logloss=("test_logloss", "mean"),
+                mean_p_value=("p_value_vs_null", "mean"),
+                mean_p_value_bh=("p_value_bh", "mean"),
+                frac_sig_at_p05=("p_value_vs_null", lambda s: float((s < 0.05).mean())),
+                frac_sig_at_bh_fdr05=("sig_bh_fdr05", lambda s: float(pd.Series(s).astype(bool).mean())),
+            )
+        )
     per_model_path = out_dir / "per_model_pred_util.csv"
     summary.to_csv(per_model_path, index=False)
     print(f"Per-model summary saved: {per_model_path}")

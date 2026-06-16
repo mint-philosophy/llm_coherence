@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Step 7: validate full seven-tier ladder ranking recovery."""
+"""Step 7: run full seven-tier ranking checks used for pruning."""
 
 from llm_coherence.validation.full_ladder_ranking_pruning import main
 
