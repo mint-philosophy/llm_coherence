@@ -6,7 +6,7 @@
 .venv*/
 /api_keys/*
 /api_keys/api_key_*.txt
-/api_keys/hf_token
+/api_keys/hf_token.txt
 *.key
 *.pem
 
