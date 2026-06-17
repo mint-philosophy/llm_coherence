@@ -28,6 +28,7 @@ from llm_coherence.paths import (
     PHASE6B_VARIATIONS_PATH,
     REPO_ROOT,
 )
+from llm_coherence.runtime.api_keys import api_key_path, require_api_key
 
 env_path = REPO_ROOT / '.env'
 load_dotenv(env_path)
@@ -306,7 +307,7 @@ def main():
                         help='Output path for generated seven-tier ladders')
     parser.add_argument('--checkpoint', type=Path, default=LADDER_OUTPUTS_DIR / 'phase6b_checkpoint.json',
                         help='Resume checkpoint path')
-    parser.add_argument('--api-key-path', type=Path, default=REPO_ROOT / 'api_keys' / 'api_key_openrouter.txt',
+    parser.add_argument('--api-key-path', type=Path, default=api_key_path("openrouter"),
                         help='OpenRouter API key file; OPENROUTER_API_KEY also works')
     args = parser.parse_args()
 
@@ -366,13 +367,7 @@ def main():
         results = []
 
     # API key
-    api_key = os.getenv("OPENROUTER_API_KEY")
-    if not api_key and args.api_key_path.exists():
-        api_key = args.api_key_path.read_text(encoding="utf-8").strip()
-    if not api_key:
-        raise ValueError(
-            "OpenRouter API key not found. Set OPENROUTER_API_KEY or provide --api-key-path."
-        )
+    api_key = require_api_key("openrouter", key_path=args.api_key_path)
 
     # Generate
     print("Generating 7-tier variations...\n")

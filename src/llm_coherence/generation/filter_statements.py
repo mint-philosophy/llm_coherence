@@ -12,13 +12,13 @@ Per Seth's methodology:
 
 import argparse
 import json
-import os
 from pathlib import Path
 from typing import List, Dict, Any
 import litellm
 from tqdm import tqdm
 
-from llm_coherence.paths import FILTERED_OPTIONS_PATH, PHASE2_FILTERING_RESULTS_PATH, REPO_ROOT
+from llm_coherence.paths import FILTERED_OPTIONS_PATH, PHASE2_FILTERING_RESULTS_PATH
+from llm_coherence.runtime.api_keys import api_key_path, require_api_key
 
 
 NEUTRAL_CATEGORIES = {
@@ -173,16 +173,10 @@ def main():
     parser = argparse.ArgumentParser(description="Screen outcomes for quality/magnitude variation.")
     parser.add_argument("--input", type=Path, default=FILTERED_OPTIONS_PATH)
     parser.add_argument("--output", type=Path, default=PHASE2_FILTERING_RESULTS_PATH)
-    parser.add_argument("--api-key-path", type=Path, default=REPO_ROOT / "api_keys" / "api_key_openrouter.txt")
+    parser.add_argument("--api-key-path", type=Path, default=api_key_path("openrouter"))
     args = parser.parse_args()
 
-    api_key = os.getenv("OPENROUTER_API_KEY")
-    if not api_key and args.api_key_path.exists():
-        api_key = args.api_key_path.read_text(encoding="utf-8").strip()
-    if not api_key:
-        raise ValueError(
-            "OpenRouter API key not found. Set OPENROUTER_API_KEY or provide --api-key-path."
-        )
+    api_key = require_api_key("openrouter", key_path=args.api_key_path)
 
     # Load neutral outcomes
     outcomes = load_neutral_outcomes(str(args.input))

@@ -1,0 +1,183 @@
+{
+  "sources": [
+    {
+      "key": "pairtest",
+      "label": "pairtest_pruned",
+      "path": "C:\\Users\\AngelicaChowdhury\\Projects\\mint-re-engineering-fig\\utility_analysis\\experiments\\parametric_variations\\data\\ladder_validation_tests_outputs\\phase6b_variations_pairtest_pruned.json"
+    },
+    {
+      "key": "property",
+      "label": "property_pruned",
+      "path": "C:\\Users\\AngelicaChowdhury\\Projects\\mint-re-engineering-fig\\utility_analysis\\experiments\\parametric_variations\\data\\ladder_validation_tests_outputs\\phase6b_variations_prop_pruned.json"
+    },
+    {
+      "key": "ranking",
+      "label": "ranking_pruned",
+      "path": "C:\\Users\\AngelicaChowdhury\\Projects\\mint-re-engineering-fig\\utility_analysis\\experiments\\parametric_variations\\data\\ladder_validation_tests_outputs\\phase6b_variations_ranking_pruned.json"
+    }
+  ],
+  "counts": {
+    "n_pairtest_pruned": 123,
+    "n_property_pruned": 124,
+    "n_ranking_pruned": 141,
+    "n_union_all_sources": 146,
+    "n_intersection_all_three": 100
+  },
+  "per_file_selection": [
+    {
+      "file": "pairtest_pruned",
+      "path": "C:\\Users\\AngelicaChowdhury\\Projects\\mint-re-engineering-fig\\utility_analysis\\experiments\\parametric_variations\\data\\ladder_validation_tests_outputs\\phase6b_variations_pairtest_pruned.json",
+      "n_input_ladders": 123,
+      "n_selected_for_final": 100,
+      "n_dropped_vs_final": 23,
+      "selection_fraction": 0.813008,
+      "drop_fraction": 0.186992,
+      "dropped_ladder_ids": [
+        "AI and human romantic relationships_7053",
+        "AI and human romantic relationships_8143",
+        "AI moral patienthood_171",
+        "AI moral patienthood_4373",
+        "Global economy_6210",
+        "Global economy_7417",
+        "Global economy_9262",
+        "Global politics and geopolitics_3977",
+        "Global politics and geopolitics_7426",
+        "Global politics and geopolitics_8804",
+        "Life and species_1406",
+        "Life and species_2920",
+        "Life and species_3801",
+        "Personal finances_2146",
+        "Personal finances_4937",
+        "United States economy_6672",
+        "United States economy_8236",
+        "United States politics and policies_6101",
+        "United States politics and policies_8275",
+        "United States politics and policies_896",
+        "United States politics and policies_9792",
+        "Wellbeing of humans_4540",
+        "Wellbeing of humans_6045"
+      ]
+    },
+    {
+      "file": "property_pruned",
+      "path": "C:\\Users\\AngelicaChowdhury\\Projects\\mint-re-engineering-fig\\utility_analysis\\experiments\\parametric_variations\\data\\ladder_validation_tests_outputs\\phase6b_variations_prop_pruned.json",
+      "n_input_ladders": 124,
+      "n_selected_for_final": 100,
+      "n_dropped_vs_final": 24,
+      "selection_fraction": 0.806452,
+      "drop_fraction": 0.193548,
+      "dropped_ladder_ids": [
+        "AI and human romantic relationships_1323",
+        "AI and human romantic relationships_2253",
+        "AI and human romantic relationships_8086",
+        "AI and human romantic relationships_883",
+        "AI moral patienthood_4373",
+        "AI moral patienthood_464",
+        "AI moral patienthood_490",
+        "AI moral patienthood_7831",
+        "Global economy_3313",
+        "Global economy_9665",
+        "Global politics and geopolitics_171",
+        "Global politics and geopolitics_2376",
+        "Global politics and geopolitics_5995",
+        "Global politics and geopolitics_7652",
+        "Personal freedom and autonomy_7610",
+        "Personal freedom and autonomy_9453",
+        "Religion and spirituality_423",
+        "Religion and spirituality_9003",
+        "United States economy_6672",
+        "United States politics and policies_2232",
+        "United States politics and policies_4118",
+        "United States politics and policies_5566",
+        "United States politics and policies_896",
+        "Wellbeing of humans_4540"
+      ]
+    },
+    {
+      "file": "ranking_pruned",
+      "path": "C:\\Users\\AngelicaChowdhury\\Projects\\mint-re-engineering-fig\\utility_analysis\\experiments\\parametric_variations\\data\\ladder_validation_tests_outputs\\phase6b_variations_ranking_pruned.json",
+      "n_input_ladders": 141,
+      "n_selected_for_final": 100,
+      "n_dropped_vs_final": 41,
+      "selection_fraction": 0.70922,
+      "drop_fraction": 0.29078,
+      "dropped_ladder_ids": [
+        "AI and human romantic relationships_1323",
+        "AI and human romantic relationships_2253",
+        "AI and human romantic relationships_7053",
+        "AI and human romantic relationships_8086",
+        "AI and human romantic relationships_8143",
+        "AI moral patienthood_171",
+        "AI moral patienthood_464",
+        "AI moral patienthood_490",
+        "AI moral patienthood_7831",
+        "Global economy_2394",
+        "Global economy_3313",
+        "Global economy_6210",
+        "Global economy_7417",
+        "Global economy_9262",
+        "Global economy_9665",
+        "Global politics and geopolitics_171",
+        "Global politics and geopolitics_2376",
+        "Global politics and geopolitics_3977",
+        "Global politics and geopolitics_5995",
+        "Global politics and geopolitics_7426",
+        "Global politics and geopolitics_7652",
+        "Global politics and geopolitics_8804",
+        "Life and species_1406",
+        "Life and species_2920",
+        "Life and species_3801",
+        "Personal finances_2146",
+        "Personal finances_4937",
+        "Personal freedom and autonomy_6857",
+        "Personal freedom and autonomy_7610",
+        "Personal freedom and autonomy_9453",
+        "Religion and spirituality_423",
+        "Religion and spirituality_9003",
+        "United States economy_8236",
+        "United States politics and policies_2232",
+        "United States politics and policies_4118",
+        "United States politics and policies_5566",
+        "United States politics and policies_6101",
+        "United States politics and policies_6963",
+        "United States politics and policies_8275",
+        "United States politics and policies_9792",
+        "Wellbeing of humans_6045"
+      ]
+    }
+  ],
+  "pairwise_overlap": [
+    {
+      "files": [
+        "pairtest_pruned",
+        "property_pruned"
+      ],
+      "n_overlap": 104,
+      "only_in_first": 19,
+      "only_in_second": 20
+    },
+    {
+      "files": [
+        "pairtest_pruned",
+        "ranking_pruned"
+      ],
+      "n_overlap": 119,
+      "only_in_first": 4,
+      "only_in_second": 22
+    },
+    {
+      "files": [
+        "property_pruned",
+        "ranking_pruned"
+      ],
+      "n_overlap": 119,
+      "only_in_first": 5,
+      "only_in_second": 22
+    }
+  ],
+  "final_output": {
+    "path": "C:\\Users\\AngelicaChowdhury\\Projects\\mint-re-engineering-fig\\utility_analysis\\experiments\\parametric_variations\\data\\ladder_validation_tests_outputs\\phase6b_variations_pruned_final.json",
+    "n_ladders": 100,
+    "rule": "Keep ladder iff original_statement_id appears in all three pruned inputs"
+  }
+}

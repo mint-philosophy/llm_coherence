@@ -40,9 +40,13 @@ Usage (from this directory):
     python run_7tier_experiment.py --trials 10 \
         --variation-ids Personal_finances_5188 Global_economy_8344 AI_moral_patienthood_490
     
-    # Smoke-style slice (like property_ladder_pruning --max-ladders): first N sets;
-    # writes under <results-dir>/smoke_<model>/ and <checkpoints-dir>/smoke_<model>/
+    # Smoke-style slice: first N sets under outputs/<model>/smoke_<model>/ladder_vs_comparison_statements/
     python run_7tier_experiment.py --model mistralai/ministral-3b-2512 --trials 1 --max-variation-sets 2 --smoke
+
+Artifacts:
+    outputs/<model_key>/ladder_vs_comparison_statements/phase6b_variations_prune_*/results.json
+    outputs/<model_key>/ladder_vs_comparison_statements/phase6b_cost_log.json
+    Smoke: outputs/<model_key>/smoke_<model>/ladder_vs_comparison_statements/
 """
 
 import argparse
@@ -56,7 +60,14 @@ from llm_coherence.experiments.ladder_statement_pair.experiment_runner_tradeoff 
     artifact_dir_name_for_test,
     run_experiment,
 )
-from llm_coherence.paths import COMPARISONS_DIR, MODEL_RUNS_OUTPUT_DIR, REPO_ROOT
+from llm_coherence.config import resolve_model_results_dir, results_dir_name
+from llm_coherence.paths import (
+    CHECKPOINTS_OUTPUT_DIR,
+    COMPARISONS_DIR,
+    LADDER_VS_COMPARISON_RUNS_OUTPUT_DIR,
+    LADDER_VS_COMPARISON_SUBDIR,
+    REPO_ROOT,
+)
 from llm_coherence.runtime.agents import create_agent
 from llm_coherence.runtime.budget_monitor import BudgetMonitor
 from llm_coherence.runtime.preflight_check import MODEL_COST_ESTIMATES
@@ -77,6 +88,22 @@ def smoke_run_subdir(model_key: str) -> str:
     """Folder segment for smoke runs (mirrors property_ladder_pruning.smoke_output_dir_name)."""
     short = model_key.replace("-openai", "").replace("-", "")
     return f"smoke_{short}"
+
+
+def model_results_dir_for_run(model_key: str, root: Path, *, smoke: bool = False) -> Path:
+    if smoke:
+        return root / results_dir_name(model_key) / smoke_run_subdir(model_key)
+    return resolve_model_results_dir(model_key, root)
+
+
+def model_run_dir(model_key: str, results_root: Path, *, smoke: bool = False) -> Path:
+    return model_results_dir_for_run(model_key, results_root, smoke=smoke) / LADDER_VS_COMPARISON_SUBDIR
+
+
+def model_run_checkpoints_dir(
+    model_key: str, checkpoints_root: Path, *, smoke: bool = False
+) -> Path:
+    return model_results_dir_for_run(model_key, checkpoints_root, smoke=smoke) / LADDER_VS_COMPARISON_SUBDIR
 
 
 def discover_manifest_path(data_dir: Path) -> Path:
@@ -295,14 +322,6 @@ async def run_phase6b(
     if max_variation_sets is not None:
         run_items = run_items[:max_variation_sets]
 
-    smoke_scope = smoke
-    if smoke_scope:
-        sub = smoke_run_subdir(model_key)
-        results_dir = (results_dir / sub).resolve()
-        checkpoints_dir = (checkpoints_dir / sub).resolve()
-        results_dir.mkdir(parents=True, exist_ok=True)
-        checkpoints_dir.mkdir(parents=True, exist_ok=True)
-
     if not run_items:
         print(
             "No variation sets to run after --variation-ids / --start-from / "
@@ -327,9 +346,12 @@ async def run_phase6b(
     if k_samples > 1:
         print(f"  K samples: {k_samples}")
     print(f"  Infrastructure: {infrastructure}")
-    if smoke_scope:
+    if smoke:
         print(f"  Smoke scope: start_from={start_from}, max_variation_sets={max_variation_sets}")
-        print(f"  Smoke paths: .../{smoke_run_subdir(model_key)}/ under results + checkpoints")
+        print(
+            f"  Smoke paths: .../{smoke_run_subdir(model_key)}/"
+            f"{LADDER_VS_COMPARISON_SUBDIR}/ under results + checkpoints"
+        )
     print()
 
     completed_sets = sum(
@@ -738,17 +760,16 @@ def main():
     )
     parser.add_argument(
         "--results-dir",
-        default=str(MODEL_RUNS_OUTPUT_DIR.relative_to(REPO_ROOT)),
+        default=str(LADDER_VS_COMPARISON_RUNS_OUTPUT_DIR.relative_to(REPO_ROOT)),
         help=(
-            "Results root (default: "
-            f"{MODEL_RUNS_OUTPUT_DIR.relative_to(REPO_ROOT).as_posix()}). "
-            "Relative to the repo root."
+            "Model-run root (default: outputs/). "
+            f"Artifacts: <results-dir>/<model>/{LADDER_VS_COMPARISON_SUBDIR}/."
         ),
     )
     parser.add_argument(
         "--checkpoints-dir",
-        default="checkpoints",
-        help="Checkpoints directory (default: checkpoints). Relative to the repo root.",
+        default=str(CHECKPOINTS_OUTPUT_DIR.relative_to(REPO_ROOT)),
+        help="Checkpoints root (default: outputs/checkpoints). Relative to the repo root.",
     )
     parser.add_argument("--variation-ids", nargs="+", default=None)
     parser.add_argument(
@@ -767,7 +788,10 @@ def main():
         "--smoke",
         action="store_true",
         default=False,
-        help="Write outputs under <results-dir>/smoke_<model>/ and matching checkpoints subdir.",
+        help=(
+            f"Write outputs under <results-dir>/<model>/smoke_<model>/"
+            f"{LADDER_VS_COMPARISON_SUBDIR}/ and matching checkpoints subdir."
+        ),
     )
     parser.add_argument("--max-concurrent", type=int, default=3)
     parser.add_argument("--resume", action="store_true", default=False,
@@ -819,22 +843,23 @@ def main():
         manifest_path = resolve_under_parametric(args.manifest)
     else:
         manifest_path = discover_manifest_path(data_dir)
-    # Namespace artifacts by model so multi-model runs don't mix outputs.
     results_root = resolve_under_parametric(args.results_dir)
     checkpoints_root = resolve_under_parametric(args.checkpoints_dir)
-    results_dir = (results_root / args.model).resolve()
-    checkpoints_dir = (checkpoints_root / args.model).resolve()
+    results_dir = model_run_dir(args.model, results_root, smoke=args.smoke)
+    checkpoints_dir = model_run_checkpoints_dir(
+        args.model, checkpoints_root, smoke=args.smoke
+    )
     results_dir.mkdir(parents=True, exist_ok=True)
     checkpoints_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"Manifest: {manifest_path}")
     print(f"Data dir: {data_dir}")
-    print(f"Results dir (model): {results_dir}")
-    print(f"Checkpoints dir (model): {checkpoints_dir}")
+    print(f"Results dir: {results_dir}")
+    print(f"Checkpoints dir: {checkpoints_dir}")
     if args.smoke:
         print(
-            f"  -> effective results/checkpoints: .../{smoke_run_subdir(args.model)}/ "
-            "(smoke scope)"
+            f"  -> smoke scope under .../{smoke_run_subdir(args.model)}/"
+            f"{LADDER_VS_COMPARISON_SUBDIR}/"
         )
     print()
 

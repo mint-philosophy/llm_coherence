@@ -4,8 +4,8 @@
 .env.local
 .env.*.local
 .venv*/
-**/api_keys/*.txt
-**/api_key_*.txt
+/api_keys/*
+!/api_keys/api_key_*.txt
 *.key
 *.pem
 
@@ -22,7 +22,13 @@
 !/data/04_ladder_generation/phase6b_variations.json
 !/data/04_ladder_generation/phase_3_variations_config.yaml
 !/data/05_ladder_validation/phase6b_variations_pruned_final.json
-!/data/05_ladder_validation/phase6b_variations_pruned_final_by_category/**/*.json
+!/data/05_ladder_validation/phase6b_variations_pairtest_pruned.json
+!/data/05_ladder_validation/phase6b_variations_prop_pruned.json
+!/data/05_ladder_validation/phase6b_variations_ranking_pruned.json
+!/data/05_ladder_validation/phase6b_variations_pruned_final_report.json
+/data/05_ladder_validation/within_ladder_validation_property/
+/data/05_ladder_validation/within_ladder_validation_ranking/
+/data/05_ladder_validation/within_ladder_validation_tier/
 !/data/06_forced_choice_inputs/comparison_sample.json
 !/data/**/category_index.json
 !/data/06_forced_choice_inputs/phase6b_variations_pruned/phase6b_variations_pruned_final_manifest.json
@@ -30,16 +36,27 @@
 !/data/06_forced_choice_inputs/phase6b_variations_pruned/**/*.json
 /outputs/*
 /outputs/**/*
-!/outputs/**/
+!/outputs/
+/outputs/checkpoints/
+!/outputs/*/
+/outputs/*/*
+!/outputs/*/.gitkeep
 /results/*
 /results/**/*
 !/results/
 !/results/model_run_index.json
 !/results/phase6b_coherence_summary.json
+!/results/figures/
+!/results/tables/
+/results/figures/*
+!/results/figures/.gitkeep
+/results/tables/*
+!/results/tables/.gitkeep
 
 # Documents and tabular data
 *.pdf
 *.txt
+!api_keys/api_key_*.txt
 *.csv
 
 # Images

@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Intersect ladders across property-, pairtest-, and ranking-pruned phase6b files.
+Intersect ladders across within-ladder-, property-, and ranking-pruned phase6b files.
 
 Writes:
   data/05_ladder_validation/phase6b_variations_pruned_final.json
   data/05_ladder_validation/phase6b_variations_pruned_final_report.json
 
-Usage (from parametric_variations/):
+Usage:
+  PYTHONPATH=src python scripts/02_ladder_validation/08_build_final_pruned_variations.py
   PYTHONPATH=src python -m llm_coherence.validation.build_final_pruned_variations
 """
 
@@ -19,7 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from llm_coherence.paths import (
+from llm_coherence.validation.ladder_validation_paths import (
     PRUNED_FINAL_PATH,
     PRUNED_FINAL_REPORT_PATH,
     PRUNED_PAIRTEST_PATH,

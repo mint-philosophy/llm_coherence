@@ -30,27 +30,35 @@ LIGHTWEIGHT_OUTPUT_NAMES = {".gitkeep", "README.md", "model_run_index.json"}
 
 COMPARISON_PREFIX = "phase6b_variations_pruned_final_"
 COMPARISON_SUFFIX = "_comparisons.json"
-LADDER_SPLIT_DIR_NAME = "phase6b_variations_pruned_final_by_category"
 
 
 try:
     from llm_coherence.config import MODEL_CONFIGS
-    from llm_coherence.paths import ANALYSIS_OUTPUTS_DIR, COMPARISONS_DIR, MODEL_RUNS_OUTPUT_DIR
+    from llm_coherence.paths import COMPARISONS_DIR, MODEL_RUN_INDEX_PATH
+    from llm_coherence.runtime.model_run_index import (
+        build_model_run_index,
+        model_run_payloads_present,
+        write_model_run_index,
+    )
 except Exception:
     MODEL_CONFIGS = {}
-    ANALYSIS_OUTPUTS_DIR = REPO_ROOT / "results/08_analysis"
-    COMPARISONS_DIR = REPO_ROOT / "data/06_forced_choice_inputs/phase6b_variations_pruned"
-    MODEL_RUNS_OUTPUT_DIR = REPO_ROOT / "results/07_model_runs"
+    COMPARISONS_DIR = REPO_ROOT / "data" / "06_forced_choice_inputs" / "phase6b_variations_pruned"
+    MODEL_RUN_INDEX_PATH = REPO_ROOT / "results" / "model_run_index.json"
+
+    def model_run_payloads_present() -> bool:  # type: ignore[misc]
+        return False
+
+    def build_model_run_index(**_kwargs):  # type: ignore[misc]
+        return {"schema_version": "1.1", "models": []}
+
+    def write_model_run_index(payload, **kwargs):  # type: ignore[misc]
+        write_json(MODEL_RUN_INDEX_PATH, payload)
 
 COMPARISON_DIR = COMPARISONS_DIR
 COMPARISON_MANIFEST = COMPARISON_DIR / "phase6b_variations_pruned_final_manifest.json"
 CATEGORY_INDEX = COMPARISON_DIR / "category_index.json"
 FINAL_LADDERS_PATH = REPO_ROOT / "data" / "05_ladder_validation" / "phase6b_variations_pruned_final.json"
-LADDER_SPLIT_DIR = FINAL_LADDERS_PATH.parent / LADDER_SPLIT_DIR_NAME
-LADDER_CATEGORY_INDEX = LADDER_SPLIT_DIR / "category_index.json"
-MODEL_RUNS_DIR = MODEL_RUNS_OUTPUT_DIR
-MODEL_RUN_INDEX = REPO_ROOT / "results" / "model_run_index.json"
-ANALYSIS_DIR = ANALYSIS_OUTPUTS_DIR
+MODEL_RUN_INDEX = MODEL_RUN_INDEX_PATH
 
 
 def rel(path: Path) -> str:
@@ -69,76 +77,11 @@ def write_json(path: Path, payload: Any) -> None:
         f.write("\n")
 
 
-def category_slug(category: str) -> str:
-    return category.replace(" ", "_").replace("/", "_")
-
-
-def model_run_payloads_present() -> bool:
-    if not MODEL_RUNS_DIR.exists():
-        return False
-    return any(
-        path.is_file() and path.name not in LIGHTWEIGHT_OUTPUT_NAMES
-        for path in MODEL_RUNS_DIR.rglob("*")
-    )
-
-
 def comparison_short_name(filename: str) -> tuple[str, str, str]:
     test_name = Path(filename).name.removesuffix(COMPARISON_SUFFIX)
     short = test_name.removeprefix(COMPARISON_PREFIX)
     category, ladder_id = short.rsplit("_", 1)
     return test_name, category, ladder_id
-
-
-def ladder_split_path(item: dict[str, Any]) -> Path:
-    category = item["category"]
-    ladder_id = item["original_statement_id"].rsplit("_", 1)[1]
-    category_dir = category_slug(category)
-    filename = f"phase6b_variations_pruned_final_{category_dir}_{ladder_id}.json"
-    return LADDER_SPLIT_DIR / category_dir / filename
-
-
-def build_ladder_category_index() -> dict[str, Any]:
-    ladders = load_json(FINAL_LADDERS_PATH)
-    groups: dict[str, list[dict[str, str]]] = {}
-    for item in ladders:
-        category = item["category"]
-        ladder_id = item["original_statement_id"].rsplit("_", 1)[1]
-        groups.setdefault(category, []).append(
-            {
-                "ladder_id": ladder_id,
-                "original_statement_id": item["original_statement_id"],
-                "file": ladder_split_path(item).relative_to(LADDER_SPLIT_DIR).as_posix(),
-            }
-        )
-
-    categories = []
-    for category in sorted(groups):
-        entries = sorted(groups[category], key=lambda item: int(item["ladder_id"]))
-        categories.append(
-            {
-                "category": category,
-                "folder": category_slug(category),
-                "count": len(entries),
-                "ladders": entries,
-            }
-        )
-
-    return {
-        "schema_version": "1.0",
-        "layout": "category_directories",
-        "generated_from": FINAL_LADDERS_PATH.name,
-        "note": (
-            "Browsable per-ladder split of the canonical final ladder dataset. "
-            "The combined JSON remains the canonical input used by scripts."
-        ),
-        "total_ladders": len(ladders),
-        "categories": categories,
-    }
-
-
-def write_ladder_split_files() -> None:
-    for item in load_json(FINAL_LADDERS_PATH):
-        write_json(ladder_split_path(item), item)
 
 
 def build_category_index() -> dict[str, Any]:
@@ -180,107 +123,6 @@ def build_category_index() -> dict[str, Any]:
     }
 
 
-def model_reasoning_mode(model_key: str) -> str:
-    if model_key not in MODEL_CONFIGS:
-        return "not_configured"
-    if "logprobs" in model_key:
-        return "logprob_scored"
-    cfg = MODEL_CONFIGS[model_key]
-    extra_body = cfg.extra_body or {}
-    if model_key.endswith("-thinking"):
-        return "thinking_on"
-    if extra_body.get("thinking", {}).get("type") == "enabled":
-        return "thinking_on"
-    if extra_body.get("reasoning", {}).get("enabled") is True:
-        return "thinking_on"
-    if extra_body.get("reasoning_effort") not in (None, "none"):
-        return "thinking_on"
-    return "thinking_off"
-
-
-def count_analysis_outputs(model_key: str) -> dict[str, int]:
-    counts: dict[str, int] = {}
-    if not ANALYSIS_DIR.exists():
-        return counts
-    for stage_dir in sorted(path for path in ANALYSIS_DIR.iterdir() if path.is_dir()):
-        counts[stage_dir.name] = sum(1 for path in stage_dir.rglob(f"{model_key}.json"))
-    return counts
-
-
-def build_model_run_index() -> dict[str, Any]:
-    expected_variation_sets = len(load_json(COMPARISON_MANIFEST)["variation_files"])
-    models = []
-
-    for model_dir in sorted(path for path in MODEL_RUNS_DIR.iterdir() if path.is_dir()):
-        model_key = model_dir.name
-        files = [path for path in model_dir.rglob("*") if path.is_file()]
-        payload_files = [path for path in files if path.name != ".gitkeep"]
-        result_files = [
-            path
-            for path in payload_files
-            if path.name == "results.json" or path.name.endswith("_results.json")
-        ]
-        ladder_dirs = [path for path in model_dir.iterdir() if path.is_dir() and path.name.startswith("phase6b_ladder_")]
-        category_summary_dirs = [
-            path
-            for path in model_dir.iterdir()
-            if path.is_dir() and path.name.startswith("phase6b_by_category_")
-        ]
-        reasoning_trace_files = [path for path in payload_files if path.name == "reasoning_traces.jsonl"]
-        cost_files = [
-            path
-            for path in payload_files
-            if path.name in {"cost_summary.json", "phase6b_cost_log.json"}
-        ]
-
-        if model_key in MODEL_CONFIGS:
-            kind = "model"
-        elif result_files:
-            kind = "unconfigured_model"
-        else:
-            kind = "utility"
-
-        if len(result_files) >= expected_variation_sets:
-            completeness = "complete_or_extra"
-        elif result_files:
-            completeness = "partial"
-        else:
-            completeness = "no_results"
-
-        models.append(
-            {
-                "model_key": model_key,
-                "kind": kind,
-                "reasoning_mode": model_reasoning_mode(model_key),
-                "configured": model_key in MODEL_CONFIGS,
-                "expected_variation_sets": expected_variation_sets if kind != "utility" else 0,
-                "result_files": len(result_files),
-                "ladder_result_dirs": len(ladder_dirs),
-                "reasoning_trace_files": len(reasoning_trace_files),
-                "category_summary_dirs": len(category_summary_dirs),
-                "cost_files": len(cost_files),
-                "payload_files": len(payload_files),
-                "completeness": completeness,
-                "analysis_outputs": count_analysis_outputs(model_key),
-                "path": rel(model_dir),
-            }
-        )
-
-    return {
-        "schema_version": "1.0",
-        "source": rel(MODEL_RUNS_DIR),
-        "expected_variation_sets": expected_variation_sets,
-        "note": (
-            "Snapshot inventory generated from local publication output "
-            "payloads. Raw output payloads are excluded from Git so the public "
-            "repository stays browsable. Top-level model-run folders are model "
-            "keys; thinking-on variants use separate keys and folders, usually "
-            "with the -thinking suffix."
-        ),
-        "models": models,
-    }
-
-
 def validate_comparison_files(errors: list[str]) -> None:
     manifest = load_json(COMPARISON_MANIFEST)
     for filename in manifest["variation_files"]:
@@ -289,25 +131,11 @@ def validate_comparison_files(errors: list[str]) -> None:
             errors.append(f"missing comparison file: {rel(path)}")
 
 
-def validate_ladder_split_files(errors: list[str]) -> None:
-    ladders = load_json(FINAL_LADDERS_PATH)
-    expected_paths = {ladder_split_path(item): item for item in ladders}
-    for path, expected in expected_paths.items():
-        if not path.exists():
-            errors.append(f"missing ladder split file: {rel(path)}")
-            continue
-        actual = load_json(path)
-        if actual != expected:
-            errors.append(f"stale ladder split file: {rel(path)}")
-
-    actual_paths = {
-        path
-        for path in LADDER_SPLIT_DIR.rglob("*.json")
-        if path.name != "category_index.json"
-    }
-    extra_paths = sorted(actual_paths - set(expected_paths))
-    for path in extra_paths:
-        errors.append(f"unexpected ladder split file: {rel(path)}")
+def validate_final_ladders(errors: list[str]) -> int:
+    if not FINAL_LADDERS_PATH.exists():
+        errors.append(f"missing final ladders: {rel(FINAL_LADDERS_PATH)}")
+        return 0
+    return len(load_json(FINAL_LADDERS_PATH))
 
 
 def validate_index(path: Path, expected: dict[str, Any], errors: list[str]) -> None:
@@ -328,23 +156,19 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    ladder_category_index = build_ladder_category_index()
     category_index = build_category_index()
     has_model_run_payloads = model_run_payloads_present()
     model_run_index = build_model_run_index() if has_model_run_payloads else None
 
     if args.write_indexes:
-        write_ladder_split_files()
-        write_json(LADDER_CATEGORY_INDEX, ladder_category_index)
         write_json(CATEGORY_INDEX, category_index)
         if model_run_index is not None:
-            write_json(MODEL_RUN_INDEX, model_run_index)
+            write_model_run_index(model_run_index, output_path=MODEL_RUN_INDEX)
         else:
             print(f"Skipping {rel(MODEL_RUN_INDEX)} refresh; no model-run payloads are present.")
 
     errors: list[str] = []
-    validate_ladder_split_files(errors)
-    validate_index(LADDER_CATEGORY_INDEX, ladder_category_index, errors)
+    final_ladder_count = validate_final_ladders(errors)
     validate_comparison_files(errors)
     validate_index(CATEGORY_INDEX, category_index, errors)
     if model_run_index is not None:
@@ -364,7 +188,7 @@ def main() -> int:
         return 1
 
     print("Artifact validation passed.")
-    print(f"  final ladders: {ladder_category_index['total_ladders']}")
+    print(f"  final ladders: {final_ladder_count}")
     print(f"  comparison sets: {category_index['total_variation_sets']}")
     if model_run_index is None:
         print("  model-run payloads: absent; using snapshot index only")

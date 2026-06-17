@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import asyncio
-import os
 import random
 from dataclasses import dataclass
 from typing import Any
 
 from llm_coherence.config import MODEL_CONFIGS
-from llm_coherence.paths import REPO_ROOT
+from llm_coherence.runtime.api_keys import API_KEY_ENV_BY_TYPE, ensure_api_key_env
 
 
 @dataclass(frozen=True)
@@ -52,21 +51,6 @@ MODEL_SPECS: dict[str, ModelSpec] = {
     ),
 }
 
-API_KEY_ENV_BY_TYPE = {
-    "openai": "OPENAI_API_KEY",
-    "anthropic": "ANTHROPIC_API_KEY",
-    "gdm": "GEMINI_API_KEY",
-    "xai": "XAI_API_KEY",
-    "togetherai": "TOGETHER_AI_API_KEY",
-    "openrouter": "OPENROUTER_API_KEY",
-}
-
-KEY_PREFIX_BY_TYPE = {
-    "openai": "sk-",
-    "anthropic": "sk-ant-",
-    "openrouter": "sk-or-",
-}
-
 
 def model_name_for_key(model_key: str) -> str | None:
     spec = MODEL_SPECS.get(model_key)
@@ -74,31 +58,6 @@ def model_name_for_key(model_key: str) -> str | None:
         return spec.model_name
     cfg = MODEL_CONFIGS.get(model_key)
     return cfg.model_name_full if cfg is not None else None
-
-
-def _env_key_looks_real(model_type: str, key: str) -> bool:
-    key = key.strip()
-    prefix = KEY_PREFIX_BY_TYPE.get(model_type)
-    if not key:
-        return False
-    if prefix is None:
-        return len(key) >= 32
-    return key.startswith(prefix) and len(key) >= 40
-
-
-def _load_api_key(model_type: str) -> str | None:
-    env_var = API_KEY_ENV_BY_TYPE.get(model_type)
-    if env_var is None:
-        return None
-    env_key = (os.environ.get(env_var) or "").strip()
-    if _env_key_looks_real(model_type, env_key):
-        return env_key
-    key_path = REPO_ROOT / "api_keys" / f"api_key_{model_type}.txt"
-    if key_path.exists():
-        key = key_path.read_text(encoding="utf-8").strip()
-        if key:
-            return key
-    return None
 
 
 class LiteLLMAgent:
@@ -366,15 +325,7 @@ def create_agent(
             "local validation runner for self-hosted logprob models."
         )
 
-    api_key = _load_api_key(spec.model_type)
-    env_var = API_KEY_ENV_BY_TYPE[spec.model_type]
-    if api_key is None:
-        key_path = REPO_ROOT / "api_keys" / f"api_key_{spec.model_type}.txt"
-        raise ValueError(
-            f"No API key found for {spec.model_type}. Set {env_var} or create "
-            f"{key_path}."
-        )
-    os.environ[env_var] = api_key
+    ensure_api_key_env(spec.model_type)
 
     cfg = MODEL_CONFIGS.get(model_key)
     resolved_extra_body = extra_body if extra_body is not None else (cfg.extra_body if cfg else None)
