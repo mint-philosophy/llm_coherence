@@ -6,6 +6,7 @@
 .venv*/
 /api_keys/*
 !/api_keys/api_key_*.txt
+!/api_keys/hf_token
 *.key
 *.pem
 
@@ -216,5 +217,5 @@ cython_debug/
 # R session
 .Rhistory
 
-# hf upload
-upload_outputs_to_hf.py
+# Hugging Face upload tooling (local only)
+/scripts/00_repository/hf_upload/
