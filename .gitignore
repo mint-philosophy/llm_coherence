@@ -42,6 +42,12 @@
 !/results/
 !/results/model_run_index.json
 !/results/phase6b_coherence_summary.json
+!/results/figures/
+!/results/tables/
+/results/figures/*
+!/results/figures/.gitkeep
+/results/tables/*
+!/results/tables/.gitkeep
 
 # Documents and tabular data
 *.pdf
