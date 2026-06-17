@@ -4,8 +4,8 @@
 .env.local
 .env.*.local
 .venv*/
-**/api_keys/*.txt
-**/api_key_*.txt
+/api_keys/*
+!/api_keys/api_key_*.txt
 *.key
 *.pem
 
@@ -38,7 +38,6 @@
 /outputs/**/*
 !/outputs/
 /outputs/checkpoints/
-/outputs/04_ladder_generation/
 !/outputs/*/
 /outputs/*/*
 !/outputs/*/.gitkeep
@@ -57,6 +56,7 @@
 # Documents and tabular data
 *.pdf
 *.txt
+!api_keys/api_key_*.txt
 *.csv
 
 # Images
