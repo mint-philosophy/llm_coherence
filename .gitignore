@@ -36,7 +36,12 @@
 !/data/06_forced_choice_inputs/phase6b_variations_pruned/**/*.json
 /outputs/*
 /outputs/**/*
-!/outputs/**/
+!/outputs/
+/outputs/checkpoints/
+/outputs/04_ladder_generation/
+!/outputs/*/
+/outputs/*/*
+!/outputs/*/.gitkeep
 /results/*
 /results/**/*
 !/results/
