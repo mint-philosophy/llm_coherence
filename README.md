@@ -4,7 +4,15 @@ This repository contains the code and input materials for research on whether LL
 
 The central test is: when one value-relevant property is increased across an ordered ladder, does the model's preference probability move in the intended direction, or does it reverse, flatten, or become erratic?
 
-The repository is organized as a reproducible research artifact from the [MINT Research Lab](https://mintresearch.org/). It includes validated ladder inputs, forced-choice comparison inputs, model-run wrappers, analysis code, and lightweight public summaries. Raw model responses and full paper-output payloads are not tracked in Git and should be archived externally for exact reproduction.
+The repository is organized as a reproducible research artifact from the [MINT Research Lab](https://mintresearch.org/). It includes validated ladder inputs, forced-choice comparison inputs, model-run wrappers, analysis code, and lightweight public summaries. Raw model responses and full paper-output payloads are not tracked in Git; the complete experiment datasets are hosted on Hugging Face (see below).
+
+## Experiment Data
+
+All datasets created during the experiment—including canonical inputs under `data/` and model-run payloads under `outputs/`—are available on Hugging Face:
+
+**[MINTLABJHUANU/LLMCoherence_Var_100](https://huggingface.co/datasets/MINTLABJHUANU/LLMCoherence_Var_100/tree/main)**
+
+Clone or download that dataset repo to populate `data/` and `outputs/` locally without rerunning API calls.
 
 ## Repository Structure
 
@@ -160,7 +168,7 @@ The early instrument-design and ladder-audit stages require API access and are n
 
 ## Outputs and External Artifacts
 
-Tracked GitHub contents are sufficient to inspect the instrument and rerun the pipeline. Exact reproduction of archived paper outputs without rerunning APIs requires an external artifact bundle containing raw model responses, reasoning traces, and derived analysis payloads.
+Tracked GitHub contents are sufficient to inspect the instrument and rerun the pipeline. For exact reproduction without rerunning APIs, download the full artifact tree from the [Hugging Face dataset](https://huggingface.co/datasets/MINTLABJHUANU/LLMCoherence_Var_100/tree/main) (`data/` and `outputs/`).
 
 Expected local output layout:
 
@@ -195,7 +203,7 @@ results/phase6b_coherence_summary.json
 results/model_run_index.json
 ```
 
-These are not substitutes for the raw model-response artifact bundle.
+These are not substitutes for the raw model-response artifact bundle on [Hugging Face](https://huggingface.co/datasets/MINTLABJHUANU/LLMCoherence_Var_100/tree/main).
 
 ## License
 
