@@ -4,7 +4,7 @@ This repository contains the code and input materials for research on whether LL
 
 The central test is: when one value-relevant property is increased across an ordered ladder, does the model's preference probability move in the intended direction, or does it reverse, flatten, or become erratic?
 
-The repository is organized as a reproducible research artifact from the [MINT Research Lab](https://mintresearch.org/). It includes validated ladder inputs, forced-choice comparison inputs, model-run wrappers, analysis code, and lightweight public summaries. Raw model responses and full paper-output payloads are not tracked in Git; the complete experiment datasets are hosted on Hugging Face (see below).
+The repository is organized as a reproducible research artifact from the [MINT Lab](https://mintresearch.org/). It includes validated ladder inputs, forced-choice comparison inputs, model-run wrappers, analysis code, and lightweight public summaries. Raw model responses and full paper-output payloads are not tracked in Git; the complete experiment datasets are hosted on Hugging Face (see below).
 
 ## Experiment Data
 
