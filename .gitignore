@@ -22,6 +22,13 @@
 !/data/04_ladder_generation/phase6b_variations.json
 !/data/04_ladder_generation/phase_3_variations_config.yaml
 !/data/05_ladder_validation/phase6b_variations_pruned_final.json
+!/data/05_ladder_validation/phase6b_variations_pairtest_pruned.json
+!/data/05_ladder_validation/phase6b_variations_prop_pruned.json
+!/data/05_ladder_validation/phase6b_variations_ranking_pruned.json
+!/data/05_ladder_validation/phase6b_variations_pruned_final_report.json
+/data/05_ladder_validation/within_ladder_validation_property/
+/data/05_ladder_validation/within_ladder_validation_ranking/
+/data/05_ladder_validation/within_ladder_validation_tier/
 !/data/06_forced_choice_inputs/comparison_sample.json
 !/data/**/category_index.json
 !/data/06_forced_choice_inputs/phase6b_variations_pruned/phase6b_variations_pruned_final_manifest.json
