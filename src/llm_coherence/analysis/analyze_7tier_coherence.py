@@ -8,8 +8,12 @@ Extracts reasoning text from raw_responses for non-monotonic pairs.
 Usage:
     python -m llm_coherence.analysis.analyze_7tier_coherence \
     --model ministral-3b-2512-openrouter \
-    --results-dir results/07_model_runs \
+    --results-dir outputs \
     --data-dir data/06_forced_choice_inputs/phase6b_variations_pruned
+
+Writes:
+    outputs/<model>/ladder_vs_comparison_statements/coherence_test/phase6b_coherence_<model>.json
+    outputs/<model>/ladder_vs_comparison_statements/coherence_test/phase6b_justification_analysis_<model>.json
 """
 
 import argparse
@@ -34,7 +38,15 @@ TIER_LABELS = [
 ]
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
-from llm_coherence.paths import COMPARISONS_DIR, MODEL_RUNS_OUTPUT_DIR, PRUNED_FINAL_PATH, REPO_ROOT
+from llm_coherence.paths import (
+    COHERENCE_TEST_SUBDIR,
+    COMPARISONS_DIR,
+    LADDER_VS_COMPARISON_RUNS_OUTPUT_DIR,
+    PRUNED_FINAL_PATH,
+    REPO_ROOT,
+    phase6b_coherence_json_path,
+    phase6b_justification_analysis_json_path,
+)
 
 _PARAMETRIC_ROOT = REPO_ROOT
 
@@ -150,13 +162,17 @@ def artifact_dir_name_for_test(test_name: str) -> str:
 
 
 def normalize_results_dir(results_dir: Path, model_key: str) -> Path:
-    """Resolve to a model-scoped results directory.
+    """Resolve to ``<runs_root>/<model>/ladder_vs_comparison_statements/``."""
+    from llm_coherence.config import resolve_model_results_dir
 
-    If `results_dir` already points at `<...>/<model_key>`, keep it as-is.
-    Otherwise, read/write under `<results_dir>/<model_key>` so analysis is
-    driven by --model and outputs land in the model's folder.
-    """
-    return results_dir.resolve() if results_dir.name == model_key else (results_dir / model_key).resolve()
+    run_dir = "ladder_vs_comparison_statements"
+    rd = results_dir.resolve()
+    if rd.name == run_dir:
+        return rd
+    model_root = resolve_model_results_dir(model_key, rd)
+    if rd == model_root:
+        return (rd / run_dir).resolve()
+    return (model_root / run_dir).resolve()
 
 
 def load_results_for_variation(
@@ -1084,7 +1100,10 @@ def print_summary(agg: dict) -> None:
 def main():
     parser = argparse.ArgumentParser(description="Phase 6b coherence analysis (7 tiers + CoT)")
     parser.add_argument("--data-dir", default=str(COMPARISONS_DIR.relative_to(REPO_ROOT)))
-    parser.add_argument("--results-dir", default=str(MODEL_RUNS_OUTPUT_DIR.relative_to(REPO_ROOT)))
+    parser.add_argument(
+        "--results-dir",
+        default=str(LADDER_VS_COMPARISON_RUNS_OUTPUT_DIR.relative_to(REPO_ROOT)),
+    )
     parser.add_argument("--model", default="gpt-4o-mini-openrouter")
     parser.add_argument("--output", default=None)
     args = parser.parse_args()
@@ -1148,8 +1167,13 @@ def main():
     print_summary(agg)
 
     # Save overall JSON
-    output_path = Path(args.output or str(results_dir / f"phase6b_coherence_{args.model}.json"))
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    runs_root = resolve_under_parametric(args.results_dir)
+    coherence_out_dir = results_dir / COHERENCE_TEST_SUBDIR
+    output_path = Path(
+        args.output
+        or str(phase6b_coherence_json_path(args.model, runs_root))
+    )
+    coherence_out_dir.mkdir(parents=True, exist_ok=True)
 
     # Read model_variant and reasoning_mode from the first available results file
     model_variant = "instruct"
@@ -1182,7 +1206,7 @@ def main():
     justification_report = analyze_justifications(
         variation_results, results_dir, args.model, manifest
     )
-    just_path = results_dir / f"phase6b_justification_analysis_{args.model}.json"
+    just_path = phase6b_justification_analysis_json_path(args.model, runs_root)
     with open(just_path, "w", encoding="utf-8") as f:
         json.dump(justification_report, f, indent=2, ensure_ascii=False)
     print(f"Justification analysis saved to: {just_path}")

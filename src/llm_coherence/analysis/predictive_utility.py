@@ -45,7 +45,8 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import log_loss, roc_auc_score
 from sklearn.preprocessing import OneHotEncoder
 
-from llm_coherence.paths import MODEL_RUNS_OUTPUT_DIR, REPO_ROOT
+from llm_coherence.config import resolve_model_results_dir
+from llm_coherence.paths import LADDER_VS_COMPARISON_RUNS_OUTPUT_DIR, REPO_ROOT
 
 BASE = Path(__file__).resolve().parent
 PARAMETRIC_ROOT = REPO_ROOT
@@ -111,14 +112,17 @@ def resolve_under_parametric(rel: str | Path) -> Path:
 
 
 def collect_result_files(results_dir: Path, model_key: str) -> list[Path]:
-    """Support both legacy and current run_7tier result layouts."""
+    """Per-set results under outputs/<model>/ladder_vs_comparison_statements/."""
     files: list[Path] = []
 
-    # Current layout: results/<model_key>/<artifact_dir>/results.json
-    # Readable dirs are phase6b_ladder_<ladder_id>; the legacy hash pattern
-    # (phase6b_variations_prune_*) is matched too for any unmigrated dirs.
+    run_dir = resolve_model_results_dir(model_key, results_dir) / "ladder_vs_comparison_statements"
+    if run_dir.is_dir():
+        files.extend(sorted(run_dir.glob("phase6b_ladder_*/results.json")))
+        files.extend(sorted(run_dir.glob("phase6b_variations_prune_*/results.json")))
+
+    # Legacy flat layout: <root>/<model>/<artifact_dir>/results.json
     model_root = results_dir / model_key
-    if model_root.exists():
+    if model_root.is_dir():
         files.extend(sorted(model_root.glob("phase6b_ladder_*/results.json")))
         files.extend(sorted(model_root.glob("phase6b_variations_prune_*/results.json")))
 
@@ -128,7 +132,6 @@ def collect_result_files(results_dir: Path, model_key: str) -> list[Path]:
     )
     files.extend(Path(p) for p in sorted(legacy))
 
-    # De-duplicate while preserving order.
     seen = set()
     uniq: list[Path] = []
     for p in files:
@@ -359,13 +362,13 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument(
         "--results-dir",
-        default=str(MODEL_RUNS_OUTPUT_DIR.relative_to(REPO_ROOT)),
+        default=str(LADDER_VS_COMPARISON_RUNS_OUTPUT_DIR.relative_to(REPO_ROOT)),
     )
     ap.add_argument(
         "--out-dir",
         default=None,
         help="Output directory. If omitted and --model is set, defaults to "
-             "results/<model>/pred_utility_test",
+             "outputs/<model>/ladder_vs_comparison_statements/pred_utility_test",
     )
     ap.add_argument(
         "--model",
@@ -387,7 +390,12 @@ def main():
     if args.out_dir:
         out_dir = resolve_under_parametric(args.out_dir)
     else:
-        out_dir = results_dir / args.model / "pred_utility_test"
+        out_dir = (
+            results_dir
+            / args.model
+            / "ladder_vs_comparison_statements"
+            / "pred_utility_test"
+        )
     out_dir.mkdir(parents=True, exist_ok=True)
 
     rows = []

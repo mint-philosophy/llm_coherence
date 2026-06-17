@@ -2,30 +2,17 @@
 
 from __future__ import annotations
 
-import os
 import sys
 
-from llm_coherence.paths import REPO_ROOT
+from llm_coherence.runtime.api_keys import load_api_key
 
 OPENROUTER_AUTH_URL = "https://openrouter.ai/api/v1/auth/key"
 DEFAULT_THRESHOLDS = [0.50, 0.65, 0.75, 0.85, 0.90, 0.95]
 
 
-def _get_api_key() -> str | None:
-    key = (os.environ.get("OPENROUTER_API_KEY") or "").strip()
-    if key.startswith("sk-or-") and len(key) >= 64:
-        return key
-    key_file = REPO_ROOT / "api_keys" / "api_key_openrouter.txt"
-    if key_file.exists():
-        file_key = key_file.read_text(encoding="utf-8").strip()
-        if file_key:
-            return file_key
-    return None
-
-
 async def check_openrouter_usage() -> dict | None:
     """Query OpenRouter for current usage and limit."""
-    api_key = _get_api_key()
+    api_key = load_api_key("openrouter")
     if not api_key:
         print(
             "  [budget] No OpenRouter API key found - budget monitoring disabled.",

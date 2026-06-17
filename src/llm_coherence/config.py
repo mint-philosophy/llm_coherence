@@ -10,6 +10,7 @@ and local support or exploratory model keys.
 """
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Optional
 
 
@@ -226,3 +227,65 @@ MODEL_CONFIGS = {
 
 # Default model for experiments
 DEFAULT_MODEL = 'gpt-54-nano'
+
+# Legacy CLI keys → canonical MODEL_CONFIGS entry.
+MODEL_KEY_ALIASES: dict[str, str] = {
+    "opus-46-openrouter-thinking": "opus-46-thinking",
+}
+
+
+def canonical_model_key(model_key: str) -> str:
+    return MODEL_KEY_ALIASES.get(model_key, model_key)
+
+
+def results_dir_name(model_key: str) -> str:
+    """Folder name under ``results/07_model_runs/`` (without ``-openrouter``)."""
+    return canonical_model_key(model_key).replace("-openrouter", "")
+
+
+def _candidate_results_dir_names(model_key: str) -> list[str]:
+    """Search order: preferred stripped name, then legacy names with -openrouter."""
+    key = canonical_model_key(model_key)
+    stripped = results_dir_name(key)
+    names: list[str] = []
+    for name in (stripped, key, model_key):
+        if name and name not in names:
+            names.append(name)
+    return names
+
+
+def resolve_model_results_dir(model_key: str, results_root: Path) -> Path:
+    """Existing model results dir, or preferred path for new writes."""
+    for name in _candidate_results_dir_names(model_key):
+        path = results_root / name
+        if path.is_dir():
+            return path
+    return results_root / results_dir_name(model_key)
+
+
+def model_key_from_results_folder(folder_name: str, known_keys: set[str]) -> str:
+    """Map a ``results/07_model_runs/`` subdirectory name to a config model key."""
+    candidates: list[str] = [folder_name]
+    stripped = folder_name.replace("-openrouter", "")
+    if stripped not in candidates:
+        candidates.append(stripped)
+    if "-openrouter" not in folder_name:
+        if folder_name.endswith("-thinking"):
+            base = folder_name[: -len("-thinking")]
+            candidates.append(f"{base}-openrouter-thinking")
+        candidates.append(f"{folder_name}-openrouter")
+    for candidate in candidates:
+        if candidate in known_keys:
+            return candidate
+    return stripped
+
+
+def get_model_config(model_key: str) -> ModelConfig:
+    """Return ``ModelConfig`` for a paper model key."""
+    resolved = MODEL_KEY_ALIASES.get(model_key, model_key)
+    if resolved not in MODEL_CONFIGS:
+        raise ValueError(
+            f"Unknown model_key: {model_key}. "
+            f"Available: {list(MODEL_CONFIGS.keys())}"
+        )
+    return MODEL_CONFIGS[resolved]

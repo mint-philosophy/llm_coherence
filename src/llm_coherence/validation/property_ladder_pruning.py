@@ -44,33 +44,33 @@ statistically significant objection-heavy outcomes where property increase
 does not cleanly track greater choiceworthiness.
 
 Outputs are saved under:
-  data/05_ladder_validation/ladder_validation/within_ladder_validation_property/
+  data/05_ladder_validation/within_ladder_validation_property/
 
 Usage:
 # Full run (default stats: CLEAN>=8 and alpha_major=0.001)
-  PYTHONPATH=src python -m llm_coherence.validation.property_ladder_pruning --model gpt-55-openai
+  python llm_coherence.validation.property_ladder_pruning.py --model gpt-55-openai
 
   # GPT-5.5 with native reasoning on (parallel batches, auto-tuned limits)
-  PYTHONPATH=src python -m llm_coherence.validation.property_ladder_pruning --model gpt-55-openai --reasoning on --resume
-  PYTHONPATH=src python -m llm_coherence.validation.property_ladder_pruning --model gpt-55-openai --reasoning on \
+  python llm_coherence.validation.property_ladder_pruning.py --model gpt-55-openai --reasoning on --resume
+  python llm_coherence.validation.property_ladder_pruning.py --model gpt-55-openai --reasoning on \
   --chunk-size 40 --concurrency-limit 24 --max-parallel-chunks 4 --resume
 
   # Resume an interrupted run from existing raw JSONL
-  PYTHONPATH=src python -m llm_coherence.validation.property_ladder_pruning --model gpt-55-openai --resume
+  python llm_coherence.validation.property_ladder_pruning.py --model gpt-55-openai --resume
 
-  # Smoke test (first N ladders; saves under data/05_ladder_validation/.../smoke_gpt55/)
-  PYTHONPATH=src python -m llm_coherence.validation.property_ladder_pruning --model gpt-55-openai --max-ladders 2
-  PYTHONPATH=src python -m llm_coherence.validation.property_ladder_pruning --model gpt-55-openai --start-from 10 --max-ladders 5
+  # Smoke test (first N ladders; saves under llm_coherence.validation..../property/smoke_gpt55/)
+  python llm_coherence.validation.property_ladder_pruning.py --model gpt-55-openai --max-ladders 2
+  python llm_coherence.validation.property_ladder_pruning.py --model gpt-55-openai --start-from 10 --max-ladders 5
 
   # Recompute summaries only (no API calls)
-  PYTHONPATH=src python -m llm_coherence.validation.property_ladder_pruning --model gpt-55-openai --analyze-only
+  python llm_coherence.validation.property_ladder_pruning.py --model gpt-55-openai --analyze-only
 
   # Write pruned variations JSON only (no API, no aggregation)
-  PYTHONPATH=src python -m llm_coherence.validation.property_ladder_pruning --write-pruned-variations-only --model gpt-55-openai
+  python llm_coherence.validation.property_ladder_pruning.py --write-pruned-variations-only --model gpt-55-openai
 
 Optional flags:
   --input PATH                 Input ladder file (default: data/phase6b_variations.json)
-  --output-dir PATH            Output directory (default: data/05_ladder_validation/ladder_validation/within_ladder_validation_property/<model_key>)
+  --output-dir PATH            Output directory (default: data/05_ladder_validation/within_ladder_validation_property/<model_key>)
   --trials INT                 Red-team evaluations per adjacent pair (default: 10)
   --temperature FLOAT          Sampling temperature (default: 0.7)
   --max-tokens INT             Max response tokens per judgment (default: 600)
@@ -86,7 +86,7 @@ Optional flags:
   --start-from INT             Skip first N ladders before --max-ladders slice (also uses smoke dir)
   --resume                     Resume from existing property_raw_responses.jsonl
   --analyze-only               Skip API calls; aggregate existing raw output only
-  --write-pruned-variations-only  Only write data/05_ladder_validation/ladder_validation/variations_pruned/phase6b_variations_prop_pruned.json
+  --write-pruned-variations-only  Only write data/05_ladder_validation/phase6b_variations_prop_pruned.json
   --pruned-output PATH         Override pruned variations path (default: same dir as --input)
   --pruned-ids PATH            Pruned ladder IDs JSON (default: <output-dir>/property_pruned_ladder_ids.json)
   --reasoning {off,on}         GPT-5.x only: off=reasoning_effort none, on=high (default: from MODEL_CONFIGS)
@@ -100,6 +100,7 @@ import asyncio
 import json
 import math
 import re
+import sys
 import warnings
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -107,17 +108,19 @@ from pathlib import Path
 from typing import Any, Optional
 
 
-from llm_coherence.paths import (
+from llm_coherence.validation.ladder_validation_paths import (
     BASE_DIR,
     DATA_DIR,
-    DEFAULT_VARIATIONS_INPUT,
+    PROPERTY_DIR_NAME,
     PROPERTY_OUTPUT_DIR,
     PRUNED_PROPERTY_FILENAME,
     PRUNED_PROPERTY_PATH,
+    VARIATIONS_INPUT_PATH,
+    normalize_cli_output_dir as normalize_validation_output_dir,
+    resolve_pruned_variations_output as resolve_pruned_variations_output_path,
 )
-from llm_coherence.runtime.agents import create_agent
 
-DEFAULT_INPUT = DEFAULT_VARIATIONS_INPUT
+DEFAULT_INPUT = VARIATIONS_INPUT_PATH
 PRUNED_VARIATIONS_FILENAME = PRUNED_PROPERTY_FILENAME
 DEFAULT_OUTPUT_DIR = PROPERTY_OUTPUT_DIR
 RAW_JSONL_NAME = "property_raw_responses.jsonl"
@@ -128,9 +131,24 @@ KEPT_IDS_JSON_NAME = "property_kept_ladder_ids.json"
 COST_JSON_NAME = "property_cost_log.json"
 COST_SUMMARY_JSON_NAME = "cost_summary.json"
 
+# Legacy redteam_* filenames; resolve_output_file falls back when reading old runs.
+LEGACY_RAW_JSONL_NAME = "redteam_raw_responses.jsonl"
+LEGACY_SUMMARY_JSON_NAME = "redteam_pruning_summary.json"
+LEGACY_DETAILS_JSON_NAME = "redteam_pruning_details.json"
+LEGACY_PRUNED_IDS_JSON_NAME = "redteam_pruned_ladder_ids.json"
+LEGACY_KEPT_IDS_JSON_NAME = "redteam_kept_ladder_ids.json"
+LEGACY_COST_JSON_NAME = "redteam_cost_log.json"
 
-def resolve_output_file(output_dir: Path, new_name: str) -> Path:
-    return output_dir / new_name
+
+def resolve_output_file(output_dir: Path, new_name: str, legacy_name: str) -> Path:
+    """Prefer property_* path; fall back to legacy redteam_* if present."""
+    new_path = output_dir / new_name
+    if new_path.exists():
+        return new_path
+    legacy_path = output_dir / legacy_name
+    if legacy_path.exists():
+        return legacy_path
+    return new_path
 
 # CLI defaults (used to auto-tune reasoning-on profile when flags are left at defaults)
 DEFAULT_MAX_TOKENS = 600
@@ -158,11 +176,13 @@ MODEL_PRICING_SOURCE: dict[str, str] = {
 
 
 def normalize_cli_output_dir(output_dir: Path) -> Path:
-    """Resolve a CLI --output-dir to an absolute path (relative paths join REPO_ROOT)."""
-    output_dir = Path(output_dir)
-    if output_dir.is_absolute():
-        return output_dir
-    return BASE_DIR / output_dir
+    """
+    Resolve output-dir paths from the CLI.
+
+    Git Bash on Windows may eat backslashes. Prefer forward slashes, e.g.
+    data/05_ladder_validation/within_ladder_validation_property/gpt-55-openai
+    """
+    return normalize_validation_output_dir(output_dir, subdir_name=PROPERTY_DIR_NAME)
 
 
 def smoke_output_dir_name(model_key: str) -> str:
@@ -178,7 +198,7 @@ def resolve_output_dir(
     smoke: bool = False,
 ) -> Path:
     """
-    Default run folder: data/05_ladder_validation/ladder_validation/within_ladder_validation_property/<model_key>.
+    Default run folder: data/05_ladder_validation/within_ladder_validation_property/<model_key>.
     Smoke runs (--max-ladders / --start-from): .../smoke_<model>/.
     """
     if output_dir is not None:
@@ -192,14 +212,11 @@ def resolve_pruned_variations_output(
     input_path: Path,
     pruned_output: Optional[Path],
 ) -> Path:
-    """Write pruned variations under data/ladder_validation/variations_pruned/."""
+    """Write pruned variations under data/05_ladder_validation/."""
     del input_path  # kept for CLI compatibility
-    if pruned_output is None:
-        return PRUNED_PROPERTY_PATH
-    pruned_output = Path(pruned_output)
-    if pruned_output.is_absolute():
-        return pruned_output
-    return BASE_DIR / pruned_output
+    return resolve_pruned_variations_output_path(
+        pruned_output, default_path=PRUNED_PROPERTY_PATH
+    )
 
 
 REASONING_CLI_TO_EFFORT = {
@@ -366,6 +383,9 @@ def resolve_model_pricing(model_key: str) -> tuple[Optional[dict[str, float]], s
         return MODEL_PRICING_PER_1M[base_key], MODEL_PRICING_SOURCE.get(base_key, "")
     return None, ""
 
+# Allow importing shared utilities from utility_analysis/
+sys.path.insert(0, str(BASE_DIR.parent.parent))
+from llm_coherence.runtime.agents import create_agent  # noqa: E402
 from llm_coherence.config import MODEL_CONFIGS  # noqa: E402
 
 
@@ -669,7 +689,7 @@ async def run_requests(
     base_timeout: float = 30.0,
 ) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
-    read_raw_path = resolve_output_file(output_dir, RAW_JSONL_NAME)
+    read_raw_path = resolve_output_file(output_dir, RAW_JSONL_NAME, LEGACY_RAW_JSONL_NAME)
     write_raw_path = output_dir / RAW_JSONL_NAME
 
     done_ids: set[str] = set()
@@ -710,7 +730,7 @@ async def run_requests(
     )
 
     rates, pricing_source = resolve_model_pricing(model_key)
-    read_cost_path = resolve_output_file(output_dir, COST_JSON_NAME)
+    read_cost_path = resolve_output_file(output_dir, COST_JSON_NAME, LEGACY_COST_JSON_NAME)
     write_cost_path = output_dir / COST_JSON_NAME
     cost_log: dict[str, Any] = {
         "model_key": model_key,
@@ -834,7 +854,7 @@ def build_cost_summary_from_log(cost_log: dict[str, Any]) -> dict[str, Any]:
 
 def _recompute_cost_estimates(output_dir: Path, model_key: str) -> None:
     """Backfill per-call and total estimated_cost_usd when pricing is available."""
-    cost_path = resolve_output_file(output_dir, COST_JSON_NAME)
+    cost_path = resolve_output_file(output_dir, COST_JSON_NAME, LEGACY_COST_JSON_NAME)
     write_cost_path = output_dir / COST_JSON_NAME
     if not cost_path.exists():
         return
@@ -872,7 +892,7 @@ def _recompute_cost_estimates(output_dir: Path, model_key: str) -> None:
 
 
 def save_cost_summary(output_dir: Path) -> None:
-    cost_path = resolve_output_file(output_dir, COST_JSON_NAME)
+    cost_path = resolve_output_file(output_dir, COST_JSON_NAME, LEGACY_COST_JSON_NAME)
     if not cost_path.exists():
         return
     cost_log = json.loads(cost_path.read_text(encoding="utf-8"))
@@ -1004,7 +1024,7 @@ def aggregate_results(
     ladder_fail_min_major_pairs: int,
     inconclusive_policy: str,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    raw_path = resolve_output_file(output_dir, RAW_JSONL_NAME)
+    raw_path = resolve_output_file(output_dir, RAW_JSONL_NAME, LEGACY_RAW_JSONL_NAME)
     if not raw_path.exists():
         raise FileNotFoundError(f"Missing raw responses file: {raw_path}")
 
@@ -1188,10 +1208,10 @@ def resolve_pruned_ids_path(
     if pruned_ids is not None:
         return pruned_ids
     if output_dir is not None:
-        return resolve_output_file(output_dir, PRUNED_IDS_JSON_NAME)
+        return resolve_output_file(output_dir, PRUNED_IDS_JSON_NAME, LEGACY_PRUNED_IDS_JSON_NAME)
     if model_key is not None:
         out = resolve_output_dir(model_key, None)
-        return resolve_output_file(out, PRUNED_IDS_JSON_NAME)
+        return resolve_output_file(out, PRUNED_IDS_JSON_NAME, LEGACY_PRUNED_IDS_JSON_NAME)
     raise ValueError(
         "Provide --pruned-ids, --output-dir, or --model to locate property_pruned_ladder_ids.json"
     )
@@ -1209,7 +1229,7 @@ def write_pruned_variations_file(
         raise FileNotFoundError(
             f"Pruned IDs file not found: {pruned_ids_path}\n"
             "Tip: use forward slashes for --output-dir "
-            "(e.g. data/05_ladder_validation/ladder_validation/within_ladder_validation_property/gpt-55-openai), "
+            "(e.g. data/05_ladder_validation/within_ladder_validation_property/gpt-55-openai), "
             "or pass --model gpt-55-openai."
         )
 
@@ -1278,7 +1298,7 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help=(
             "Output directory (default: "
-            "data/05_ladder_validation/ladder_validation/within_ladder_validation_property/<model_key>)"
+            "data/05_ladder_validation/within_ladder_validation_property/<model_key>)"
         ),
     )
     parser.add_argument("--trials", type=int, default=10, help="N evaluations per adjacent pair")
@@ -1344,7 +1364,7 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help=(
             "Maximum number of ladders to evaluate (smoke tests). "
-            "Default output: data/05_ladder_validation/ladder_validation/within_ladder_validation_property/smoke_<model>/ "
+            "Default output: data/05_ladder_validation/within_ladder_validation_property/smoke_<model>/ "
             "(e.g. smoke_gpt55). Skips writing pruned variations JSON."
         ),
     )

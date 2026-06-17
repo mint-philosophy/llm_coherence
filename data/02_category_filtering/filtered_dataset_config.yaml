@@ -1,5 +1,0 @@
-# Configuration for running compute_utilities on the Phase 1 filtered dataset
-# This file overrides the default options_path to use the filtered dataset
-
-options_path: "../../experiments/parametric_variations/data/options_hierarchical_filtered_phase1.json"
-save_dir: "../../experiments/parametric_variations/results/utilities_filtered/<model_key>"

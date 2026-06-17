@@ -6,6 +6,8 @@ build-backend = "setuptools.build_meta"
 name = "llm-coherence"
 version = "0.1.0"
 description = "Pipeline for LLM preference coherence experiments over parametric ladders."
+readme = "README.md"
+license = "MIT"
 requires-python = ">=3.11,<3.13"
 dependencies = [
   "matplotlib",

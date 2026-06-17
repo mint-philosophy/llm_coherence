@@ -1,6 +1,0 @@
-# Configuration for running compute_utilities on the Phase 3 five-tier parametric variations
-# 730 outcomes across 12 categories (146 base statements × 5 tiers each)
-# Subject model: gpt-4o-mini-openrouter (consistent with Phase 1.2)
-
-options_path: "../../experiments/parametric_variations/data/options_phase3_variations.json"
-save_dir: "../../experiments/parametric_variations/results/utilities_phase3/<model_key>"

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Step 4: run within-ladder pair checks used for pruning."""
+"""Step 4: tier-pair within-ladder audit and optional prune (--prune / --prune-only)."""
 
-from llm_coherence.validation.within_ladder_validation import main
+from llm_coherence.validation.within_ladder_pruning import main
 
 
 if __name__ == "__main__":

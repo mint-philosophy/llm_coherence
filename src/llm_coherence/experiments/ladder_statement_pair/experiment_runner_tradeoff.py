@@ -20,7 +20,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 
-from llm_coherence.paths import REPO_ROOT
+from llm_coherence.paths import LADDER_VS_COMPARISON_RUNS_OUTPUT_DIR, REPO_ROOT
 from llm_coherence.runtime.agents import create_agent, model_name_for_key
 from llm_coherence.runtime.preflight_check import MODEL_COST_ESTIMATES, estimate_cost
 from llm_coherence.runtime.templates import (
@@ -532,7 +532,7 @@ async def run_experiment(
 ) -> Dict[str, Any]:
     base = _PARAMETRIC_ROOT
     data_dir = data_dir or base / "data"
-    results_dir = results_dir or base / "outputs"
+    results_dir = results_dir or LADDER_VS_COMPARISON_RUNS_OUTPUT_DIR
     checkpoints_dir = checkpoints_dir or base / "checkpoints"
 
     comparisons = load_comparisons(data_dir, test_name, comparison_path)

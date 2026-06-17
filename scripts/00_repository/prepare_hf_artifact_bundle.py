@@ -298,7 +298,7 @@ def write_dataset_card(
                 "",
                 "Raw model responses and reasoning traces are under `results/07_model_runs/`.",
                 "Derived analysis outputs are under `results/08_analysis/`.",
-                "Final generated figures and tables, when present, are under `results/09_figures_tables/`.",
+                "Final generated figures and tables, when present, are under `results/figures/` and `results/tables/`.",
                 "",
                 "If you have legacy local scratch outputs under `outputs/`, include them with `--extra-path`.",
                 "",
