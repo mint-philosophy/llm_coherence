@@ -187,11 +187,16 @@ Smoke runs for step 10b write under `outputs/<model_key>/smoke_<model_key>/ladde
 
 The tracked `results/model_run_index.json` snapshot inventories local payloads under `outputs/<model_key>/`. Refresh it with `validate_artifacts.py --write-indexes` after copying or generating model-run artifacts.
 
-To prepare an external artifact bundle:
 
 ```bash
-PYTHONPATH=src python scripts/00_repository/prepare_hf_artifact_bundle.py \
-  --bundle-dir /path/to/artifact_bundle
+# Update the dataset README on Hugging Face
+python scripts/00_repository/hf_upload/hf_dataset.py upload readme
+
+# Upload outputs/ (resume incomplete models)
+python scripts/00_repository/hf_upload/hf_dataset.py upload outputs --skip-existing
+
+# Stage a local bundle with manifest (optional)
+python scripts/00_repository/hf_upload/hf_dataset.py prepare /path/to/artifact_bundle
 ```
 
 ## Public Summaries
