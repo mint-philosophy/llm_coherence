@@ -10,7 +10,7 @@ The repository is organized as a reproducible research artifact from the [MINT L
 
 All datasets created during the experiment—including canonical inputs under `data/` and model-run payloads under `outputs/`—are available on Hugging Face:
 
-** 🤗 Dataset:** https://huggingface.co/datasets/MINTLABJHUANU/LLMCoherence_Var_100
+**🤗 Dataset:** **https://huggingface.co/datasets/MINTLABJHUANU/LLMCoherence_Var_100
 
 
 Clone or download that dataset repo to populate `data/` and `outputs/` locally without rerunning API calls.
