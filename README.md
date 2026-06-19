@@ -1,5 +1,7 @@
 # LLM Preference Coherence
 
+Code and data release for measuring monotonic preference coherence in LLM forced-choice evaluations.
+
 This repository contains the code and input materials for research on whether LLM forced-choice preferences remain coherent under controlled seven-tier outcome variations.
 
 The central test is: when one value-relevant property is increased across an ordered ladder, does the model's preference probability move in the intended direction, or does it reverse, flatten, or become erratic?
@@ -9,6 +11,8 @@ The repository is organized as a reproducible research artifact from the [MINT L
 ## Experiment Data
 
 All datasets created during the experiment—including canonical inputs under `data/` and model-run payloads under `outputs/`—are available on Hugging Face:
+
+[![Hugging Face Dataset](https://img.shields.io/badge/%F0%9F%A4%97%20Dataset-LLMCoherence__Var__100-yellow)](https://huggingface.co/datasets/MINTLABJHUANU/LLMCoherence_Var_100)
 
 **[MINTLABJHUANU/LLMCoherence_Var_100](https://huggingface.co/datasets/MINTLABJHUANU/LLMCoherence_Var_100/tree/main)**
 
@@ -63,6 +67,12 @@ The environment script installs the dependencies declared in `pyproject.toml`, i
 
 ```bash
 python -m pip install -e .
+```
+
+HF Jobs submission helpers require the optional Hub dependency:
+
+```bash
+python -m pip install -e ".[hf-jobs]"
 ```
 
 Validate tracked inputs and lightweight indexes:
@@ -165,6 +175,74 @@ Run scripts from the repository root with `PYTHONPATH=src python <script>`.
 | 13 | `scripts/06_reporting/13_make_fig_table.py` | `src/llm_coherence/reporting/make_fig_table.py` |
 
 The early instrument-design and ladder-audit stages require API access and are not necessary for most replication workflows. Most users should start from the tracked validated ladders and forced-choice inputs.
+
+## GLM Base on HF Jobs
+
+`glm-45-base-logprobs` is the self-hosted GLM base run. It is not routed through OpenRouter. Use the same Step 10a and Step 10b scripts as every other model; select GLM base with `--model glm-45-base-logprobs` and submit to HF Jobs with `--submit-hf-job`.
+
+Build and push the HF Jobs image from the repository root:
+
+```bash
+IMAGE=your-dockerhub-user/llm-coherence-vllm:glm-base-YYYYMMDD
+bash scripts/00_repository/01_build_hf_jobs_image.sh "$IMAGE"
+```
+
+Submit a one-ladder within-ladder smoke job first:
+
+```bash
+PYTHONPATH=src python scripts/04_model_runs/10a_run_within_ladder_experiment.py \
+  --submit-hf-job \
+  --model glm-45-base-logprobs \
+  --image "$IMAGE" \
+  --namespace MINTLABJHUANU \
+  --flavor h200x8 \
+  --timeout 2h \
+  --max-variation-sets 1 \
+  --hub-dataset MINTLABJHUANU/LLMCoherence_Var_100 \
+  --job-tag glm-smoke-YYYYMMDD \
+  --path-in-repo smoke/glm-45-base-logprobs/glm-smoke-YYYYMMDD/within_ladder
+```
+
+For the full within-ladder 100-ladder run, omit `--max-variation-sets` and upload to the canonical output path:
+
+```bash
+PYTHONPATH=src python scripts/04_model_runs/10a_run_within_ladder_experiment.py \
+  --submit-hf-job \
+  --model glm-45-base-logprobs \
+  --image "$IMAGE" \
+  --namespace MINTLABJHUANU \
+  --flavor h200x8 \
+  --timeout 12h \
+  --hub-dataset MINTLABJHUANU/LLMCoherence_Var_100
+```
+
+The within-ladder HF job runs Step 10a inside the container as `--generate`, `--run-local`, then `--analyze`. When `--hub-dataset` is supplied without an explicit `--path-in-repo`, outputs are uploaded to:
+
+```text
+outputs/glm-45-base-logprobs/within_ladder/
+```
+
+Submit the 7-tier ladder-vs-comparison run through Step 10b with the same model flag:
+
+```bash
+PYTHONPATH=src python scripts/04_model_runs/10b_run_7tier_experiment.py \
+  --submit-hf-job \
+  --model glm-45-base-logprobs \
+  --trials 10 \
+  --image "$IMAGE" \
+  --namespace MINTLABJHUANU \
+  --flavor h200x8 \
+  --timeout 12h \
+  --max-variation-sets 1 \
+  --hub-dataset MINTLABJHUANU/LLMCoherence_Var_100 \
+  --path-in-repo smoke/glm-45-base-logprobs/glm-smoke-YYYYMMDD/ladder_vs_comparison_statements
+```
+
+For the full 7-tier run, omit `--max-variation-sets`. The default upload path is:
+
+```text
+outputs/glm-45-base-logprobs/ladder_vs_comparison_statements/
+```
 
 ## Outputs and External Artifacts
 

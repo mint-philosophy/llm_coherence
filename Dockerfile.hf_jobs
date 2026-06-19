@@ -1,0 +1,23 @@
+FROM vllm/vllm-openai:cu130-nightly
+
+WORKDIR /app
+
+COPY pyproject.toml README.md /app/
+COPY src/ /app/src/
+COPY scripts/ /app/scripts/
+COPY data/ /app/data/
+
+RUN pip install --no-cache-dir uv && \
+    uv pip install --system --no-cache -e ".[hf-jobs]" && \
+    pip freeze > /requirements-frozen.txt
+
+ENV PYTHONPATH=/app/src
+ENV HF_HOME=/data
+ENV TRANSFORMERS_CACHE=/data
+ENV VLLM_WORKER_MULTIPROC_METHOD=spawn
+ENV PYTHONUNBUFFERED=1
+
+# HF Jobs can ignore image entrypoints depending on how commands are submitted.
+# Submitters should pass an explicit command like: python3 -u -c <code>.
+ENTRYPOINT []
+CMD ["python3"]

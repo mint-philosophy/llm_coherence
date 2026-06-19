@@ -714,13 +714,15 @@ def write_combined_headline_table(
         r"Strict mono (\%)",
         r"(tier$\times$30 statements)",
     )
+    r2_header = _latex_raised_header("$R^2$ (bi)")
+    jt_header = _latex_raised_header(r"J--T (\%)")
 
     tex_lines = [
         *_paper_table_tex_preamble(caption, "tab:headline_combined"),
         _paper_table_tex_col_spec(4),
         "    \\toprule",
         f"    {_latex_raised_header('Model')} & {acc_header} & {mono_header} "
-        f"& {_latex_raised_header('$R^2$ (bi)')} & {_latex_raised_header('J--T (\\%)')} \\\\",
+        f"& {r2_header} & {jt_header} \\\\",
         "    \\midrule",
     ]
     for r in rows:

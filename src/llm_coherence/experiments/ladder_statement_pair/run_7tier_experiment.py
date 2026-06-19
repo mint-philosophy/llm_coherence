@@ -52,7 +52,9 @@ Artifacts:
 import argparse
 import asyncio
 import json
+import os
 import sys
+import uuid
 from pathlib import Path
 from datetime import datetime, timezone
 
@@ -82,6 +84,14 @@ def resolve_under_parametric(rel: str | Path) -> Path:
     """Resolve a path relative to parametric_variations/ (unless already absolute)."""
     p = Path(rel)
     return p.resolve() if p.is_absolute() else (_PARAMETRIC_ROOT / p).resolve()
+
+
+def repo_relative(path: str | Path) -> str:
+    """Return a repo-relative path string for commands run inside the image."""
+    p = Path(path)
+    if not p.is_absolute():
+        return p.as_posix()
+    return p.resolve().relative_to(REPO_ROOT).as_posix()
 
 
 def smoke_run_subdir(model_key: str) -> str:
@@ -733,6 +743,214 @@ def _push_results_to_hub(results_dir: Path, model_key: str, hub_dataset: str) ->
     print(f"  Uploaded: https://huggingface.co/datasets/{hub_dataset}/tree/main/{path_in_repo}")
 
 
+def build_phase6b_hf_job_code(
+    *,
+    model_key: str,
+    trials: int,
+    max_tokens: int,
+    with_reasoning: bool,
+    data_dir: str,
+    manifest: str | None,
+    results_dir: str,
+    checkpoints_dir: str,
+    variation_ids: list[str] | None,
+    start_from: int,
+    max_variation_sets: int | None,
+    smoke: bool,
+    max_concurrent: int,
+    resume: bool,
+    quiet: bool,
+    model_variant: str,
+    reasoning_mode: str,
+    temperature: float | None,
+    k_samples: int,
+    gpu_type: str | None,
+    gpu_count: int | None,
+    quantization: str | None,
+    system_message: str | None,
+    hub_dataset: str | None,
+    path_in_repo: str,
+) -> str:
+    """Build in-container Python for an HF Jobs 7-tier model run."""
+    cmd = [
+        "python3",
+        "scripts/04_model_runs/10b_run_7tier_experiment.py",
+        "--model",
+        model_key,
+        "--trials",
+        str(trials),
+        "--max-tokens",
+        str(max_tokens),
+        "--data-dir",
+        data_dir,
+        "--results-dir",
+        results_dir,
+        "--checkpoints-dir",
+        checkpoints_dir,
+        "--start-from",
+        str(start_from),
+        "--max-concurrent",
+        str(max_concurrent),
+        "--model-variant",
+        model_variant,
+        "--reasoning-mode",
+        reasoning_mode,
+        "--k-samples",
+        str(k_samples),
+        "--infrastructure",
+        "hf_jobs",
+        "--skip-smoke-test",
+    ]
+    if manifest:
+        cmd.extend(["--manifest", manifest])
+    if variation_ids:
+        cmd.extend(["--variation-ids", *variation_ids])
+    if max_variation_sets is not None:
+        cmd.extend(["--max-variation-sets", str(max_variation_sets)])
+    if smoke:
+        cmd.append("--smoke")
+    if resume:
+        cmd.append("--resume")
+    if quiet:
+        cmd.append("--quiet")
+    if with_reasoning:
+        cmd.append("--with-reasoning")
+    if temperature is not None:
+        cmd.extend(["--temperature", str(temperature)])
+    if gpu_type:
+        cmd.extend(["--gpu-type", gpu_type])
+    if gpu_count is not None:
+        cmd.extend(["--gpu-count", str(gpu_count)])
+    if quantization:
+        cmd.extend(["--quantization", quantization])
+    if system_message is not None:
+        cmd.extend(["--system-message", system_message])
+
+    upload_dir = model_run_dir(model_key, Path(results_dir), smoke=smoke).as_posix()
+    payload = {
+        "cmd": cmd,
+        "upload_dir": upload_dir,
+        "hub_dataset": hub_dataset,
+        "path_in_repo": path_in_repo,
+    }
+    return f"""
+import json
+import os
+import subprocess
+from pathlib import Path
+
+payload = json.loads({json.dumps(json.dumps(payload))})
+
+os.environ.setdefault("PYTHONPATH", "/app/src")
+os.environ.setdefault("HF_HOME", "/data")
+os.environ.setdefault("TRANSFORMERS_CACHE", "/data")
+os.environ.setdefault("VLLM_WORKER_MULTIPROC_METHOD", "spawn")
+os.environ.setdefault("PYTHONUNBUFFERED", "1")
+
+os.chdir("/app")
+
+print("=== 7-tier HF job start ===", flush=True)
+print("command:", " ".join(payload["cmd"]), flush=True)
+subprocess.check_call(payload["cmd"])
+
+if payload["hub_dataset"]:
+    from huggingface_hub import upload_folder
+
+    folder_path = Path(payload["upload_dir"])
+    print("\\n>>> uploading", folder_path, "to", payload["hub_dataset"], flush=True)
+    upload_folder(
+        repo_id=payload["hub_dataset"],
+        repo_type="dataset",
+        folder_path=str(folder_path),
+        path_in_repo=payload["path_in_repo"],
+    )
+    print("uploaded to", payload["path_in_repo"], flush=True)
+
+print("=== 7-tier HF job complete ===", flush=True)
+""".strip()
+
+
+def submit_phase6b_hf_job(args: argparse.Namespace, system_message: str | None) -> int:
+    """Submit the existing 7-tier experiment CLI to Hugging Face Jobs."""
+    if not args.image:
+        raise SystemExit("--image is required with --submit-hf-job")
+    if not args.namespace:
+        raise SystemExit("--namespace is required with --submit-hf-job")
+
+    job_tag = args.job_tag or uuid.uuid4().hex[:8]
+    default_path = model_run_dir(args.model, Path(args.results_dir), smoke=args.smoke).as_posix()
+    path_in_repo = args.path_in_repo or default_path
+    code = build_phase6b_hf_job_code(
+        model_key=args.model,
+        trials=args.trials,
+        max_tokens=args.max_tokens,
+        with_reasoning=args.with_reasoning,
+        data_dir=repo_relative(args.data_dir),
+        manifest=repo_relative(args.manifest) if args.manifest else None,
+        results_dir=repo_relative(args.results_dir),
+        checkpoints_dir=repo_relative(args.checkpoints_dir),
+        variation_ids=args.variation_ids,
+        start_from=args.start_from,
+        max_variation_sets=args.max_variation_sets,
+        smoke=args.smoke,
+        max_concurrent=args.max_concurrent,
+        resume=args.resume,
+        quiet=args.quiet,
+        model_variant=args.model_variant,
+        reasoning_mode=args.reasoning_mode,
+        temperature=args.temperature,
+        k_samples=args.k_samples,
+        gpu_type=args.gpu_type,
+        gpu_count=args.gpu_count,
+        quantization=args.quantization,
+        system_message=system_message,
+        hub_dataset=args.hub_dataset,
+        path_in_repo=path_in_repo,
+    )
+
+    if args.dry_run:
+        print("HF Jobs command: python3 -u -c <generated code>")
+        print(code)
+        return 0
+
+    try:
+        from huggingface_hub import get_token, run_job
+    except ImportError as exc:
+        raise SystemExit(
+            "huggingface_hub is required for HF Jobs submission. "
+            'Install with: python -m pip install -e ".[hf-jobs]"'
+        ) from exc
+
+    token = os.environ.get("HF_TOKEN") or get_token()
+    if not token:
+        raise SystemExit("No HF token found. Run `hf auth login` or set HF_TOKEN.")
+
+    job = run_job(
+        image=args.image,
+        command=["python3", "-u", "-c", code],
+        flavor=args.flavor,
+        namespace=args.namespace,
+        timeout=args.timeout,
+        secrets={"HF_TOKEN": token},
+        env={
+            "HF_HOME": "/data",
+            "TRANSFORMERS_CACHE": "/data",
+            "VLLM_WORKER_MULTIPROC_METHOD": "spawn",
+            "PYTHONUNBUFFERED": "1",
+            "JOB_TAG": job_tag,
+        },
+    )
+    print("job tag:", job_tag)
+    print("job id:", job.id)
+    print("job url:", job.url)
+    if args.hub_dataset:
+        print(
+            "output path:",
+            f"https://huggingface.co/datasets/{args.hub_dataset}/tree/main/{path_in_repo}",
+        )
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Run Phase 6b monotonicity experiments (7 tiers)"
@@ -819,6 +1037,25 @@ def main():
                         help="After completion, push results/ to this HF dataset repo "
                              "(e.g. 'elenaajayi/emergent-values-smoke-results'). "
                              "Requires HF_TOKEN with write scope in the environment.")
+    parser.add_argument(
+        "--submit-hf-job",
+        action="store_true",
+        help="Submit this 7-tier run to Hugging Face Jobs instead of running locally.",
+    )
+    parser.add_argument("--image", default=None, help="Docker image tag for --submit-hf-job")
+    parser.add_argument("--namespace", default=None, help="HF user/org namespace for --submit-hf-job")
+    parser.add_argument("--flavor", default="h200x8", help="HF Jobs hardware flavor")
+    parser.add_argument("--timeout", default="12h", help="HF Jobs timeout, e.g. 2h or 12h")
+    parser.add_argument(
+        "--path-in-repo",
+        default=None,
+        help=(
+            "Optional dataset subdir for HF Jobs outputs. Defaults to the same "
+            "outputs/<model>/ladder_vs_comparison_statements path."
+        ),
+    )
+    parser.add_argument("--job-tag", default=None, help="Stable short tag for HF Jobs metadata.")
+    parser.add_argument("--dry-run", action="store_true", help="Print generated HF job code and exit.")
     args = parser.parse_args()
     if args.start_from < 0:
         parser.error("--start-from must be >= 0")
@@ -829,6 +1066,8 @@ def main():
     cfg = MODEL_CONFIGS.get(args.model)
     if args.max_tokens is None:
         args.max_tokens = cfg.max_tokens if cfg is not None else 10
+    if args.model == "glm-45-base-logprobs" and args.model_variant == "instruct":
+        args.model_variant = "base"
 
     # Resolve system message: CLI flag > ModelConfig > default
     if args.system_message is not None:
@@ -837,6 +1076,9 @@ def main():
         sys_msg = cfg.system_message
     else:
         sys_msg = "You are a helpful assistant."
+
+    if args.submit_hf_job:
+        return submit_phase6b_hf_job(args, sys_msg)
 
     data_dir = resolve_under_parametric(args.data_dir)
     if args.manifest:

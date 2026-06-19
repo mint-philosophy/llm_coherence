@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import math
+import os
 import random
 from dataclasses import dataclass
 from typing import Any
@@ -303,6 +305,135 @@ class LiteLLMAgent:
         return [results[i] for i in range(len(messages))]
 
 
+class VLLMLogprobAgent:
+    """vLLM-backed forced-choice scorer for self-hosted base models.
+
+    This agent returns ``{"A": p_a, "B": p_b}`` distributions instead of sampled
+    text. The experiment runner's ``uses_logits`` branch consumes that shape.
+    """
+
+    uses_logits = True
+
+    def __init__(
+        self,
+        model: str,
+        temperature: float = 0.0,
+        trust_remote_code: bool = True,
+        **_: Any,
+    ):
+        self.model = model
+        self.temperature = temperature
+        self.trust_remote_code = trust_remote_code
+        self.accepts_system_message = False
+        self.enable_cache = False
+        self.usage_log: list[dict[str, Any]] = []
+        self.reasoning_log: list[dict[str, Any]] = []
+        self.retry_counts: dict[str, int] = {"timeouts": 0, "errors": 0}
+        self._llm = None
+        self._sampling_params = None
+        self._token_id_a: int | None = None
+        self._token_id_b: int | None = None
+
+    def _ensure_loaded(self) -> None:
+        if self._llm is not None:
+            return
+
+        try:
+            import torch
+            from transformers import AutoTokenizer
+            from vllm import LLM, SamplingParams
+        except ImportError as exc:
+            raise ImportError(
+                "vLLM, torch, and transformers are required for self-hosted "
+                "logprob models. Use the HF Jobs image or install the GPU stack."
+            ) from exc
+
+        cache_dir = os.environ.get("HF_HOME")
+        tokenizer = AutoTokenizer.from_pretrained(
+            self.model,
+            trust_remote_code=self.trust_remote_code,
+            cache_dir=cache_dir,
+        )
+        a_ids = tokenizer.encode(" A", add_special_tokens=False)
+        b_ids = tokenizer.encode(" B", add_special_tokens=False)
+        if not a_ids or not b_ids:
+            raise RuntimeError("Could not resolve tokenizer ids for forced-choice labels A/B.")
+        self._token_id_a = a_ids[0]
+        self._token_id_b = b_ids[0]
+
+        tensor_parallel_size = torch.cuda.device_count() if torch.cuda.is_available() else 1
+        llm_kwargs: dict[str, Any] = {
+            "model": self.model,
+            "trust_remote_code": self.trust_remote_code,
+            "tensor_parallel_size": tensor_parallel_size,
+            "enable_prefix_caching": True,
+        }
+        if cache_dir:
+            llm_kwargs["download_dir"] = cache_dir
+        self._llm = LLM(**llm_kwargs)
+        self._sampling_params = SamplingParams(temperature=0.0, max_tokens=1, logprobs=20)
+
+    @staticmethod
+    def _prompt_from_messages(message: list[dict[str, Any]]) -> str:
+        parts: list[str] = []
+        for item in message:
+            content = item.get("content")
+            if isinstance(content, str):
+                parts.append(content)
+            elif isinstance(content, list):
+                parts.extend(
+                    block.get("text", "")
+                    for block in content
+                    if isinstance(block, dict) and block.get("type") == "text"
+                )
+        return "\n\n".join(p for p in parts if p)
+
+    def _score_from_top_logprobs(self, top_logprobs: dict) -> dict[str, float]:
+        assert self._token_id_a is not None
+        assert self._token_id_b is not None
+        lp_a_obj = top_logprobs.get(self._token_id_a)
+        lp_b_obj = top_logprobs.get(self._token_id_b)
+        score_a = lp_a_obj.logprob if lp_a_obj else float("-inf")
+        score_b = lp_b_obj.logprob if lp_b_obj else float("-inf")
+        if score_a == float("-inf") and score_b == float("-inf"):
+            return {"A": 0.5, "B": 0.5}
+
+        mx = max(score_a, score_b)
+        ea = math.exp(score_a - mx) if score_a != float("-inf") else 0.0
+        eb = math.exp(score_b - mx) if score_b != float("-inf") else 0.0
+        total = ea + eb
+        if total == 0:
+            return {"A": 0.5, "B": 0.5}
+        return {"A": ea / total, "B": eb / total}
+
+    async def async_completions(
+        self,
+        messages: list[list[dict[str, Any]]],
+        verbose: bool = True,
+        **_: Any,
+    ) -> list[dict[str, float] | None]:
+        del verbose
+        self._ensure_loaded()
+
+        from llm_coherence.runtime.logprob_prompts import FEW_SHOT_PROMPT_LOGPROBS
+
+        assert self._llm is not None
+        assert self._sampling_params is not None
+        prompts = [
+            f"{FEW_SHOT_PROMPT_LOGPROBS}{self._prompt_from_messages(message)}\n\nAnswer:"
+            for message in messages
+        ]
+        outputs = self._llm.generate(prompts, self._sampling_params)
+        results: list[dict[str, float] | None] = []
+        for output in outputs:
+            logprobs_per_pos = output.outputs[0].logprobs
+            if not logprobs_per_pos or logprobs_per_pos[0] is None:
+                results.append({"A": 0.5, "B": 0.5})
+            else:
+                results.append(self._score_from_top_logprobs(logprobs_per_pos[0]))
+        return results
+
+
 def create_agent(
     model_key: str,
     temperature: float = 0.0,
@@ -314,10 +445,16 @@ def create_agent(
     **kwargs: Any,
 ) -> LiteLLMAgent:
     """Create a LiteLLM-backed API agent from an llm_coherence model key."""
-    del trust_remote_code
     spec = MODEL_SPECS.get(model_key)
     if spec is None:
         raise ValueError(f"Unknown model key: {model_key}")
+    if spec.model_type == "vllm_base_model_logprobs":
+        return VLLMLogprobAgent(
+            model=spec.model_name,
+            temperature=temperature,
+            trust_remote_code=trust_remote_code,
+            **kwargs,
+        )
     if spec.model_type not in API_KEY_ENV_BY_TYPE:
         raise ValueError(
             f"Model {model_key!r} is configured as {spec.model_type!r}. "

@@ -22,5 +22,10 @@ dependencies = [
   "litellm",
 ]
 
+[project.optional-dependencies]
+hf-jobs = [
+  "huggingface_hub>=1.0,<2",
+]
+
 [tool.setuptools.packages.find]
 where = ["src"]

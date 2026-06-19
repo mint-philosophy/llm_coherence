@@ -25,6 +25,7 @@ import re
 import sys
 import time
 import argparse
+import uuid
 from collections import defaultdict
 from datetime import datetime, timezone
 from itertools import combinations
@@ -75,6 +76,14 @@ def resolve_under_repo(rel: str | Path) -> Path:
     """Resolve a path relative to the repository root (unless already absolute)."""
     p = Path(rel)
     return p.resolve() if p.is_absolute() else (REPO_ROOT / p).resolve()
+
+
+def repo_relative(path: str | Path) -> str:
+    """Return a repo-relative path string for commands run inside the image."""
+    p = Path(path)
+    if not p.is_absolute():
+        return p.as_posix()
+    return p.resolve().relative_to(REPO_ROOT).as_posix()
 
 
 def default_results_root() -> Path:
@@ -130,8 +139,8 @@ _OPENAI_BATCH_MODEL_IDS = {
 
 # Self-hosted vLLM logprobs models (HF model id, not an API route).
 _VLLM_LOGPROBS_MODEL_IDS = {
-    "glm-45-base": "zai-org/GLM-4.5",
-    "glm-45-base-logprobs": "zai-org/GLM-4.5",
+    "glm-45-base": "zai-org/GLM-4.5-Base",
+    "glm-45-base-logprobs": "zai-org/GLM-4.5-Base",
     "llama-31-8b-instruct": "meta-llama/Llama-3.1-8B-Instruct",
     "llama-32-1b-instruct": "meta-llama/Llama-3.2-1B-Instruct",
     "qwen25-7b-instruct": "Qwen/Qwen2.5-7B-Instruct",
@@ -1460,6 +1469,141 @@ def analyze_all(*, results_root: Path | None = None) -> None:
             print(f"[{model_key}] Analyze failed: {exc}")
 
 
+def build_within_ladder_hf_job_code(
+    *,
+    model_key: str,
+    variations: str,
+    results_dir: str,
+    start_from: int,
+    max_variation_sets: int | None,
+    hub_dataset: str | None,
+    path_in_repo: str,
+) -> str:
+    """Build in-container Python for an HF Jobs within-ladder run."""
+    base_cmd = [
+        "python3",
+        "scripts/04_model_runs/10a_run_within_ladder_experiment.py",
+        "--model",
+        model_key,
+        "--variations",
+        variations,
+        "--results-dir",
+        results_dir,
+        "--start-from",
+        str(start_from),
+    ]
+    if max_variation_sets is not None:
+        base_cmd.extend(["--max-variation-sets", str(max_variation_sets)])
+
+    payload = {
+        "base_cmd": base_cmd,
+        "upload_dir": f"{results_dir.rstrip('/')}/{model_key}/within_ladder",
+        "hub_dataset": hub_dataset,
+        "path_in_repo": path_in_repo,
+    }
+    return f"""
+import json
+import os
+import subprocess
+from pathlib import Path
+
+payload = json.loads({json.dumps(json.dumps(payload))})
+
+os.environ.setdefault("PYTHONPATH", "/app/src")
+os.environ.setdefault("HF_HOME", "/data")
+os.environ.setdefault("TRANSFORMERS_CACHE", "/data")
+os.environ.setdefault("VLLM_WORKER_MULTIPROC_METHOD", "spawn")
+os.environ.setdefault("PYTHONUNBUFFERED", "1")
+
+os.chdir("/app")
+
+print("=== within-ladder HF job start ===", flush=True)
+print("base command:", " ".join(payload["base_cmd"]), flush=True)
+
+for phase in ("--generate", "--run-local", "--analyze"):
+    cmd = payload["base_cmd"] + [phase]
+    print("\\n>>>", " ".join(cmd), flush=True)
+    subprocess.check_call(cmd)
+
+if payload["hub_dataset"]:
+    from huggingface_hub import upload_folder
+
+    folder_path = Path(payload["upload_dir"])
+    print("\\n>>> uploading", folder_path, "to", payload["hub_dataset"], flush=True)
+    upload_folder(
+        repo_id=payload["hub_dataset"],
+        repo_type="dataset",
+        folder_path=str(folder_path),
+        path_in_repo=payload["path_in_repo"],
+    )
+    print("uploaded to", payload["path_in_repo"], flush=True)
+
+print("=== within-ladder HF job complete ===", flush=True)
+""".strip()
+
+
+def submit_within_ladder_hf_job(args: argparse.Namespace) -> int:
+    """Submit the existing within-ladder experiment CLI to Hugging Face Jobs."""
+    if not args.image:
+        raise SystemExit("--image is required with --submit-hf-job")
+    if not args.namespace:
+        raise SystemExit("--namespace is required with --submit-hf-job")
+
+    job_tag = args.job_tag or uuid.uuid4().hex[:8]
+    path_in_repo = args.path_in_repo or f"outputs/{args.model}/within_ladder"
+    code = build_within_ladder_hf_job_code(
+        model_key=args.model,
+        variations=repo_relative(args.variations),
+        results_dir=repo_relative(args.results_dir),
+        start_from=args.start_from,
+        max_variation_sets=args.max_variation_sets,
+        hub_dataset=args.hub_dataset,
+        path_in_repo=path_in_repo,
+    )
+
+    if args.dry_run:
+        print("HF Jobs command: python3 -u -c <generated code>")
+        print(code)
+        return 0
+
+    try:
+        from huggingface_hub import get_token, run_job
+    except ImportError as exc:
+        raise SystemExit(
+            "huggingface_hub is required for HF Jobs submission. "
+            'Install with: python -m pip install -e ".[hf-jobs]"'
+        ) from exc
+
+    token = os.environ.get("HF_TOKEN") or get_token()
+    if not token:
+        raise SystemExit("No HF token found. Run `hf auth login` or set HF_TOKEN.")
+
+    job = run_job(
+        image=args.image,
+        command=["python3", "-u", "-c", code],
+        flavor=args.flavor,
+        namespace=args.namespace,
+        timeout=args.timeout,
+        secrets={"HF_TOKEN": token},
+        env={
+            "HF_HOME": "/data",
+            "TRANSFORMERS_CACHE": "/data",
+            "VLLM_WORKER_MULTIPROC_METHOD": "spawn",
+            "PYTHONUNBUFFERED": "1",
+            "JOB_TAG": job_tag,
+        },
+    )
+    print("job tag:", job_tag)
+    print("job id:", job.id)
+    print("job url:", job.url)
+    if args.hub_dataset:
+        print(
+            "output path:",
+            f"https://huggingface.co/datasets/{args.hub_dataset}/tree/main/{path_in_repo}",
+        )
+    return 0
+
+
 def main():
     global _RESULTS_ROOT, _VARIATIONS_PATH, _START_FROM, _MAX_VARIATION_SETS, _SMOKE_SCOPE
 
@@ -1482,6 +1626,11 @@ def main():
     )
     parser.add_argument("--run-live", action="store_true", help="Run via live API calls (OpenRouter)")
     parser.add_argument("--run-local", action="store_true", help="Run locally via vLLM logprobs (base models)")
+    parser.add_argument(
+        "--submit-hf-job",
+        action="store_true",
+        help="Submit this within-ladder run to Hugging Face Jobs.",
+    )
     parser.add_argument("--concurrency", type=int, default=5, help="Concurrency for --run-live")
     parser.add_argument(
         "--poll-interval",
@@ -1526,6 +1675,22 @@ def main():
             "<results-dir>/<model>/within_ladder/."
         ),
     )
+    parser.add_argument("--image", default=None, help="Docker image tag for --submit-hf-job")
+    parser.add_argument("--namespace", default=None, help="HF user/org namespace for --submit-hf-job")
+    parser.add_argument("--flavor", default="h200x8", help="HF Jobs hardware flavor")
+    parser.add_argument("--timeout", default="12h", help="HF Jobs timeout, e.g. 2h or 12h")
+    parser.add_argument(
+        "--hub-dataset",
+        default=None,
+        help="Optional existing HF dataset repo for uploading HF Jobs outputs, e.g. org/repo.",
+    )
+    parser.add_argument(
+        "--path-in-repo",
+        default=None,
+        help="Optional dataset subdir for HF Jobs outputs. Defaults to outputs/<model>/within_ladder.",
+    )
+    parser.add_argument("--job-tag", default=None, help="Stable short tag for HF Jobs metadata.")
+    parser.add_argument("--dry-run", action="store_true", help="Print generated HF job code and exit.")
     args = parser.parse_args()
 
     if args.start_from < 0:
@@ -1546,6 +1711,7 @@ def main():
             args.run_batch,
             args.run_live,
             args.run_local,
+            args.submit_hf_job,
         )
     )
     if args.smoke and not has_step:
@@ -1596,6 +1762,9 @@ def main():
         )
 
     _print_run_header(args.model)
+
+    if args.submit_hf_job:
+        return submit_within_ladder_hf_job(args)
 
     if args.generate:
         n_requests, n_ladders = write_batch_input(args.model, with_reasoning=args.with_reasoning)
