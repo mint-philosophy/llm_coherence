@@ -46,6 +46,12 @@ from llm_coherence.paths import (
 )
 from llm_coherence.runtime.agents import MODEL_SPECS
 from llm_coherence.runtime.api_keys import require_api_key
+from llm_coherence.runtime.forced_choice_logprobs import (
+    ForcedChoiceScoringError,
+    normalized_choice_probabilities,
+    resolve_choice_token_ids,
+    vllm_load_kwargs_from_env,
+)
 from llm_coherence.runtime.usage_cost import (
     PER_REQUEST_COST_LOG_NAME,
     PHASE6B_COST_LOG_NAME as COST_LOG_NAME,
@@ -143,6 +149,7 @@ _VLLM_LOGPROBS_MODEL_IDS = {
     "glm-45-base-logprobs": "zai-org/GLM-4.5-Base",
     "llama-31-8b-instruct": "meta-llama/Llama-3.1-8B-Instruct",
     "llama-32-1b-instruct": "meta-llama/Llama-3.2-1B-Instruct",
+    "qwen25-05b-instruct-smoke": "Qwen/Qwen2.5-0.5B-Instruct",
     "qwen25-7b-instruct": "Qwen/Qwen2.5-7B-Instruct",
 }
 
@@ -202,6 +209,11 @@ def _build_within_ladder_models() -> dict[str, tuple[str, str, dict]]:
         except ValueError:
             continue
         registry[model_key] = (api_model, provider, dict(cfg.extra_body or {}))
+    # Auxiliary self-hosted models exercise the exact vLLM path without being
+    # paper model configurations. The 0.5B Qwen entry is the inexpensive L4
+    # smoke target; GLM remains the production H200x8 target.
+    for model_key, api_model in _VLLM_LOGPROBS_MODEL_IDS.items():
+        registry.setdefault(model_key, (api_model, "vllm_logprobs", {}))
     return registry
 
 
@@ -1205,26 +1217,26 @@ def run_local(model_key):
         requests = [json.loads(line) for line in f]
     print(f"[{model_key}] Loaded {len(requests)} requests")
 
+    model_source = os.environ.get("LLM_COHERENCE_VLLM_MODEL", api_model)
     cache_dir = os.environ.get("HF_HOME")
+    print(f"[{model_key}] Model source: {model_source}")
     tokenizer = AutoTokenizer.from_pretrained(
-        api_model, trust_remote_code=True,
+        model_source, trust_remote_code=True,
         cache_dir=cache_dir,
     )
-    a_ids = tokenizer.encode(" A", add_special_tokens=False)
-    b_ids = tokenizer.encode(" B", add_special_tokens=False)
-    token_id_a = a_ids[0]
-    token_id_b = b_ids[0]
+    token_id_a, token_id_b = resolve_choice_token_ids(tokenizer)
     print(f"[{model_key}] Token IDs: A={token_id_a}, B={token_id_b}")
 
     tp = torch.cuda.device_count() if torch.cuda.is_available() else 1
     llm_kwargs = {
-        "model": api_model,
+        "model": model_source,
         "trust_remote_code": True,
         "tensor_parallel_size": tp,
         "enable_prefix_caching": True,
     }
     if cache_dir:
         llm_kwargs["download_dir"] = cache_dir
+    llm_kwargs.update(vllm_load_kwargs_from_env())
     llm = LLM(**llm_kwargs)
 
     prompts = []
@@ -1232,30 +1244,33 @@ def run_local(model_key):
         prompt_text = req["prompt"]
         prompts.append(f"{FEW_SHOT_PROMPT_LOGPROBS}{prompt_text}\n\nAnswer:")
 
-    sampling_params = SamplingParams(temperature=0.0, max_tokens=1, logprobs=20)
+    sampling_params = SamplingParams(
+        temperature=0.0,
+        max_tokens=1,
+        logprobs=2,
+        allowed_token_ids=[token_id_a, token_id_b],
+    )
 
     print(f"[{model_key}] Running vLLM inference on {len(prompts)} prompts...")
     outputs = llm.generate(prompts, sampling_params)
+    if len(outputs) != len(requests):
+        raise ForcedChoiceScoringError(
+            f"vLLM returned {len(outputs)} outputs for {len(requests)} requests."
+        )
 
     clean_rows = []
-    for req, output in zip(requests, outputs):
+    for index, (req, output) in enumerate(zip(requests, outputs)):
         logprobs_per_pos = output.outputs[0].logprobs
         if not logprobs_per_pos or logprobs_per_pos[0] is None:
-            prob_a, prob_b = 0.5, 0.5
-        else:
-            top_lp = logprobs_per_pos[0]
-            lp_a_obj = top_lp.get(token_id_a)
-            lp_b_obj = top_lp.get(token_id_b)
-            score_a = lp_a_obj.logprob if lp_a_obj else float('-inf')
-            score_b = lp_b_obj.logprob if lp_b_obj else float('-inf')
-            if score_a == float('-inf') and score_b == float('-inf'):
-                prob_a, prob_b = 0.5, 0.5
-            else:
-                mx = max(score_a, score_b)
-                ea = math.exp(score_a - mx) if score_a != float('-inf') else 0.0
-                eb = math.exp(score_b - mx) if score_b != float('-inf') else 0.0
-                total = ea + eb
-                prob_a, prob_b = ea / total, eb / total
+            raise ForcedChoiceScoringError(
+                f"vLLM returned no next-token logprobs for request index {index} "
+                f"({req['custom_id']})."
+            )
+        probabilities = normalized_choice_probabilities(
+            logprobs_per_pos[0], token_id_a, token_id_b
+        )
+        prob_a = probabilities["A"]
+        prob_b = probabilities["B"]
 
         winner = "A" if prob_a >= prob_b else "B"
         clean_rows.append({
@@ -1563,11 +1578,16 @@ def submit_within_ladder_hf_job(args: argparse.Namespace) -> int:
 
     if args.dry_run:
         print("HF Jobs command: python3 -u -c <generated code>")
+        if args.model_volume:
+            print(
+                "HF model volume:",
+                f"{args.model_volume} -> {args.model_volume_path}",
+            )
         print(code)
         return 0
 
     try:
-        from huggingface_hub import get_token, run_job
+        from huggingface_hub import Volume, get_token, run_job
     except ImportError as exc:
         raise SystemExit(
             "huggingface_hub is required for HF Jobs submission. "
@@ -1578,6 +1598,32 @@ def submit_within_ladder_hf_job(args: argparse.Namespace) -> int:
     if not token:
         raise SystemExit("No HF token found. Run `hf auth login` or set HF_TOKEN.")
 
+    job_env = {
+        "HF_HOME": "/data",
+        "TRANSFORMERS_CACHE": "/data",
+        "VLLM_WORKER_MULTIPROC_METHOD": "spawn",
+        "PYTHONUNBUFFERED": "1",
+        "JOB_TAG": job_tag,
+    }
+    volumes = None
+    if args.model_volume:
+        print(
+            "WARNING: HF model volumes use FUSE and may load very slowly for "
+            "large sharded checkpoints. Omit --model-volume to use the local "
+            "/data cache (recommended for GLM)."
+        )
+        volumes = [
+            Volume(
+                type="model",
+                source=args.model_volume,
+                mount_path=args.model_volume_path,
+            )
+        ]
+        job_env["LLM_COHERENCE_VLLM_MODEL"] = args.model_volume_path
+        job_env["LLM_COHERENCE_SAFETENSORS_LOAD_STRATEGY"] = "prefetch"
+        job_env["LLM_COHERENCE_SAFETENSORS_PREFETCH_THREADS"] = "16"
+        job_env["LLM_COHERENCE_MAX_MODEL_LEN"] = "4096"
+
     job = run_job(
         image=args.image,
         command=["python3", "-u", "-c", code],
@@ -1585,13 +1631,8 @@ def submit_within_ladder_hf_job(args: argparse.Namespace) -> int:
         namespace=args.namespace,
         timeout=args.timeout,
         secrets={"HF_TOKEN": token},
-        env={
-            "HF_HOME": "/data",
-            "TRANSFORMERS_CACHE": "/data",
-            "VLLM_WORKER_MULTIPROC_METHOD": "spawn",
-            "PYTHONUNBUFFERED": "1",
-            "JOB_TAG": job_tag,
-        },
+        env=job_env,
+        volumes=volumes,
     )
     print("job tag:", job_tag)
     print("job id:", job.id)
@@ -1680,6 +1721,20 @@ def main():
     parser.add_argument("--flavor", default="h200x8", help="HF Jobs hardware flavor")
     parser.add_argument("--timeout", default="12h", help="HF Jobs timeout, e.g. 2h or 12h")
     parser.add_argument(
+        "--model-volume",
+        default=None,
+        help=(
+            "Experimental HF model repo mounted read-only for --submit-hf-job. "
+            "Large sharded models may stall on the FUSE mount; omitting this "
+            "option uses the recommended local /data cache."
+        ),
+    )
+    parser.add_argument(
+        "--model-volume-path",
+        default="/data/model",
+        help="Absolute in-container mount path for --model-volume (default: /data/model).",
+    )
+    parser.add_argument(
         "--hub-dataset",
         default=None,
         help="Optional existing HF dataset repo for uploading HF Jobs outputs, e.g. org/repo.",
@@ -1699,6 +1754,8 @@ def main():
         parser.error("--max-variation-sets must be >= 1 when set")
     if args.poll_interval < 1:
         parser.error("--poll-interval must be >= 1")
+    if args.model_volume and not Path(args.model_volume_path).is_absolute():
+        parser.error("--model-volume-path must be absolute")
 
     has_step = any(
         (

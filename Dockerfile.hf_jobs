@@ -7,8 +7,11 @@ COPY src/ /app/src/
 COPY scripts/ /app/scripts/
 COPY data/ /app/data/
 
-RUN pip install --no-cache-dir uv && \
-    uv pip install --system --no-cache -e ".[hf-jobs]" && \
+# Preserve the vLLM image's coordinated CUDA/PyTorch/NumPy stack. The project
+# package is sufficient for inference; full analysis dependencies are installed
+# in the ordinary local environment, not over the GPU runtime.
+RUN pip install --no-cache-dir --no-deps -e . && \
+    python3 -c "import huggingface_hub, torch, transformers, vllm" && \
     pip freeze > /requirements-frozen.txt
 
 ENV PYTHONPATH=/app/src

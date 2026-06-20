@@ -910,11 +910,16 @@ def submit_phase6b_hf_job(args: argparse.Namespace, system_message: str | None) 
 
     if args.dry_run:
         print("HF Jobs command: python3 -u -c <generated code>")
+        if args.model_volume:
+            print(
+                "HF model volume:",
+                f"{args.model_volume} -> {args.model_volume_path}",
+            )
         print(code)
         return 0
 
     try:
-        from huggingface_hub import get_token, run_job
+        from huggingface_hub import Volume, get_token, run_job
     except ImportError as exc:
         raise SystemExit(
             "huggingface_hub is required for HF Jobs submission. "
@@ -925,6 +930,32 @@ def submit_phase6b_hf_job(args: argparse.Namespace, system_message: str | None) 
     if not token:
         raise SystemExit("No HF token found. Run `hf auth login` or set HF_TOKEN.")
 
+    job_env = {
+        "HF_HOME": "/data",
+        "TRANSFORMERS_CACHE": "/data",
+        "VLLM_WORKER_MULTIPROC_METHOD": "spawn",
+        "PYTHONUNBUFFERED": "1",
+        "JOB_TAG": job_tag,
+    }
+    volumes = None
+    if args.model_volume:
+        print(
+            "WARNING: HF model volumes use FUSE and may load very slowly for "
+            "large sharded checkpoints. Omit --model-volume to use the local "
+            "/data cache (recommended for GLM)."
+        )
+        volumes = [
+            Volume(
+                type="model",
+                source=args.model_volume,
+                mount_path=args.model_volume_path,
+            )
+        ]
+        job_env["LLM_COHERENCE_VLLM_MODEL"] = args.model_volume_path
+        job_env["LLM_COHERENCE_SAFETENSORS_LOAD_STRATEGY"] = "prefetch"
+        job_env["LLM_COHERENCE_SAFETENSORS_PREFETCH_THREADS"] = "16"
+        job_env["LLM_COHERENCE_MAX_MODEL_LEN"] = "4096"
+
     job = run_job(
         image=args.image,
         command=["python3", "-u", "-c", code],
@@ -932,13 +963,8 @@ def submit_phase6b_hf_job(args: argparse.Namespace, system_message: str | None) 
         namespace=args.namespace,
         timeout=args.timeout,
         secrets={"HF_TOKEN": token},
-        env={
-            "HF_HOME": "/data",
-            "TRANSFORMERS_CACHE": "/data",
-            "VLLM_WORKER_MULTIPROC_METHOD": "spawn",
-            "PYTHONUNBUFFERED": "1",
-            "JOB_TAG": job_tag,
-        },
+        env=job_env,
+        volumes=volumes,
     )
     print("job tag:", job_tag)
     print("job id:", job.id)
@@ -1047,6 +1073,20 @@ def main():
     parser.add_argument("--flavor", default="h200x8", help="HF Jobs hardware flavor")
     parser.add_argument("--timeout", default="12h", help="HF Jobs timeout, e.g. 2h or 12h")
     parser.add_argument(
+        "--model-volume",
+        default=None,
+        help=(
+            "Experimental HF model repo mounted read-only for --submit-hf-job. "
+            "Large sharded models may stall on the FUSE mount; omitting this "
+            "option uses the recommended local /data cache."
+        ),
+    )
+    parser.add_argument(
+        "--model-volume-path",
+        default="/data/model",
+        help="Absolute in-container mount path for --model-volume (default: /data/model).",
+    )
+    parser.add_argument(
         "--path-in-repo",
         default=None,
         help=(
@@ -1061,6 +1101,8 @@ def main():
         parser.error("--start-from must be >= 0")
     if args.max_variation_sets is not None and args.max_variation_sets < 1:
         parser.error("--max-variation-sets must be >= 1 when set")
+    if args.model_volume and not Path(args.model_volume_path).is_absolute():
+        parser.error("--model-volume-path must be absolute")
 
     from llm_coherence.config import MODEL_CONFIGS
     cfg = MODEL_CONFIGS.get(args.model)

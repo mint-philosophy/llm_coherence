@@ -187,6 +187,28 @@ IMAGE=your-dockerhub-user/llm-coherence-vllm:glm-base-YYYYMMDD
 bash scripts/00_repository/01_build_hf_jobs_image.sh "$IMAGE"
 ```
 
+Before entering the H200 queue, exercise the same within-ladder vLLM scoring
+and upload path on one inexpensive L4 with the auxiliary Qwen 0.5B smoke
+model:
+
+```bash
+PYTHONPATH=src python scripts/04_model_runs/10a_run_within_ladder_experiment.py \
+  --submit-hf-job \
+  --model qwen25-05b-instruct-smoke \
+  --image "$IMAGE" \
+  --namespace MINTLABJHUANU \
+  --flavor l4x1 \
+  --timeout 1h \
+  --max-variation-sets 1 \
+  --hub-dataset MINTLABJHUANU/LLMCoherence_Var_100 \
+  --job-tag qwen-l4-scoring-smoke \
+  --path-in-repo smoke/qwen25-05b-instruct/scoring-smoke/within_ladder
+```
+
+This proxy run validates the container, 42-request one-ladder input, exact
+constrained A/B logprob scoring, analysis, and Hub upload. It does not validate
+that GLM fits or loads on the selected hardware; GLM remains an H200x8 run.
+
 Submit a one-ladder within-ladder smoke job first:
 
 ```bash
@@ -196,7 +218,7 @@ PYTHONPATH=src python scripts/04_model_runs/10a_run_within_ladder_experiment.py 
   --image "$IMAGE" \
   --namespace MINTLABJHUANU \
   --flavor h200x8 \
-  --timeout 2h \
+  --timeout 1h \
   --max-variation-sets 1 \
   --hub-dataset MINTLABJHUANU/LLMCoherence_Var_100 \
   --job-tag glm-smoke-YYYYMMDD \
@@ -227,22 +249,45 @@ Submit the 7-tier ladder-vs-comparison run through Step 10b with the same model 
 ```bash
 PYTHONPATH=src python scripts/04_model_runs/10b_run_7tier_experiment.py \
   --submit-hf-job \
+  --model qwen25-05b-instruct-smoke \
+  --trials 1 \
+  --image "$IMAGE" \
+  --namespace MINTLABJHUANU \
+  --flavor l4x1 \
+  --timeout 1h \
+  --max-variation-sets 1 \
+  --smoke \
+  --hub-dataset MINTLABJHUANU/LLMCoherence_Var_100 \
+  --path-in-repo smoke/qwen25-05b-instruct/scoring-smoke/ladder_vs_comparison_statements
+```
+
+After that proxy path succeeds, run the GLM smoke on H200x8:
+
+```bash
+PYTHONPATH=src python scripts/04_model_runs/10b_run_7tier_experiment.py \
+  --submit-hf-job \
   --model glm-45-base-logprobs \
-  --trials 10 \
+  --trials 1 \
   --image "$IMAGE" \
   --namespace MINTLABJHUANU \
   --flavor h200x8 \
-  --timeout 12h \
+  --timeout 1h \
   --max-variation-sets 1 \
   --hub-dataset MINTLABJHUANU/LLMCoherence_Var_100 \
   --path-in-repo smoke/glm-45-base-logprobs/glm-smoke-YYYYMMDD/ladder_vs_comparison_statements
 ```
 
-For the full 7-tier run, omit `--max-variation-sets`. The default upload path is:
+For the full 7-tier run, set `--trials 10`, restore `--timeout 12h`, and omit
+`--max-variation-sets`. The default upload path is:
 
 ```text
 outputs/glm-45-base-logprobs/ladder_vs_comparison_statements/
 ```
+
+Do not use `--model-volume` for the normal GLM run. Large sharded checkpoints
+can load very slowly from FUSE-mounted model volumes. By default, the model is
+downloaded to the job's local `/data` cache. `--model-volume` remains available
+as an experimental override and enables vLLM's prefetch loading strategy.
 
 ## Outputs and External Artifacts
 
