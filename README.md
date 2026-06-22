@@ -1,6 +1,5 @@
 # LLM Preference Coherence
 
-Code and data release for measuring monotonic preference coherence in LLM forced-choice evaluations.
 
 This repository contains the code and input materials for research on whether LLM forced-choice preferences remain coherent under controlled seven-tier outcome variations.
 
