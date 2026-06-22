@@ -276,8 +276,26 @@ PYTHONPATH=src python scripts/04_model_runs/10b_run_7tier_experiment.py \
   --path-in-repo smoke/glm-45-base-logprobs/glm-smoke-YYYYMMDD/ladder_vs_comparison_statements
 ```
 
-For the full 7-tier run, set `--trials 10`, restore `--timeout 12h`, and omit
-`--max-variation-sets`. The default upload path is:
+After the GLM smoke succeeds, submit the complete 100-ladder Step 10b run with
+10 trials per comparison:
+
+```bash
+PYTHONPATH=src python scripts/04_model_runs/10b_run_7tier_experiment.py \
+  --submit-hf-job \
+  --model glm-45-base-logprobs \
+  --trials 10 \
+  --image "$IMAGE" \
+  --namespace MINTLABJHUANU \
+  --flavor h200x8 \
+  --timeout 12h \
+  --hub-dataset MINTLABJHUANU/LLMCoherence_Var_100 \
+  --job-tag glm-7tier-full-YYYYMMDD \
+  --path-in-repo outputs/glm-45-base-logprobs/ladder_vs_comparison_statements
+```
+
+This command runs the actual GLM ladder-versus-comparison experiment, not the
+within-ladder validation. It processes the full manifest because it does not
+set `--max-variation-sets`. Results are uploaded to:
 
 ```text
 outputs/glm-45-base-logprobs/ladder_vs_comparison_statements/
