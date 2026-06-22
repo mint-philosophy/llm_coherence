@@ -186,10 +186,71 @@ IMAGE=your-dockerhub-user/llm-coherence-vllm:glm-base-YYYYMMDD
 bash scripts/00_repository/01_build_hf_jobs_image.sh "$IMAGE"
 ```
 
-### 100-ladder GLM experiment (Step 10b)
+### Within-ladder GLM experiment (Instance 1 / Step 10a)
 
-Before entering the H200 queue, exercise the generic ladder-versus-comparison
-runner on one inexpensive L4 with the auxiliary Qwen 0.5B smoke model:
+Before entering the H200 queue, exercise the same within-ladder vLLM scoring
+and upload path on one inexpensive L4 with the auxiliary Qwen 0.5B smoke
+model:
+
+```bash
+PYTHONPATH=src python scripts/04_model_runs/10a_run_within_ladder_experiment.py \
+  --submit-hf-job \
+  --model qwen25-05b-instruct-smoke \
+  --image "$IMAGE" \
+  --namespace MINTLABJHUANU \
+  --flavor l4x1 \
+  --timeout 1h \
+  --max-variation-sets 1 \
+  --hub-dataset MINTLABJHUANU/LLMCoherence_Var_100 \
+  --job-tag qwen-l4-scoring-smoke \
+  --path-in-repo smoke/qwen25-05b-instruct/scoring-smoke/within_ladder
+```
+
+This proxy run validates the container, 42-request one-ladder input, exact
+constrained A/B logprob scoring, analysis, and Hub upload. It does not validate
+that GLM fits or loads on the selected hardware; GLM remains an H200x8 run.
+
+Submit a one-ladder within-ladder smoke job first:
+
+```bash
+PYTHONPATH=src python scripts/04_model_runs/10a_run_within_ladder_experiment.py \
+  --submit-hf-job \
+  --model glm-45-base-logprobs \
+  --image "$IMAGE" \
+  --namespace MINTLABJHUANU \
+  --flavor h200x8 \
+  --timeout 1h \
+  --max-variation-sets 1 \
+  --hub-dataset MINTLABJHUANU/LLMCoherence_Var_100 \
+  --job-tag glm-smoke-YYYYMMDD \
+  --path-in-repo smoke/glm-45-base-logprobs/glm-smoke-YYYYMMDD/within_ladder
+```
+
+For the full within-ladder run across all 100 ladders, omit
+`--max-variation-sets` and upload to the canonical output path:
+
+```bash
+PYTHONPATH=src python scripts/04_model_runs/10a_run_within_ladder_experiment.py \
+  --submit-hf-job \
+  --model glm-45-base-logprobs \
+  --image "$IMAGE" \
+  --namespace MINTLABJHUANU \
+  --flavor h200x8 \
+  --timeout 12h \
+  --hub-dataset MINTLABJHUANU/LLMCoherence_Var_100 \
+  --job-tag glm-within-ladder-full-YYYYMMDD \
+  --path-in-repo outputs/glm-45-base-logprobs/within_ladder
+```
+
+The within-ladder HF job runs Step 10a inside the container as `--generate`, `--run-local`, then `--analyze`. When `--hub-dataset` is supplied without an explicit `--path-in-repo`, outputs are uploaded to:
+
+```text
+outputs/glm-45-base-logprobs/within_ladder/
+```
+
+### 100-ladder GLM experiment (Instance 2 / Step 10b)
+
+Submit the 7-tier ladder-vs-comparison run through Step 10b with the same model flag:
 
 ```bash
 PYTHONPATH=src python scripts/04_model_runs/10b_run_7tier_experiment.py \
@@ -206,7 +267,7 @@ PYTHONPATH=src python scripts/04_model_runs/10b_run_7tier_experiment.py \
   --path-in-repo smoke/qwen25-05b-instruct/scoring-smoke/ladder_vs_comparison_statements
 ```
 
-Then run a one-ladder GLM smoke on H200x8:
+After that proxy path succeeds, run the GLM smoke on H200x8:
 
 ```bash
 PYTHONPATH=src python scripts/04_model_runs/10b_run_7tier_experiment.py \
@@ -220,12 +281,11 @@ PYTHONPATH=src python scripts/04_model_runs/10b_run_7tier_experiment.py \
   --max-variation-sets 1 \
   --smoke \
   --hub-dataset MINTLABJHUANU/LLMCoherence_Var_100 \
-  --job-tag glm-7tier-smoke-YYYYMMDD \
   --path-in-repo smoke/glm-45-base-logprobs/glm-smoke-YYYYMMDD/ladder_vs_comparison_statements
 ```
 
-After the GLM smoke succeeds, submit the complete 100-ladder run with 10 trials
-per comparison:
+After the GLM smoke succeeds, submit the complete 100-ladder Step 10b run with
+10 trials per comparison:
 
 ```bash
 PYTHONPATH=src python scripts/04_model_runs/10b_run_7tier_experiment.py \
@@ -241,69 +301,12 @@ PYTHONPATH=src python scripts/04_model_runs/10b_run_7tier_experiment.py \
   --path-in-repo outputs/glm-45-base-logprobs/ladder_vs_comparison_statements
 ```
 
-This is the actual GLM ladder-versus-comparison experiment. It processes the
-full 100-file manifest because it does not set `--max-variation-sets`. Results
-are uploaded to:
+This command runs the actual GLM ladder-versus-comparison experiment, not the
+within-ladder validation. It processes the full manifest because it does not
+set `--max-variation-sets`. Results are uploaded to:
 
 ```text
 outputs/glm-45-base-logprobs/ladder_vs_comparison_statements/
-```
-
-### Within-ladder GLM experiment (Step 10a)
-
-Exercise the within-ladder scoring and upload path on L4 first:
-
-```bash
-PYTHONPATH=src python scripts/04_model_runs/10a_run_within_ladder_experiment.py \
-  --submit-hf-job \
-  --model qwen25-05b-instruct-smoke \
-  --image "$IMAGE" \
-  --namespace MINTLABJHUANU \
-  --flavor l4x1 \
-  --timeout 1h \
-  --max-variation-sets 1 \
-  --hub-dataset MINTLABJHUANU/LLMCoherence_Var_100 \
-  --job-tag qwen-l4-scoring-smoke \
-  --path-in-repo smoke/qwen25-05b-instruct/scoring-smoke/within_ladder
-```
-
-Then submit a one-ladder GLM within-ladder smoke:
-
-```bash
-PYTHONPATH=src python scripts/04_model_runs/10a_run_within_ladder_experiment.py \
-  --submit-hf-job \
-  --model glm-45-base-logprobs \
-  --image "$IMAGE" \
-  --namespace MINTLABJHUANU \
-  --flavor h200x8 \
-  --timeout 1h \
-  --max-variation-sets 1 \
-  --hub-dataset MINTLABJHUANU/LLMCoherence_Var_100 \
-  --job-tag glm-within-ladder-smoke-YYYYMMDD \
-  --path-in-repo smoke/glm-45-base-logprobs/glm-smoke-YYYYMMDD/within_ladder
-```
-
-For the full within-ladder run, omit `--max-variation-sets` and upload to the
-canonical output path:
-
-```bash
-PYTHONPATH=src python scripts/04_model_runs/10a_run_within_ladder_experiment.py \
-  --submit-hf-job \
-  --model glm-45-base-logprobs \
-  --image "$IMAGE" \
-  --namespace MINTLABJHUANU \
-  --flavor h200x8 \
-  --timeout 12h \
-  --hub-dataset MINTLABJHUANU/LLMCoherence_Var_100 \
-  --job-tag glm-within-ladder-full-YYYYMMDD \
-  --path-in-repo outputs/glm-45-base-logprobs/within_ladder
-```
-
-The within-ladder job runs Step 10a as `--generate`, `--run-local`, then
-`--analyze`. Results are uploaded to:
-
-```text
-outputs/glm-45-base-logprobs/within_ladder/
 ```
 
 Do not use `--model-volume` for the normal GLM run. Large sharded checkpoints
