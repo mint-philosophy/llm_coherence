@@ -1,11 +1,13 @@
-# LLM Preference Coherence
+<h1 align="center">Incoherent Values? Probing LLM Preferences Through Parametric Variation</h1>
 
+<p align="center">
+  Code and data for testing whether LLM forced-choice preferences remain ordered across controlled seven-tier outcome ladders.
+</p>
 
-This repository contains the code and input materials for research on whether LLM forced-choice preferences remain coherent under controlled seven-tier outcome variations.
-
-The central test is: when one value-relevant property is increased across an ordered ladder, does the model's preference probability move in the intended direction, or does it reverse, flatten, or become erratic?
-
-The repository is organized as a reproducible research artifact from the [MINT Lab](https://mintresearch.org/). It includes validated ladder inputs, forced-choice comparison inputs, model-run wrappers, analysis code, and lightweight public summaries. Raw model responses and full paper-output payloads are not tracked in Git; the complete experiment datasets are hosted on Hugging Face (see below).
+This repository provides the validated inputs, model-run wrappers, and analysis
+code for measuring monotonic preference coherence and predictive utility across
+LLMs. Complete experiment artifacts are hosted on Hugging Face; Git tracks the
+reproducible code, canonical inputs, and lightweight public summaries.
 
 ## Experiment Data
 
@@ -361,3 +363,18 @@ These are not substitutes for the raw model-response artifact bundle on [Hugging
 ## License
 
 Released under the MIT License. See [LICENSE](LICENSE).
+
+## Citation
+
+If you use this repository or its experiment artifacts, please cite:
+
+> Ajayi, Chowdhury, & Lazar. (2026). *Incoherent Values? Probing LLM Preferences Through Parametric Variation* [Manuscript].
+
+```bibtex
+@unpublished{ajayi_chowdhury_lazar_2026_incoherent_values,
+  author  = {Ajayi and Chowdhury and Lazar},
+  title   = {Incoherent Values? Probing LLM Preferences Through Parametric Variation},
+  year    = {2026},
+  note    = {Manuscript}
+}
+```
