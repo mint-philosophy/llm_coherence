@@ -4,10 +4,9 @@
   Code and data for testing whether LLM forced-choice preferences remain ordered across controlled seven-tier outcome ladders.
 </p>
 
-This repository provides the validated inputs, model-run wrappers, and analysis
-code for measuring monotonic preference coherence and predictive utility across
-LLMs. Complete experiment artifacts are hosted on Hugging Face; Git tracks the
-reproducible code, canonical inputs, and lightweight public summaries.
+This repository provides the validated inputs, model-run wrappers, and analysis code for measuring monotonic preference coherence and predictive utility across LLMs. 
+
+Complete experiment artifacts are hosted on Hugging Face. Git tracks the reproducible code, canonical inputs, and lightweight public summaries.
 
 ## Experiment Data
 
@@ -56,6 +55,15 @@ The main count progression is:
 | Final validated ladders | 100 |
 
 ## Installation
+
+### Required dependencies
+
+- **Python** `>=3.11,<3.13` (use 3.11 or 3.12) — required for all local analysis, replication from the Hub dataset, and API-based model runs.
+
+Optional — only if you **re-run `glm-45-base-logprobs` from scratch** (self-hosted vLLM on GPU; not routed through OpenRouter). Skip these if you download existing outputs from [MINTLABJHUANU/LLMCoherence_Var_100](https://huggingface.co/datasets/MINTLABJHUANU/LLMCoherence_Var_100) or only run other models via API:
+
+- **Docker** — [Docker Desktop](https://www.docker.com/products/docker-desktop/) and a **Docker Hub** account (`docker login`) to build and push `Dockerfile.hf_jobs`.
+- **Hugging Face** -  set `api_keys/hf_token` (or `hf auth login`) to **submit** GLM jobs with `--submit-hf-job` 
 
 Create an isolated environment and install the package:
 
@@ -190,8 +198,7 @@ bash scripts/00_repository/01_build_hf_jobs_image.sh "$IMAGE"
 
 ### Within-ladder GLM experiment (Instance 1 / Step 10a)
 
-Before entering the H200 queue, exercise the same within-ladder vLLM scoring
-and upload path on one inexpensive L4 with the auxiliary Qwen 0.5B smoke
+Before entering the H200 queue, exercise the same within-ladder vLLM scoring and upload path on one inexpensive L4 with the auxiliary Qwen 0.5B smoke
 model:
 
 ```bash
@@ -208,9 +215,7 @@ PYTHONPATH=src python scripts/04_model_runs/10a_run_within_ladder_experiment.py 
   --path-in-repo smoke/qwen25-05b-instruct/scoring-smoke/within_ladder
 ```
 
-This proxy run validates the container, 42-request one-ladder input, exact
-constrained A/B logprob scoring, analysis, and Hub upload. It does not validate
-that GLM fits or loads on the selected hardware; GLM remains an H200x8 run.
+This proxy run validates the container, 42-request one-ladder input, exact constrained A/B logprob scoring, analysis, and Hub upload. It does not validate that GLM fits or loads on the selected hardware; GLM remains an H200x8 run.
 
 Submit a one-ladder within-ladder smoke job first:
 
