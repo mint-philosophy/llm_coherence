@@ -372,13 +372,16 @@ Released under the MIT License. See [LICENSE](LICENSE).
 
 If you use this repository or its experiment artifacts, please cite:
 
-> Ajayi, Chowdhury, & Lazar. (2026). *Incoherent Values? Probing LLM Preferences Through Parametric Variation* [Manuscript].
+> Ajayi, E., Chowdhury, A., & Lazar, S. (2026). *Incoherent Values? Probing LLM Preferences Through Parametric Variation*. arXiv:2606.21102. https://arxiv.org/abs/2606.21102
 
 ```bibtex
-@unpublished{ajayi_chowdhury_lazar_2026_incoherent_values,
-  author  = {Ajayi and Chowdhury and Lazar},
-  title   = {Incoherent Values? Probing LLM Preferences Through Parametric Variation},
-  year    = {2026},
-  note    = {Manuscript}
+@misc{ajayi_chowdhury_lazar_2026_incoherent_values,
+  author        = {Ajayi, Elena and Chowdhury, Angelica and Lazar, Seth},
+  title         = {Incoherent Values? Probing LLM Preferences Through Parametric Variation},
+  year          = {2026},
+  eprint        = {2606.21102},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CY},
+  url           = {https://arxiv.org/abs/2606.21102}
 }
 ```
