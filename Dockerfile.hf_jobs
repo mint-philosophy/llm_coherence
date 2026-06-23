@@ -1,0 +1,26 @@
+FROM vllm/vllm-openai:cu130-nightly
+
+WORKDIR /app
+
+COPY pyproject.toml README.md /app/
+COPY src/ /app/src/
+COPY scripts/ /app/scripts/
+COPY data/ /app/data/
+
+# Preserve the vLLM image's coordinated CUDA/PyTorch/NumPy stack. The project
+# package is sufficient for inference; full analysis dependencies are installed
+# in the ordinary local environment, not over the GPU runtime.
+RUN pip install --no-cache-dir --no-deps -e . && \
+    python3 -c "import huggingface_hub, torch, transformers, vllm" && \
+    pip freeze > /requirements-frozen.txt
+
+ENV PYTHONPATH=/app/src
+ENV HF_HOME=/data
+ENV TRANSFORMERS_CACHE=/data
+ENV VLLM_WORKER_MULTIPROC_METHOD=spawn
+ENV PYTHONUNBUFFERED=1
+
+# HF Jobs can ignore image entrypoints depending on how commands are submitted.
+# Submitters should pass an explicit command like: python3 -u -c <code>.
+ENTRYPOINT []
+CMD ["python3"]

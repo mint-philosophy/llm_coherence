@@ -1,0 +1,15 @@
+# Keep the HF Jobs image context intentionally small and secret-free.
+*
+!Dockerfile.hf_jobs
+!pyproject.toml
+!README.md
+!src/
+!src/**
+!scripts/
+!scripts/**
+!data/
+!data/**
+
+**/__pycache__/
+**/*.py[cod]
+**/.DS_Store

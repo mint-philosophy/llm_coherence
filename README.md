@@ -1,14 +1,18 @@
-# LLM Preference Coherence
+<h1 align="center">Incoherent Values? Probing LLM Preferences Through Parametric Variation</h1>
 
-This repository contains the code and input materials for research on whether LLM forced-choice preferences remain coherent under controlled seven-tier outcome variations.
+<p align="center">
+  Code and data for testing whether LLM forced-choice preferences remain ordered across controlled seven-tier outcome ladders.
+</p>
 
-The central test is: when one value-relevant property is increased across an ordered ladder, does the model's preference probability move in the intended direction, or does it reverse, flatten, or become erratic?
+This repository provides the validated inputs, model-run wrappers, and analysis code for measuring monotonic preference coherence and predictive utility across LLMs. 
 
-The repository is organized as a reproducible research artifact from the [MINT Lab](https://mintresearch.org/). It includes validated ladder inputs, forced-choice comparison inputs, model-run wrappers, analysis code, and lightweight public summaries. Raw model responses and full paper-output payloads are not tracked in Git; the complete experiment datasets are hosted on Hugging Face (see below).
+Complete experiment artifacts are hosted on Hugging Face. Git tracks the reproducible code, canonical inputs, and lightweight public summaries.
 
 ## Experiment Data
 
 All datasets created during the experiment—including canonical inputs under `data/` and model-run payloads under `outputs/`—are available on Hugging Face:
+
+[![Hugging Face Dataset](https://img.shields.io/badge/%F0%9F%A4%97%20Dataset-LLMCoherence__Var__100-yellow)](https://huggingface.co/datasets/MINTLABJHUANU/LLMCoherence_Var_100)
 
 **[MINTLABJHUANU/LLMCoherence_Var_100](https://huggingface.co/datasets/MINTLABJHUANU/LLMCoherence_Var_100/tree/main)**
 
@@ -52,6 +56,15 @@ The main count progression is:
 
 ## Installation
 
+### Required dependencies
+
+- **Python** `>=3.11,<3.13` (use 3.11 or 3.12) — required for all local analysis, replication from the Hub dataset, and API-based model runs.
+
+Optional — only if you **re-run `glm-45-base-logprobs` from scratch** (self-hosted vLLM on GPU; not routed through OpenRouter). Skip these if you download existing outputs from [MINTLABJHUANU/LLMCoherence_Var_100](https://huggingface.co/datasets/MINTLABJHUANU/LLMCoherence_Var_100) or only run other models via API:
+
+- **Docker** — [Docker Desktop](https://www.docker.com/products/docker-desktop/) and a **Docker Hub** account (`docker login`) to build and push `Dockerfile.hf_jobs`.
+- **Hugging Face** -  set `api_keys/hf_token` (or `hf auth login`) to **submit** GLM jobs with `--submit-hf-job` 
+
 Create an isolated environment and install the package:
 
 ```bash
@@ -63,6 +76,12 @@ The environment script installs the dependencies declared in `pyproject.toml`, i
 
 ```bash
 python -m pip install -e .
+```
+
+HF Jobs submission helpers require the optional Hub dependency:
+
+```bash
+python -m pip install -e ".[hf-jobs]"
 ```
 
 Validate tracked inputs and lightweight indexes:
@@ -166,6 +185,142 @@ Run scripts from the repository root with `PYTHONPATH=src python <script>`.
 
 The early instrument-design and ladder-audit stages require API access and are not necessary for most replication workflows. Most users should start from the tracked validated ladders and forced-choice inputs.
 
+## GLM Base on HF Jobs
+
+`glm-45-base-logprobs` is the self-hosted GLM base run. It is not routed through OpenRouter. Use the same Step 10a and Step 10b scripts as every other model; select GLM base with `--model glm-45-base-logprobs` and submit to HF Jobs with `--submit-hf-job`.
+
+Build and push the HF Jobs image from the repository root:
+
+```bash
+IMAGE=your-dockerhub-user/llm-coherence-vllm:glm-base-YYYYMMDD
+bash scripts/00_repository/01_build_hf_jobs_image.sh "$IMAGE"
+```
+
+### Within-ladder GLM experiment (Instance 1 / Step 10a)
+
+Before entering the H200 queue, exercise the same within-ladder vLLM scoring and upload path on one inexpensive L4 with the auxiliary Qwen 0.5B smoke
+model:
+
+```bash
+PYTHONPATH=src python scripts/04_model_runs/10a_run_within_ladder_experiment.py \
+  --submit-hf-job \
+  --model qwen25-05b-instruct-smoke \
+  --image "$IMAGE" \
+  --namespace MINTLABJHUANU \
+  --flavor l4x1 \
+  --timeout 1h \
+  --max-variation-sets 1 \
+  --hub-dataset MINTLABJHUANU/LLMCoherence_Var_100 \
+  --job-tag qwen-l4-scoring-smoke \
+  --path-in-repo smoke/qwen25-05b-instruct/scoring-smoke/within_ladder
+```
+
+This proxy run validates the container, 42-request one-ladder input, exact constrained A/B logprob scoring, analysis, and Hub upload. It does not validate that GLM fits or loads on the selected hardware; GLM remains an H200x8 run.
+
+Submit a one-ladder within-ladder smoke job first:
+
+```bash
+PYTHONPATH=src python scripts/04_model_runs/10a_run_within_ladder_experiment.py \
+  --submit-hf-job \
+  --model glm-45-base-logprobs \
+  --image "$IMAGE" \
+  --namespace MINTLABJHUANU \
+  --flavor h200x8 \
+  --timeout 1h \
+  --max-variation-sets 1 \
+  --hub-dataset MINTLABJHUANU/LLMCoherence_Var_100 \
+  --job-tag glm-smoke-YYYYMMDD \
+  --path-in-repo smoke/glm-45-base-logprobs/glm-smoke-YYYYMMDD/within_ladder
+```
+
+For the full within-ladder run across all 100 ladders, omit
+`--max-variation-sets` and upload to the canonical output path:
+
+```bash
+PYTHONPATH=src python scripts/04_model_runs/10a_run_within_ladder_experiment.py \
+  --submit-hf-job \
+  --model glm-45-base-logprobs \
+  --image "$IMAGE" \
+  --namespace MINTLABJHUANU \
+  --flavor h200x8 \
+  --timeout 12h \
+  --hub-dataset MINTLABJHUANU/LLMCoherence_Var_100 \
+  --job-tag glm-within-ladder-full-YYYYMMDD \
+  --path-in-repo outputs/glm-45-base-logprobs/within_ladder
+```
+
+The within-ladder HF job runs Step 10a inside the container as `--generate`, `--run-local`, then `--analyze`. When `--hub-dataset` is supplied without an explicit `--path-in-repo`, outputs are uploaded to:
+
+```text
+outputs/glm-45-base-logprobs/within_ladder/
+```
+
+### 100-ladder GLM experiment (Instance 2 / Step 10b)
+
+Submit the 7-tier ladder-vs-comparison run through Step 10b with the same model flag:
+
+```bash
+PYTHONPATH=src python scripts/04_model_runs/10b_run_7tier_experiment.py \
+  --submit-hf-job \
+  --model qwen25-05b-instruct-smoke \
+  --trials 1 \
+  --image "$IMAGE" \
+  --namespace MINTLABJHUANU \
+  --flavor l4x1 \
+  --timeout 1h \
+  --max-variation-sets 1 \
+  --smoke \
+  --hub-dataset MINTLABJHUANU/LLMCoherence_Var_100 \
+  --path-in-repo smoke/qwen25-05b-instruct/scoring-smoke/ladder_vs_comparison_statements
+```
+
+After that proxy path succeeds, run the GLM smoke on H200x8:
+
+```bash
+PYTHONPATH=src python scripts/04_model_runs/10b_run_7tier_experiment.py \
+  --submit-hf-job \
+  --model glm-45-base-logprobs \
+  --trials 1 \
+  --image "$IMAGE" \
+  --namespace MINTLABJHUANU \
+  --flavor h200x8 \
+  --timeout 1h \
+  --max-variation-sets 1 \
+  --smoke \
+  --hub-dataset MINTLABJHUANU/LLMCoherence_Var_100 \
+  --path-in-repo smoke/glm-45-base-logprobs/glm-smoke-YYYYMMDD/ladder_vs_comparison_statements
+```
+
+After the GLM smoke succeeds, submit the complete 100-ladder Step 10b run with
+10 trials per comparison:
+
+```bash
+PYTHONPATH=src python scripts/04_model_runs/10b_run_7tier_experiment.py \
+  --submit-hf-job \
+  --model glm-45-base-logprobs \
+  --trials 10 \
+  --image "$IMAGE" \
+  --namespace MINTLABJHUANU \
+  --flavor h200x8 \
+  --timeout 12h \
+  --hub-dataset MINTLABJHUANU/LLMCoherence_Var_100 \
+  --job-tag glm-7tier-full-YYYYMMDD \
+  --path-in-repo outputs/glm-45-base-logprobs/ladder_vs_comparison_statements
+```
+
+This command runs the actual GLM ladder-versus-comparison experiment, not the
+within-ladder validation. It processes the full manifest because it does not
+set `--max-variation-sets`. Results are uploaded to:
+
+```text
+outputs/glm-45-base-logprobs/ladder_vs_comparison_statements/
+```
+
+Do not use `--model-volume` for the normal GLM run. Large sharded checkpoints
+can load very slowly from FUSE-mounted model volumes. By default, the model is
+downloaded to the job's local `/data` cache. `--model-volume` remains available
+as an experimental override and enables vLLM's prefetch loading strategy.
+
 ## Outputs and External Artifacts
 
 Tracked GitHub contents are sufficient to inspect the instrument and rerun the pipeline. For exact reproduction without rerunning APIs, download the full artifact tree from the [Hugging Face dataset](https://huggingface.co/datasets/MINTLABJHUANU/LLMCoherence_Var_100/tree/main) (`data/` and `outputs/`).
@@ -213,3 +368,18 @@ These are not substitutes for the raw model-response artifact bundle on [Hugging
 ## License
 
 Released under the MIT License. See [LICENSE](LICENSE).
+
+## Citation
+
+If you use this repository or its experiment artifacts, please cite:
+
+> Ajayi, Chowdhury, & Lazar. (2026). *Incoherent Values? Probing LLM Preferences Through Parametric Variation* [Manuscript].
+
+```bibtex
+@unpublished{ajayi_chowdhury_lazar_2026_incoherent_values,
+  author  = {Ajayi and Chowdhury and Lazar},
+  title   = {Incoherent Values? Probing LLM Preferences Through Parametric Variation},
+  year    = {2026},
+  note    = {Manuscript}
+}
+```
