@@ -119,6 +119,9 @@ _VARIANT_SUFFIX_RE = re.compile(
 
 # Canonical publication base names (before ``(reasoning on/off)`` suffix).
 PAPER_MODEL_BASE_NAMES: dict[str, str] = {
+    "gpt-56": "GPT-5.6 Sol",
+    "gpt-56-terra": "GPT-5.6 Terra",
+    "gpt-56-luna": "GPT-5.6 Luna",
     "gpt-54-nano": "GPT-5.4-Nano",
     "gpt-54-mini": "GPT-5.4-Mini",
     "gpt-54": "GPT-5.4",
@@ -792,6 +795,14 @@ def write_combined_headline_table(
 
 PAPER_MODEL_CONFIG_GROUPS: list[list[str]] = [
     [
+        "gpt-56",
+        "gpt-56-thinking",
+        "gpt-56-terra",
+        "gpt-56-terra-thinking",
+        "gpt-56-luna",
+        "gpt-56-luna-thinking",
+    ],
+    [
         "gpt-54-nano",
         "gpt-54-nano-thinking",
         "gpt-54-mini",
@@ -846,7 +857,7 @@ def _paper_config_model_name(model_key: str) -> str:
 def _paper_config_provider(model_key: str) -> str:
     if model_key == "glm-45-base-logprobs":
         return "HF Jobs (vLLM)"
-    if model_key.startswith("gpt-54"):
+    if model_key.startswith("gpt-"):
         return "OpenAI"
     return "OpenRouter"
 
@@ -1031,7 +1042,7 @@ def cost_table_model_label(model_key: str) -> str:
 def _cost_table_provider(model_key: str) -> str:
     if model_key == "glm-45-base-logprobs":
         return r"HF Jobs ($8{\times}$H200)"
-    if model_key.startswith("gpt-54"):
+    if model_key.startswith("gpt-"):
         return "OpenAI Batch"
     return "OpenRouter"
 

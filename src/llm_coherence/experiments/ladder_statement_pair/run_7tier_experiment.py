@@ -62,6 +62,16 @@ from llm_coherence.experiments.ladder_statement_pair.experiment_runner_tradeoff 
     artifact_dir_name_for_test,
     run_experiment,
 )
+from llm_coherence.experiments.ladder_statement_pair.openai_batch_runner import (
+    MAX_BATCH_REQUESTS,
+    create_retry_shards,
+    generate_batch_run,
+    process_batch_run,
+    refresh_batch_jobs,
+    resolve_batch_run_dir,
+    submit_pending_batch_shards,
+    wait_for_batch_jobs,
+)
 from llm_coherence.config import resolve_model_results_dir, results_dir_name
 from llm_coherence.paths import (
     CHECKPOINTS_OUTPUT_DIR,
@@ -533,11 +543,18 @@ def _iter_result_files(results_dir: Path, model_key: str) -> list[Path]:
     return files
 
 
-def _write_cost_logs(results_dir: Path, model_key: str) -> tuple[Path, Path] | None:
+def _write_cost_logs(
+    results_dir: Path,
+    model_key: str,
+    *,
+    batch: bool = False,
+) -> tuple[Path, Path] | None:
     try:
         pricing = MODEL_COST_ESTIMATES.get(model_key)
     except Exception:
         pricing = None
+    if batch and pricing:
+        pricing = {name: rate * 0.5 for name, rate in pricing.items()}
 
     result_files = _iter_result_files(results_dir, model_key)
     if not result_files:
@@ -619,7 +636,12 @@ def _write_cost_logs(results_dir: Path, model_key: str) -> tuple[Path, Path] | N
         "model_key": model_key,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "updated_at": datetime.now(timezone.utc).isoformat(),
-        "pricing_source": "llm_coherence.runtime.preflight_check.MODEL_COST_ESTIMATES",
+        "pricing_source": (
+            "OpenAI Batch API (50% of "
+            "llm_coherence.runtime.preflight_check.MODEL_COST_ESTIMATES)"
+            if batch
+            else "llm_coherence.runtime.preflight_check.MODEL_COST_ESTIMATES"
+        ),
         "pricing_per_1m": pricing,
         "result_files_count": len(records),
         "calls_logged": calls_logged_total,
@@ -977,6 +999,122 @@ def submit_phase6b_hf_job(args: argparse.Namespace, system_message: str | None) 
     return 0
 
 
+def run_openai_batch_action(
+    args: argparse.Namespace,
+    *,
+    data_dir: Path,
+    manifest_path: Path,
+    results_dir: Path,
+    batch_system_message: str | None,
+) -> int:
+    """Execute the requested step-10b OpenAI Batch API action."""
+    if args.batch_action in {"generate", "run"}:
+        source_manifest = load_manifest(manifest_path)
+        run_items = get_manifest_items(
+            source_manifest,
+            data_dir,
+            args.variation_ids,
+        )
+        if args.start_from:
+            run_items = run_items[args.start_from:]
+        if args.max_variation_sets is not None:
+            run_items = run_items[: args.max_variation_sets]
+        if args.resume:
+            run_items = [
+                item
+                for item in run_items
+                if not is_complete(results_dir, item["test_name"], args.model)
+            ]
+        if not run_items:
+            print("No pending variation sets selected for this batch run.")
+            return 0
+        run_dir = generate_batch_run(
+            run_items=run_items,
+            data_dir=data_dir,
+            source_manifest_path=manifest_path,
+            results_dir=results_dir,
+            model_key=args.model,
+            num_trials=args.trials,
+            include_flipped=True,
+            with_reasoning=args.with_reasoning,
+            max_tokens=args.max_tokens,
+            temperature=args.temperature,
+            system_message=batch_system_message,
+            max_requests_per_batch=args.max_requests_per_batch,
+        )
+        batch_manifest = json.loads(
+            (run_dir / "batch_manifest.json").read_text(encoding="utf-8")
+        )
+        print(f"Batch run generated: {run_dir}")
+        print(f"  Requests: {batch_manifest['total_requests']:,}")
+        print(f"  Shards: {len(batch_manifest['shards'])}")
+        print(f"  Model: {batch_manifest['model_id']}")
+        print(f"  reasoning_effort: {batch_manifest['reasoning_effort']}")
+        print("  No API requests have been submitted yet.")
+        if args.batch_action == "generate":
+            return 0
+    else:
+        run_dir = resolve_batch_run_dir(results_dir, args.batch_run_dir)
+
+    if args.batch_action == "submit":
+        jobs = submit_pending_batch_shards(run_dir)
+        print(f"Submitted/recorded batch jobs: {len(jobs['jobs'])}")
+        print(f"Batch run: {run_dir}")
+        return 0
+
+    if args.batch_action == "status":
+        jobs = refresh_batch_jobs(run_dir)
+        for entry in jobs["jobs"]:
+            counts = entry.get("request_counts") or {}
+            print(
+                f"{entry['batch_id']}: {entry['status']} "
+                f"(completed={counts.get('completed', 0)}, failed={counts.get('failed', 0)})"
+            )
+        print(f"All terminal: {jobs['all_terminal']}")
+        return 0
+
+    if args.batch_action == "retry":
+        jobs = refresh_batch_jobs(run_dir)
+        if not jobs["all_terminal"]:
+            raise SystemExit("Current batch jobs are not all terminal; retry later.")
+        shards, retry_count = create_retry_shards(run_dir)
+        if retry_count == 0:
+            print("No transport-level missing responses to retry.")
+            return 0
+        print(f"Created {len(shards)} retry shard(s) for {retry_count:,} requests.")
+        jobs = submit_pending_batch_shards(run_dir)
+        print(f"Submitted/recorded batch jobs: {len(jobs['jobs'])}")
+        return 0
+
+    if args.batch_action == "run":
+        for retry_round in range(args.batch_max_retries + 1):
+            jobs = submit_pending_batch_shards(run_dir)
+            print(f"Submitted/recorded batch jobs: {len(jobs['jobs'])}")
+            wait_for_batch_jobs(run_dir, poll_interval=args.poll_interval)
+            if retry_round >= args.batch_max_retries:
+                break
+            shards, retry_count = create_retry_shards(run_dir)
+            if retry_count == 0:
+                break
+            print(
+                f"Retry round {retry_round + 1}: {retry_count:,} missing "
+                f"responses in {len(shards)} shard(s)."
+            )
+
+    if args.batch_action in {"process", "run"}:
+        summary = process_batch_run(run_dir)
+        print(json.dumps(summary, indent=2))
+        cost_paths = _write_cost_logs(results_dir, args.model, batch=True)
+        if cost_paths is not None:
+            print(f"Cost Log: {cost_paths[0]}")
+            print(f"Cost Summary: {cost_paths[1]}")
+        if args.hub_dataset and summary["result_files_written"] > 0:
+            _push_results_to_hub(results_dir, args.model, args.hub_dataset)
+        return 0
+
+    raise ValueError(f"Unknown batch action: {args.batch_action!r}")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Run Phase 6b monotonicity experiments (7 tiers)"
@@ -1038,6 +1176,79 @@ def main():
         ),
     )
     parser.add_argument("--max-concurrent", type=int, default=3)
+    batch_actions = parser.add_mutually_exclusive_group()
+    batch_actions.add_argument(
+        "--batch-generate",
+        dest="batch_action",
+        action="store_const",
+        const="generate",
+        help="Generate sharded OpenAI Batch API JSONL files without submitting them.",
+    )
+    batch_actions.add_argument(
+        "--batch-submit",
+        dest="batch_action",
+        action="store_const",
+        const="submit",
+        help="Submit all not-yet-submitted shards in an existing batch run.",
+    )
+    batch_actions.add_argument(
+        "--batch-status",
+        dest="batch_action",
+        action="store_const",
+        const="status",
+        help="Refresh batch statuses and download available output/error files.",
+    )
+    batch_actions.add_argument(
+        "--batch-process",
+        dest="batch_action",
+        action="store_const",
+        const="process",
+        help="Process downloaded batch outputs into the normal per-ladder result schema.",
+    )
+    batch_actions.add_argument(
+        "--batch-retry",
+        dest="batch_action",
+        action="store_const",
+        const="retry",
+        help="Create and submit retry shards for transport-level missing responses.",
+    )
+    batch_actions.add_argument(
+        "--run-batch",
+        dest="batch_action",
+        action="store_const",
+        const="run",
+        help="Generate, submit, poll, retry transport failures, and process an OpenAI batch run.",
+    )
+    parser.set_defaults(batch_action=None)
+    parser.add_argument(
+        "--batch-run-dir",
+        default=None,
+        help=(
+            "Existing batch-run directory for submit/status/process/retry. "
+            "Defaults to the latest run for this model and smoke/full output scope."
+        ),
+    )
+    parser.add_argument(
+        "--max-requests-per-batch",
+        type=int,
+        default=MAX_BATCH_REQUESTS,
+        help=(
+            f"Maximum requests in each JSONL shard (default/API maximum: "
+            f"{MAX_BATCH_REQUESTS:,}). Lower this if required by the account's batch queue limit."
+        ),
+    )
+    parser.add_argument(
+        "--batch-max-retries",
+        type=int,
+        default=2,
+        help="Transport-level retry rounds for --run-batch (default: 2).",
+    )
+    parser.add_argument(
+        "--poll-interval",
+        type=int,
+        default=30,
+        help="Seconds between status checks for --run-batch (default: 30).",
+    )
     parser.add_argument("--resume", action="store_true", default=False,
                         help="Skip completed sets (default: OFF).")
     parser.add_argument("--quiet", action="store_true")
@@ -1101,8 +1312,18 @@ def main():
         parser.error("--start-from must be >= 0")
     if args.max_variation_sets is not None and args.max_variation_sets < 1:
         parser.error("--max-variation-sets must be >= 1 when set")
+    if not 1 <= args.max_requests_per_batch <= MAX_BATCH_REQUESTS:
+        parser.error(
+            f"--max-requests-per-batch must be between 1 and {MAX_BATCH_REQUESTS}"
+        )
+    if args.batch_max_retries < 0:
+        parser.error("--batch-max-retries must be >= 0")
+    if args.poll_interval < 1:
+        parser.error("--poll-interval must be >= 1")
     if args.model_volume and not Path(args.model_volume_path).is_absolute():
         parser.error("--model-volume-path must be absolute")
+    if args.batch_action and args.submit_hf_job:
+        parser.error("OpenAI batch actions cannot be combined with --submit-hf-job")
 
     from llm_coherence.config import MODEL_CONFIGS
     cfg = MODEL_CONFIGS.get(args.model)
@@ -1110,8 +1331,30 @@ def main():
         args.max_tokens = cfg.max_tokens if cfg is not None else 10
     if args.model == "glm-45-base-logprobs" and args.model_variant == "instruct":
         args.model_variant = "base"
+    if args.model.startswith("gpt-56"):
+        reasoning_key = args.model.endswith("-thinking")
+        generates_prompts = args.batch_action in {None, "generate", "run"}
+        if generates_prompts and reasoning_key != args.with_reasoning:
+            if reasoning_key:
+                parser.error(
+                    "GPT-5.6 *-thinking runs must include --with-reasoning to match "
+                    "the manuscript's reasoning-formatted prompt plus reasoning_effort=high."
+                )
+            parser.error(
+                "GPT-5.6 reasoning-off runs must omit --with-reasoning to match "
+                "the manuscript's A/B-only prompt plus reasoning_effort=none."
+            )
 
-    # Resolve system message: CLI flag > ModelConfig > default
+    # Preserve the historical OpenAI-batch prompt exactly when neither the CLI
+    # nor MODEL_CONFIGS specifies a system message.  The live runner retains its
+    # long-standing generic default.
+    batch_system_message = (
+        args.system_message
+        if args.system_message is not None
+        else (cfg.system_message if cfg is not None else None)
+    )
+
+    # Resolve live-run system message: CLI flag > ModelConfig > default.
     if args.system_message is not None:
         sys_msg = args.system_message
     elif cfg is not None and cfg.system_message is not None:
@@ -1146,6 +1389,15 @@ def main():
             f"{LADDER_VS_COMPARISON_SUBDIR}/"
         )
     print()
+
+    if args.batch_action:
+        return run_openai_batch_action(
+            args,
+            data_dir=data_dir,
+            manifest_path=manifest_path,
+            results_dir=results_dir,
+            batch_system_message=batch_system_message,
+        )
 
     asyncio.run(
         run_phase6b(

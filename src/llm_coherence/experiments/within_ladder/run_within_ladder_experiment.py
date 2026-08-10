@@ -141,6 +141,12 @@ _OPENAI_BATCH_MODEL_IDS = {
     "gpt-54-nano-thinking": "gpt-5.4-nano-2026-03-17",
     "gpt-54-mini-thinking": "gpt-5.4-mini-2026-03-17",
     "gpt-54-thinking": "gpt-5.4-2026-03-05",
+    "gpt-56": "gpt-5.6-sol",
+    "gpt-56-thinking": "gpt-5.6-sol",
+    "gpt-56-terra": "gpt-5.6-terra",
+    "gpt-56-terra-thinking": "gpt-5.6-terra",
+    "gpt-56-luna": "gpt-5.6-luna",
+    "gpt-56-luna-thinking": "gpt-5.6-luna",
 }
 
 # Self-hosted vLLM logprobs models (HF model id, not an API route).
@@ -493,7 +499,8 @@ def _model_runtime_config(model_key: str) -> ModelConfig | None:
 def _reasoning_is_on(extra_body: dict, *, with_reasoning: bool) -> bool:
     if with_reasoning:
         return True
-    if "thinking" in extra_body or extra_body.get("reasoning_effort") == "high":
+    effort = extra_body.get("reasoning_effort")
+    if "thinking" in extra_body or effort not in (None, "none"):
         return True
     reasoning = extra_body.get("reasoning") or {}
     if reasoning.get("enabled") is True:
@@ -517,9 +524,9 @@ def _openai_batch_request_body(
         "max_completion_tokens": max_tokens,
     }
     effort = extra_body.get("reasoning_effort")
-    if effort and effort != "none":
+    if effort is not None:
         body["reasoning_effort"] = effort
-    else:
+    if effort in (None, "none"):
         body["temperature"] = temperature
     for key, value in extra_body.items():
         if key in ("reasoning_effort", "temperature"):
@@ -1817,6 +1824,19 @@ def main():
             f"{len(available)} models available (from config.py); "
             f"includes: {', '.join(available[:8])}, ..."
         )
+
+    if args.model.startswith("gpt-56") and (args.generate or args.run_batch):
+        reasoning_key = args.model.endswith("-thinking")
+        if reasoning_key != args.with_reasoning:
+            if reasoning_key:
+                parser.error(
+                    "GPT-5.6 *-thinking input generation must include --with-reasoning "
+                    "to match the manuscript's reasoning-on condition."
+                )
+            parser.error(
+                "GPT-5.6 reasoning-off input generation must omit --with-reasoning "
+                "to match the manuscript's reasoning-off condition."
+            )
 
     _print_run_header(args.model)
 

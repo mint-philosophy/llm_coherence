@@ -116,6 +116,70 @@ MODEL_CONFIGS = {
         reasoning_artifact_type="none",
     ),
 
+    # GPT-5.6 Sol (OpenAI direct API). GPT-5.6 defaults to medium reasoning,
+    # so the off condition must send reasoning_effort="none" explicitly.
+    # OpenAI exposes reasoning-token usage, not a raw chain-of-thought trace,
+    # through the Chat Completions batch path used by these experiments.
+    'gpt-56': ModelConfig(
+        model_key='gpt-56',
+        temperature=0.0,
+        max_tokens=10,
+        concurrency_limit=50,
+        base_timeout=15.0,
+        extra_body={"reasoning_effort": "none"},
+        reasoning_artifact_type="none",
+    ),
+    'gpt-56-thinking': ModelConfig(
+        model_key='gpt-56-thinking',
+        temperature=0.0,
+        # Match the manuscript's GPT-5.4 Standard reasoning-on cap.
+        max_tokens=200,
+        concurrency_limit=50,
+        base_timeout=30.0,
+        extra_body={"reasoning_effort": "high"},
+        # The API does not expose private reasoning tokens.  The manuscript's
+        # reasoning prompt separately elicits a visible prose justification.
+        reasoning_artifact_type="prose_justification",
+    ),
+    'gpt-56-terra': ModelConfig(
+        model_key='gpt-56-terra',
+        temperature=0.0,
+        max_tokens=10,
+        concurrency_limit=75,
+        base_timeout=12.0,
+        extra_body={"reasoning_effort": "none"},
+        reasoning_artifact_type="none",
+    ),
+    'gpt-56-terra-thinking': ModelConfig(
+        model_key='gpt-56-terra-thinking',
+        temperature=0.0,
+        # Match the manuscript's GPT-5.4 Mini reasoning-on cap.
+        max_tokens=150,
+        concurrency_limit=75,
+        base_timeout=30.0,
+        extra_body={"reasoning_effort": "high"},
+        reasoning_artifact_type="prose_justification",
+    ),
+    'gpt-56-luna': ModelConfig(
+        model_key='gpt-56-luna',
+        temperature=0.0,
+        max_tokens=10,
+        concurrency_limit=100,
+        base_timeout=10.0,
+        extra_body={"reasoning_effort": "none"},
+        reasoning_artifact_type="none",
+    ),
+    'gpt-56-luna-thinking': ModelConfig(
+        model_key='gpt-56-luna-thinking',
+        temperature=0.0,
+        # Match the manuscript's GPT-5.4 Nano reasoning-on cap.
+        max_tokens=150,
+        concurrency_limit=100,
+        base_timeout=30.0,
+        extra_body={"reasoning_effort": "high"},
+        reasoning_artifact_type="prose_justification",
+    ),
+
     # Opus 4.6 (via OpenRouter)
     # Extended thinking enabled by default on OpenRouter for Anthropic models.
     # Non-thinking: no extra_body needed (prompt template controls CoT).

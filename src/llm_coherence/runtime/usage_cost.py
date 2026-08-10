@@ -21,6 +21,9 @@ from typing import Any, Callable
 
 # Standard (live API) USD per 1M tokens — keep in sync with preflight_check.py.
 OPENAI_STANDARD_PRICE_PER_MTOK: dict[str, dict[str, float]] = {
+    "gpt-5.6-sol": {"input": 5.00, "output": 30.00},
+    "gpt-5.6-terra": {"input": 2.50, "output": 15.00},
+    "gpt-5.6-luna": {"input": 1.00, "output": 6.00},
     "gpt-5.4-2026-03-05": {"input": 2.50, "output": 15.00},
     "gpt-5.4-mini-2026-03-17": {"input": 0.75, "output": 4.50},
     "gpt-5.4-nano-2026-03-17": {"input": 0.20, "output": 1.25},
@@ -42,6 +45,7 @@ ANTHROPIC_BATCH_PRICE_PER_MTOK: dict[str, dict[str, float]] = {
 }
 
 OPENAI_MODEL_ALIASES: dict[str, str] = {
+    "gpt-5.6": "gpt-5.6-sol",
     "gpt-5.4": "gpt-5.4-2026-03-05",
     "gpt-5.4-mini": "gpt-5.4-mini-2026-03-17",
     "gpt-5.4-nano": "gpt-5.4-nano-2026-03-17",

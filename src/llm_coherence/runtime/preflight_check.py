@@ -14,6 +14,12 @@ MODEL_COST_ESTIMATES = {
     "deepseek-r1": {"input": 0.55, "output": 2.19},
     "gpt-55": {"input": 5.0, "output": 30.0},
     "gpt-55-openai": {"input": 5.0, "output": 30.0},
+    "gpt-56": {"input": 5.0, "output": 30.0},
+    "gpt-56-thinking": {"input": 5.0, "output": 30.0},
+    "gpt-56-terra": {"input": 2.5, "output": 15.0},
+    "gpt-56-terra-thinking": {"input": 2.5, "output": 15.0},
+    "gpt-56-luna": {"input": 1.0, "output": 6.0},
+    "gpt-56-luna-thinking": {"input": 1.0, "output": 6.0},
     "gpt-54-nano": {"input": 0.20, "output": 1.25},
     "gpt-54-nano-thinking": {"input": 0.20, "output": 1.25},
     "gpt-54-mini": {"input": 0.75, "output": 4.50},
@@ -45,6 +51,12 @@ EXPENSIVE_MODELS = {
     "gpt-54-thinking",
     "gpt-55",
     "gpt-55-openai",
+    "gpt-56",
+    "gpt-56-thinking",
+    "gpt-56-terra",
+    "gpt-56-terra-thinking",
+    "gpt-56-luna",
+    "gpt-56-luna-thinking",
     "gemini-25-pro-thinking",
 }
 
@@ -167,4 +179,3 @@ def run_preflight_checks(
 
     for warning in warnings:
         print(f"[preflight] {warning}")
-
