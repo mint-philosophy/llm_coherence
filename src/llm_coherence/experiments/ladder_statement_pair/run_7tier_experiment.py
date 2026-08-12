@@ -62,6 +62,7 @@ from datetime import datetime, timezone
 from llm_coherence.experiments.ladder_statement_pair.experiment_runner_tradeoff import (
     artifact_dir_name_for_test,
     build_prompt,
+    HfForcedChoiceAgent,
     load_comparisons,
     run_experiment,
 )
@@ -528,6 +529,10 @@ async def smoke_call(
     max_tokens: int,
     temperature: float | None,
     max_retries: int = 5,
+    live_provider: str = "openrouter",
+    hf_provider: str = "featherless-ai",
+    hf_model: str | None = None,
+    hf_bill_to: str | None = None,
 ) -> bool:
     """One-call sanity check before launching the full pilot.
 
@@ -553,14 +558,28 @@ async def smoke_call(
         enable_cache = cfg.enable_cache
         system_message = cfg.system_message
 
-    agent = create_agent(
-        model_key,
-        temperature=temperature if temperature is not None else 0.0,
-        max_tokens=max_tokens,
-        max_retries=max_retries,
-        extra_body=extra_body,
-        enable_cache=enable_cache,
-    )
+    if live_provider == "hf":
+        agent = HfForcedChoiceAgent(
+            model_key=model_key,
+            hf_provider=hf_provider,
+            hf_model_override=hf_model,
+            hf_bill_to=hf_bill_to,
+            max_tokens=max_tokens,
+            temperature=temperature if temperature is not None else 0.0,
+            concurrency_limit=10,
+            max_retries=max_retries,
+            base_timeout=15.0,
+            extra_body=extra_body,
+        )
+    else:
+        agent = create_agent(
+            model_key,
+            temperature=temperature if temperature is not None else 0.0,
+            max_tokens=max_tokens,
+            max_retries=max_retries,
+            extra_body=extra_body,
+            enable_cache=enable_cache,
+        )
     msgs = []
     if system_message:
         msgs.append({"role": "system", "content": system_message})
@@ -596,6 +615,10 @@ async def run_single(
     temperature: float | None = None,
     k_samples: int = 1,
     infrastructure: str = "openai_api",
+    live_provider: str = "openrouter",
+    hf_provider: str = "featherless-ai",
+    hf_model: str | None = None,
+    hf_bill_to: str | None = None,
     gpu_type: str | None = None,
     gpu_count: int | None = None,
     quantization: str | None = None,
@@ -622,6 +645,10 @@ async def run_single(
             temperature=temperature,
             k_samples=k_samples,
             infrastructure=infrastructure,
+            live_provider=live_provider,
+            hf_provider=hf_provider,
+            hf_model=hf_model,
+            hf_bill_to=hf_bill_to,
             gpu_type=gpu_type,
             gpu_count=gpu_count,
             quantization=quantization,
@@ -665,6 +692,10 @@ async def run_phase6b(
     request_concurrency: int | None = None,
     requests_per_second: float | None = None,
     max_retries: int = 5,
+    live_provider: str = "openrouter",
+    hf_provider: str = "featherless-ai",
+    hf_model: str | None = None,
+    hf_bill_to: str | None = None,
 ) -> None:
     manifest = load_manifest(manifest_path)
     run_items = scoped_manifest_items(
@@ -809,13 +840,19 @@ async def run_phase6b(
 
     # One-call smoke: validates models.yaml + provider (like a focused health check).
     # Scoped to API infras; HF Jobs / base-model runs have their own validation path.
-    if not skip_smoke_test and infrastructure in live_infrastructures:
+    if not skip_smoke_test and (
+        live_provider == "hf" or infrastructure in live_infrastructures
+    ):
         print("  Running pre-launch smoke test...")
         if not await smoke_call(
             model_key,
             max_tokens,
             temperature,
             max_retries=max_retries,
+            live_provider=live_provider,
+            hf_provider=hf_provider,
+            hf_model=hf_model,
+            hf_bill_to=hf_bill_to,
         ):
             print(
                 "\n  Aborting: smoke test failed. Fix the underlying error before "
@@ -832,9 +869,23 @@ async def run_phase6b(
 
     print(f"  Running {len(run_items)} variation sets (max {max_concurrent} concurrent)\n")
 
-    budget = BudgetMonitor(check_interval=3)
+    class _NoBudget:
+        should_stop = False
+        last_usage = None
+        last_limit = None
+
+        async def force_check(self) -> None:
+            return
+
+        async def on_task_completed(self) -> None:
+            return
+
+        def summary(self) -> str:
+            return "budget monitoring disabled"
+
+    budget = BudgetMonitor(check_interval=3) if live_provider == "openrouter" else _NoBudget()
     await budget.force_check()
-    if budget.last_usage is not None:
+    if getattr(budget, "last_usage", None) is not None:
         print(f"  Budget: {budget.summary()}\n")
 
     semaphore = asyncio.Semaphore(max_concurrent)
@@ -859,6 +910,10 @@ async def run_phase6b(
                 temperature=temperature,
                 k_samples=k_samples,
                 infrastructure=infrastructure,
+                live_provider=live_provider,
+                hf_provider=hf_provider,
+                hf_model=hf_model,
+                hf_bill_to=hf_bill_to,
                 gpu_type=gpu_type,
                 gpu_count=gpu_count,
                 quantization=quantization,
@@ -1869,6 +1924,27 @@ def main():
                         help="Samples per prompt for base models")
     parser.add_argument("--infrastructure", default="openai_api",
                         help="Infrastructure: openai_api, anthropic_api, openrouter, hf_jobs, local")
+    parser.add_argument(
+        "--live-provider",
+        choices=("openrouter", "hf"),
+        default="openrouter",
+        help="Local live backend for API calls: openrouter (default) or HF Inference Providers (hf).",
+    )
+    parser.add_argument(
+        "--hf-provider",
+        default="featherless-ai",
+        help="HF Inference Provider slug for --live-provider hf (appended after the hub model id).",
+    )
+    parser.add_argument(
+        "--hf-model",
+        default=None,
+        help="HF Hub model id override for --live-provider hf (otherwise mapped from the model key).",
+    )
+    parser.add_argument(
+        "--bill-to",
+        default=None,
+        help="HF org for `X-HF-Bill-To` when `--live-provider hf` (omit to bill to your token's personal account).",
+    )
     parser.add_argument("--gpu-type", default=None, help="GPU type (e.g. H200)")
     parser.add_argument("--gpu-count", type=int, default=None, help="Number of GPUs")
     parser.add_argument("--quantization", default=None, help="Quantization: fp8, awq, gptq")
@@ -2073,6 +2149,10 @@ def main():
             temperature=args.temperature,
             k_samples=args.k_samples,
             infrastructure=args.infrastructure,
+            live_provider=args.live_provider,
+            hf_provider=args.hf_provider,
+            hf_model=args.hf_model,
+            hf_bill_to=args.bill_to,
             gpu_type=args.gpu_type,
             gpu_count=args.gpu_count,
             quantization=args.quantization,

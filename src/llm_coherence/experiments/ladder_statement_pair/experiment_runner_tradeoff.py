@@ -16,10 +16,13 @@ import os
 import socket
 import subprocess
 import sys
+import time
 from collections import Counter
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Any, Callable, Optional
+
+import httpx
 
 from llm_coherence.paths import LADDER_VS_COMPARISON_RUNS_OUTPUT_DIR, REPO_ROOT
 from llm_coherence.runtime.agents import (
@@ -28,6 +31,14 @@ from llm_coherence.runtime.agents import (
     model_name_for_key,
 )
 from llm_coherence.runtime.preflight_check import MODEL_COST_ESTIMATES, estimate_cost
+from llm_coherence.experiments.hf_helpers import (
+    HF_CHAT_URL,
+    fix_ssl_env,
+    is_fatal_error,
+    load_hf_token,
+    retry_after_seconds,
+    resolve_hf_router_model,
+)
 from llm_coherence.runtime.templates import (
     comparison_prompt_template_default,
     comparison_prompt_template_reasoning_default,
@@ -53,6 +64,222 @@ CHECKPOINT_SCHEMA_VERSION = "2.0"
 _TOKEN_CAP_REASONS = frozenset(
     {"length", "max_tokens", "max_output_tokens", "max_completion_tokens"}
 )
+
+
+class HfForcedChoiceAgent:
+    """HF Inference Providers agent for forced-choice live runs."""
+
+    accepts_system_message = True
+    uses_logits = False
+    enable_cache = False
+
+    def __init__(
+        self,
+        *,
+        model_key: str,
+        hf_provider: str,
+        hf_model_override: str | None,
+        hf_bill_to: str | None,
+        max_tokens: int,
+        temperature: float,
+        concurrency_limit: int = 50,
+        max_retries: int = 5,
+        base_timeout: float = 60.0,
+        extra_body: dict[str, Any] | None = None,
+    ):
+        self.model_key = model_key
+        self.hf_provider = hf_provider
+        self.hf_bill_to = (hf_bill_to or "").strip()
+        self.router_model = resolve_hf_router_model(
+            model_key,
+            hf_model_override=hf_model_override,
+            hf_provider=hf_provider,
+        )
+        self.max_tokens = max_tokens
+        self.temperature = float(temperature)
+        self.concurrency_limit = concurrency_limit
+        self.max_retries = max_retries
+        self.base_timeout = base_timeout
+        self.extra_body = extra_body or None
+
+        self.usage_log: list[dict[str, Any]] = []
+        self.reasoning_log: list[dict[str, Any]] = []
+        self.retry_counts: dict[str, int] = {"timeouts": 0, "errors": 0}
+
+        self._hf_token: str | None = None
+        self._start = time.monotonic()
+
+    def _ensure_token(self) -> str:
+        if self._hf_token is None:
+            self._hf_token = load_hf_token()
+        return self._hf_token
+
+    def _compute_cost_usd(self, *, prompt_tokens: int, completion_tokens: int) -> dict[str, Any]:
+        rates = MODEL_COST_ESTIMATES.get(self.model_key) or {}
+        if not rates or (prompt_tokens + completion_tokens) == 0:
+            return {"cost_usd": None, "cost_source": None, "pricing_source": None}
+        cost = round(
+            (prompt_tokens / 1_000_000) * float(rates["input"])
+            + (completion_tokens / 1_000_000) * float(rates["output"]),
+            8,
+        )
+        return {
+            "cost_usd": cost,
+            "cost_source": "computed_from_usage",
+            "pricing_source": f"preflight_check.MODEL_COST_ESTIMATES:{self.model_key}",
+        }
+
+    @staticmethod
+    def _format_reasoning_fields(msg: dict[str, Any]) -> str | None:
+        reasoning = (
+            msg.get("reasoning")
+            or msg.get("reasoning_content")
+            or msg.get("reasoning_details")
+            or None
+        )
+        if reasoning is None:
+            return None
+        if isinstance(reasoning, list):
+            parts: list[str] = []
+            for item in reasoning:
+                if isinstance(item, dict):
+                    parts.append(str(item.get("text") or item.get("summary") or item.get("content") or ""))
+                else:
+                    parts.append(str(item))
+            reasoning = "\n".join(p for p in parts if p)
+        return str(reasoning)
+
+    async def _call_one(self, client: httpx.AsyncClient, message: list[dict[str, Any]], timeout: float) -> dict:
+        headers: dict[str, str] = {
+            "Authorization": f"Bearer {self._ensure_token()}",
+            "Content-Type": "application/json",
+        }
+        if self.hf_bill_to:
+            headers["X-HF-Bill-To"] = self.hf_bill_to
+
+        body: dict[str, Any] = {
+            "model": self.router_model,
+            "messages": message,
+            "max_tokens": self.max_tokens,
+            "temperature": self.temperature,
+            "stream": False,
+        }
+
+        last_err = "unknown error"
+        for attempt in range(self.max_retries):
+            try:
+                resp = await client.post(HF_CHAT_URL, headers=headers, json=body, timeout=timeout)
+                status = resp.status_code
+                txt = resp.text
+                if is_fatal_error(status, txt):
+                    return {"error": f"HTTP {status}: {txt[:240]}", "usage": {}}
+                if status == 429 or status >= 500:
+                    wait = retry_after_seconds(resp, fallback=min(15 * (2**attempt), 120))
+                    await asyncio.sleep(wait)
+                    continue
+                if status >= 400:
+                    last_err = f"HTTP {status}: {txt[:240]}"
+                    return {"error": last_err, "usage": {}}
+                data = resp.json()
+                if isinstance(data, dict) and data.get("error") and not data.get("choices"):
+                    last_err = str(data.get("error"))
+                    return {"error": last_err, "usage": {}}
+                return data
+            except httpx.TimeoutException:
+                self.retry_counts["timeouts"] += 1
+                last_err = f"timeout after {timeout}s"
+                if attempt == self.max_retries - 1:
+                    return {"error": last_err, "usage": {}}
+            except Exception as exc:
+                self.retry_counts["errors"] += 1
+                last_err = str(exc)
+                if attempt == self.max_retries - 1:
+                    return {"error": last_err, "usage": {}}
+                await asyncio.sleep(min(10.0, 1.0 * (2**attempt)))
+        return {"error": last_err, "usage": {}}
+
+    async def async_completions(
+        self,
+        messages: list[list[dict[str, Any]]],
+        verbose: bool = True,
+        **kwargs: Any,
+    ) -> list[str | None]:
+        timeout = float(kwargs.get("timeout", self.base_timeout))
+
+        sem = asyncio.Semaphore(max(1, int(self.concurrency_limit)))
+        results: list[str | None] = [None] * len(messages)
+
+        async def worker(i: int, msg: list[dict[str, Any]]) -> None:
+            async with sem:
+                data: dict[str, Any] = await self._call_one(
+                    self._client, msg, timeout=timeout
+                )
+                if data.get("error"):
+                    results[i] = None
+                    if verbose:
+                        print(f"[hf] error: {data.get('error')}")
+                    return
+
+                choices = (data.get("choices") or [])
+                if not choices:
+                    results[i] = None
+                    return
+                message_obj = (choices[0].get("message") or {}) if isinstance(choices[0], dict) else {}
+                content = (message_obj.get("content") or "") or ""
+                reasoning = self._format_reasoning_fields(message_obj)
+                response_text = content
+                if reasoning and reasoning.strip() and (reasoning.strip() not in content):
+                    response_text = content + "\n" + reasoning
+
+                usage = data.get("usage") or {}
+                prompt_tokens = int(usage.get("prompt_tokens") or 0)
+                completion_tokens = int(usage.get("completion_tokens") or 0)
+                reasoning_tokens = int(usage.get("reasoning_tokens") or 0)
+
+                cost_fields = self._compute_cost_usd(
+                    prompt_tokens=prompt_tokens, completion_tokens=completion_tokens
+                )
+                self.usage_log.append(
+                    {
+                        "prompt_tokens": prompt_tokens,
+                        "completion_tokens": completion_tokens,
+                        "reasoning_tokens": reasoning_tokens,
+                        "cache_creation_input_tokens": 0,
+                        "cache_read_input_tokens": 0,
+                        "openai_cached_tokens": 0,
+                        "cost_usd": cost_fields["cost_usd"],
+                        "cost_source": cost_fields["cost_source"],
+                        "pricing_source": cost_fields["pricing_source"],
+                    }
+                )
+                if reasoning:
+                    self.reasoning_log.append(
+                        {
+                            "message_idx": i,
+                            "attempt": 0,
+                            "content": response_text,
+                            "reasoning": reasoning,
+                        }
+                    )
+                results[i] = response_text
+
+        fix_ssl_env()
+        self._client = httpx.AsyncClient()
+        try:
+            tasks = [worker(i, m) for i, m in enumerate(messages)]
+            if verbose:
+                completed = 0
+                total = len(tasks)
+                for coro in asyncio.as_completed(tasks):
+                    await coro
+                    completed += 1
+                    if completed == total or completed % 50 == 0:
+                        print(f"[hf] calls completed: {completed}/{total}")
+            else:
+                await asyncio.gather(*tasks)
+        finally:
+            await self._client.aclose()
+        return results
 
 
 def _git_sha() -> str | None:
@@ -776,6 +1003,10 @@ async def run_experiment(
     quantization: Optional[str] = None,
     request_limiter: AsyncRequestLimiter | None = None,
     max_retries: int = 5,
+    live_provider: str = "openrouter",
+    hf_provider: str = "featherless-ai",
+    hf_model: str | None = None,
+    hf_bill_to: str | None = None,
 ) -> Dict[str, Any]:
     base = _PARAMETRIC_ROOT
     data_dir = data_dir or base / "data"
@@ -843,6 +1074,9 @@ async def run_experiment(
         "prompt_template_used": prompt_template_used,
         "comparison_file_sha256": _file_sha256(comparison_path),
         "comparison_count": total_comparisons,
+        "live_provider": live_provider,
+        "hf_provider": hf_provider if live_provider == "hf" else None,
+        "hf_model": hf_model if live_provider == "hf" else None,
         "request_concurrency_limit": (
             request_limiter.max_concurrency if request_limiter else None
         ),
@@ -889,22 +1123,36 @@ async def run_experiment(
                     f"{partial_note}."
                 )
 
-    agent = create_agent(
-        model_key,
-        temperature=effective_temperature,
-        max_tokens=max_tokens,
-        extra_body=extra_body,
-        enable_cache=enable_cache,
-        concurrency_limit=agent_concurrency_limit,
-        max_retries=max_retries,
-        request_limiter=request_limiter,
-        k_samples=k_samples,
-        quantization=quantization,
-        # Experiment policy: retry network transport failures only. Provider
-        # errors, empty/capped outputs, and parse failures remain observed
-        # outcomes and are never selectively regenerated.
-        retry_transport_only=True,
-    )
+    if live_provider == "hf":
+        agent = HfForcedChoiceAgent(
+            model_key=model_key,
+            hf_provider=hf_provider,
+            hf_model_override=hf_model,
+            hf_bill_to=hf_bill_to,
+            max_tokens=max_tokens,
+            temperature=effective_temperature,
+            concurrency_limit=agent_concurrency_limit,
+            max_retries=max_retries,
+            base_timeout=float(model_cfg.base_timeout) if model_cfg else 60.0,
+            extra_body=extra_body,
+        )
+    else:
+        agent = create_agent(
+            model_key,
+            temperature=effective_temperature,
+            max_tokens=max_tokens,
+            extra_body=extra_body,
+            enable_cache=enable_cache,
+            concurrency_limit=agent_concurrency_limit,
+            max_retries=max_retries,
+            request_limiter=request_limiter,
+            k_samples=k_samples,
+            quantization=quantization,
+            # Experiment policy: retry network transport failures only. Provider
+            # errors, empty/capped outputs, and parse failures remain observed
+            # outcomes and are never selectively regenerated.
+            retry_transport_only=True,
+        )
     _restore_agent_telemetry(agent, checkpoint_telemetry)
 
     for idx in range(total_comparisons):
