@@ -8,7 +8,7 @@ import random
 from dataclasses import dataclass
 from typing import Any
 
-from llm_coherence.config import MODEL_CONFIGS
+from llm_coherence.config import MODEL_CONFIGS, canonical_model_key
 from llm_coherence.runtime.api_keys import API_KEY_ENV_BY_TYPE, ensure_api_key_env
 from llm_coherence.runtime.forced_choice_logprobs import (
     ForcedChoiceScoringError,
@@ -61,14 +61,35 @@ MODEL_SPECS: dict[str, ModelSpec] = {
         "openrouter/mistralai/mistral-small-2603",
         "openrouter",
     ),
+    "kimi-k2-openrouter": ModelSpec(
+        "openrouter/moonshotai/kimi-k2",
+        "openrouter",
+    ),
+    "kimi-k2-openrouter-thinking": ModelSpec(
+        "openrouter/moonshotai/kimi-k2-thinking",
+        "openrouter",
+    ),
+    "kimi-k3-openrouter-thinking-low": ModelSpec(
+        "openrouter/moonshotai/kimi-k3",
+        "openrouter",
+    ),
+    "kimi-k3-openrouter-thinking-medium": ModelSpec(
+        "openrouter/moonshotai/kimi-k3",
+        "openrouter",
+    ),
+    "kimi-k3-openrouter-thinking-high": ModelSpec(
+        "openrouter/moonshotai/kimi-k3",
+        "openrouter",
+    ),
 }
 
 
 def model_name_for_key(model_key: str) -> str | None:
-    spec = MODEL_SPECS.get(model_key)
+    resolved = canonical_model_key(model_key)
+    spec = MODEL_SPECS.get(resolved)
     if spec is not None:
         return spec.model_name
-    cfg = MODEL_CONFIGS.get(model_key)
+    cfg = MODEL_CONFIGS.get(resolved)
     return cfg.model_name_full if cfg is not None else None
 
 
@@ -169,28 +190,52 @@ class LiteLLMAgent:
         else:
             kwargs["max_tokens"] = self.max_tokens
             kwargs["temperature"] = self.temperature
-        if self.extra_body:
-            kwargs["extra_body"] = self.extra_body
+        extra_body = dict(self.extra_body or {})
+        # OpenRouter returns usage.cost only when usage.include is true.
+        if self.model.lower().startswith("openrouter/"):
+            usage_opt = dict(extra_body.get("usage") or {})
+            usage_opt.setdefault("include", True)
+            extra_body["usage"] = usage_opt
+        if extra_body:
+            kwargs["extra_body"] = extra_body
         return kwargs
 
     def _log_usage(self, completion_res: Any) -> None:
         try:
+            from llm_coherence.runtime.usage_cost import (
+                infer_provider,
+                usage_cost_breakdown,
+            )
+
             usage = getattr(completion_res, "usage", None)
-            usage_entry = {
-                "prompt_tokens": getattr(usage, "prompt_tokens", None),
-                "completion_tokens": getattr(usage, "completion_tokens", None),
-                "reasoning_tokens": None,
-                "cache_creation_input_tokens": getattr(usage, "cache_creation_input_tokens", None),
-                "cache_read_input_tokens": getattr(usage, "cache_read_input_tokens", None),
-                "openai_cached_tokens": None,
-            }
-            details = getattr(usage, "completion_tokens_details", None)
-            if details is not None:
-                usage_entry["reasoning_tokens"] = getattr(details, "reasoning_tokens", None)
-            prompt_details = getattr(usage, "prompt_tokens_details", None)
-            if prompt_details is not None:
-                usage_entry["openai_cached_tokens"] = getattr(prompt_details, "cached_tokens", None)
-            self.usage_log.append(usage_entry)
+            fields = usage_cost_breakdown(
+                usage,
+                provider=infer_provider(self.model),
+                model_id=self.model,
+            )
+            # LiteLLM sometimes exposes USD on the response, not usage.
+            if fields.get("cost") is None:
+                hidden = getattr(completion_res, "_hidden_params", None) or {}
+                response_cost = hidden.get("response_cost") if isinstance(hidden, dict) else None
+                if isinstance(response_cost, (int, float)):
+                    fields["cost"] = float(response_cost)
+                    fields["cost_usd"] = float(response_cost)
+                    fields["cost_source"] = "provider_reported"
+                    fields["pricing_source"] = "litellm._hidden_params.response_cost"
+
+            self.usage_log.append(
+                {
+                    "prompt_tokens": fields.get("prompt_tokens"),
+                    "completion_tokens": fields.get("completion_tokens"),
+                    "reasoning_tokens": fields.get("reasoning_tokens") or None,
+                    "cache_creation_input_tokens": fields.get("cache_creation_input_tokens") or None,
+                    "cache_read_input_tokens": fields.get("cache_read_input_tokens") or None,
+                    "openai_cached_tokens": fields.get("openai_cached_tokens") or None,
+                    "cost_usd": fields.get("cost_usd"),
+                    "cost_source": fields.get("cost_source"),
+                    "pricing_source": fields.get("pricing_source"),
+                }
+            )
         except Exception:
             return
 
@@ -453,7 +498,8 @@ def create_agent(
     **kwargs: Any,
 ) -> LiteLLMAgent:
     """Create a LiteLLM-backed API agent from an llm_coherence model key."""
-    spec = MODEL_SPECS.get(model_key)
+    resolved = canonical_model_key(model_key)
+    spec = MODEL_SPECS.get(resolved)
     if spec is None:
         raise ValueError(f"Unknown model key: {model_key}")
     if spec.model_type == "vllm_base_model_logprobs":
@@ -472,7 +518,7 @@ def create_agent(
 
     ensure_api_key_env(spec.model_type)
 
-    cfg = MODEL_CONFIGS.get(model_key)
+    cfg = MODEL_CONFIGS.get(resolved)
     resolved_extra_body = extra_body if extra_body is not None else (cfg.extra_body if cfg else None)
     resolved_enable_cache = enable_cache or (cfg.enable_cache if cfg else False)
 
