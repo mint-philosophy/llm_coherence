@@ -34,6 +34,11 @@ MODEL_COST_ESTIMATES = {
     "nemotron-3-super-thinking": {"input": 0.15, "output": 0.40},
     "glm-45-hybrid": {"input": 0.60, "output": 2.20},
     "glm-45-hybrid-thinking": {"input": 0.60, "output": 2.20},
+    "kimi-k2-openrouter": {"input": 0.57, "output": 2.30},
+    "kimi-k2-openrouter-thinking": {"input": 3.0, "output": 15.0},
+    "kimi-k3-openrouter-thinking-low": {"input": 3.0, "output": 15.0},
+    "kimi-k3-openrouter-thinking-medium": {"input": 3.0, "output": 15.0},
+    "kimi-k3-openrouter-thinking-high": {"input": 3.0, "output": 15.0},
 }
 
 EXPENSIVE_MODELS = {

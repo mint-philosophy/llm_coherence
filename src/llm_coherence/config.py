@@ -223,6 +223,51 @@ MODEL_CONFIGS = {
         base_timeout=30.0,
         reasoning_artifact_type="raw_cot",
     ),
+    'kimi-k2-openrouter': ModelConfig(
+        model_key='kimi-k2-openrouter',
+        temperature=0.0,
+        max_tokens=10,
+        concurrency_limit=20,
+        base_timeout=30.0,
+        reasoning_artifact_type="none",
+    ),
+    'kimi-k2-openrouter-thinking': ModelConfig(
+        model_key='kimi-k2-openrouter-thinking',
+        temperature=0.0,
+        max_tokens=3000,
+        concurrency_limit=20,
+        base_timeout=120.0,
+        reasoning_artifact_type="raw_cot",
+    ),
+    # Kimi K3 via OpenRouter (moonshotai/kimi-k3). Always reasons; effort is
+    # low vs high (no true OFF). Keys include -thinking- to reflect that.
+    'kimi-k3-openrouter-thinking-low': ModelConfig(
+        model_key='kimi-k3-openrouter-thinking-low',
+        temperature=0.0,
+        max_tokens=1500,
+        concurrency_limit=20,
+        base_timeout=90.0,
+        extra_body={"reasoning_effort": "low"},
+        reasoning_artifact_type="raw_cot",
+    ),
+    'kimi-k3-openrouter-thinking-medium': ModelConfig(
+        model_key='kimi-k3-openrouter-thinking-medium',
+        temperature=0.0,
+        max_tokens=3000,
+        concurrency_limit=20,
+        base_timeout=120.0,
+        extra_body={"reasoning_effort": "medium"},
+        reasoning_artifact_type="raw_cot",
+    ),
+    'kimi-k3-openrouter-thinking-high': ModelConfig(
+        model_key='kimi-k3-openrouter-thinking-high',
+        temperature=0.0,
+        max_tokens=3000,
+        concurrency_limit=20,
+        base_timeout=120.0,
+        extra_body={"reasoning_effort": "high"},
+        reasoning_artifact_type="raw_cot",
+    ),
 }
 
 # Default model for experiments

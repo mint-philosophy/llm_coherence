@@ -74,6 +74,7 @@ FAMILY_KEYWORDS = {
     "deepseek":  "DeepSeek",
     "qwen":      "Qwen",
     "gemini":    "Google",
+    "kimi":      "Moonshot",
 }
 
 FAMILY_COLORS = {
@@ -86,11 +87,19 @@ FAMILY_COLORS = {
     "DeepSeek":  "#17BECF",
     "Qwen":      "#8C564B",
     "Google":    "#BCBD22",
+    "Moonshot":  "#000000",
 }
 
 # Per-model tints where a family default would collide or need emphasis.
 MODEL_COLOR_OVERRIDES = {
     "glm-45-base-logprobs": "#FFB347",
+    "kimi-k2": "#000000",
+    "kimi-k2-openrouter": "#000000",
+    "kimi-k2-thinking": "#000000",
+    "kimi-k2-openrouter-thinking": "#000000",
+    "kimi-k3-openrouter-thinking-low": "#000000",
+    "kimi-k3-openrouter-thinking-medium": "#000000",
+    "kimi-k3-openrouter-thinking-high": "#000000",
 }
 
 REASON_HATCH = {"on": "//", "off": None}
@@ -111,6 +120,7 @@ _BRAND_TOKENS = {
     "qwen": "Qwen",
     "gemini": "Gemini",
     "claude": "Claude",
+    "kimi": "Kimi",
 }
 
 _VARIANT_SUFFIX_RE = re.compile(
@@ -130,6 +140,8 @@ PAPER_MODEL_BASE_NAMES: dict[str, str] = {
     "ministral-3b-2512": "Ministral-3B-2512",
     "mistral-small-2603": "Mistral-Small-2603",
     "llama-31-8b-instruct": "Llama-3.1-8B-Instruct",
+    "kimi-k2": "Kimi-K2",
+    "kimi-k3": "Kimi-K3",
 }
 
 

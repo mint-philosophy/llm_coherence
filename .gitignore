@@ -46,7 +46,6 @@
 /results/**/*
 !/results/
 !/results/model_run_index.json
-!/results/phase6b_coherence_summary.json
 !/results/figures/
 !/results/tables/
 /results/figures/*
@@ -57,7 +56,6 @@
 # Documents and tabular data
 *.pdf
 *.txt
-!api_keys/api_key_*.txt
 *.csv
 
 # Images
