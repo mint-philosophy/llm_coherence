@@ -390,6 +390,23 @@ def get_jt(rec):
     return rec.get("jt_significant_rate", 0)
 
 
+def _covering_ylim(
+    values: list[float],
+    suggested: tuple[float, float],
+    *,
+    floor: float = 0.0,
+    lower_pad_frac: float = 0.08,
+) -> tuple[float, float]:
+    """Expand a suggested ylim so every bar (and optional error) stays visible."""
+    y_lo, y_hi = suggested
+    if values:
+        y_lo = min(y_lo, min(values))
+        y_hi = max(y_hi, max(values))
+    span = max(y_hi - y_lo, 1e-9)
+    y_lo = max(floor, y_lo - lower_pad_frac * span)
+    return y_lo, y_hi
+
+
 def load_overall_stats(results_dir: pathlib.Path, model_key: str) -> dict:
     """Per-model aggregate stats from coherence JSON overall block."""
     d = load_analysis(results_dir, model_key)
@@ -2067,7 +2084,9 @@ def _model_bar_chart(
     _set_rotated_bar_labels(ax, bar_labels, fontsize=9)
     ax.set_xlabel("Model", fontsize=9, labelpad=2)
     ax.set_ylabel(ylabel, fontsize=10)
-    ax.set_ylim(*ylim)
+    err_hi = [m + e for m, e in zip(means, errs)] if errs else means
+    err_lo = [m - e for m, e in zip(means, errs)] if errs else means
+    ax.set_ylim(*_covering_ylim(err_lo + err_hi, ylim, floor=min(0.0, ylim[0])))
     ax.set_xlim(-0.6, len(bar_labels) - 0.4)
     ax.margins(x=0.02)
 
@@ -2401,7 +2420,7 @@ def fig1b_metrics_triptych(all_data: dict, models: list, n_ladders: int) -> plt.
                 bar.set_edgecolor("white")
 
         ax.set_ylabel(ylabel, fontsize=10)
-        y_lo, y_hi = ylim
+        y_lo, y_hi = _covering_ylim(means, ylim, floor=min(0.0, ylim[0]))
         pad = (y_hi - y_lo) * 0.10
         ax.set_ylim(y_lo, y_hi + pad)
         ax.set_xlim(-0.6, len(panel_rows) - 0.4)
@@ -2524,7 +2543,20 @@ def fig3_reasoning_lift(all_data: dict, models: list) -> plt.Figure:
     ax.set_xticklabels(pair_labels, rotation=25, ha="right", fontsize=9)
     ax.set_ylabel("Monotonicity rate (%)")
     ax.set_ylim(0, 100)
-    ax.legend(loc="upper left", frameon=False, fontsize=9)
+    # Force a stable, neutral legend style independent of which model-family
+    # happened to be plotted last.
+    from matplotlib.patches import Patch
+
+    legend_handles = [
+        Patch(facecolor="#888888", edgecolor="white", label="reasoning off"),
+        Patch(
+            facecolor="#888888",
+            edgecolor="white",
+            hatch="//",
+            label="reasoning on",
+        ),
+    ]
+    ax.legend(handles=legend_handles, loc="upper left", frameon=False, fontsize=9)
     style_axes(ax)
     plt.tight_layout()
     return fig
@@ -2831,7 +2863,13 @@ def _find_raw_results(results_dir: pathlib.Path, model_key: str) -> list[pathlib
     run_dir = resolve_model_results_dir(model_key, results_dir) / "ladder_vs_comparison_statements"
     if not run_dir.is_dir():
         return []
-    return sorted(run_dir.glob("phase6b_variations_prune_*/results.json"))
+    files: list[pathlib.Path] = []
+    for pattern in (
+        "phase6b_variations_prune_*/results.json",
+        "phase6b_ladder_*/results.json",
+    ):
+        files.extend(run_dir.glob(pattern))
+    return sorted(set(files))
 
 
 def fig8_ladder_shapes(all_data: dict, models: list, results_dir: pathlib.Path) -> plt.Figure:
@@ -2927,6 +2965,21 @@ def _float_csv(val, default=float("nan")):
         return default
 
 
+def _pred_util_csv_path(results_dir: pathlib.Path, model_key: str, filename: str) -> pathlib.Path | None:
+    """Prefer pred_utility_test/, then the ladder-vs-comparison run dir."""
+    run_dir = (
+        resolve_model_results_dir(model_key, results_dir)
+        / "ladder_vs_comparison_statements"
+    )
+    for path in (
+        run_dir / "pred_utility_test" / filename,
+        run_dir / filename,
+    ):
+        if path.is_file():
+            return path
+    return None
+
+
 def load_pred_util_per_model(results_dir: pathlib.Path) -> dict[str, dict]:
     """Load per-model predictive-utility summaries keyed by model_key."""
     out: dict[str, dict] = {}
@@ -2937,13 +2990,8 @@ def load_pred_util_per_model(results_dir: pathlib.Path) -> dict[str, dict]:
         if not d.is_dir() or d.name.startswith("smoke"):
             continue
         model_key = model_key_from_results_folder(d.name, known)
-        path = (
-            resolve_model_results_dir(model_key, results_dir)
-            / "ladder_vs_comparison_statements"
-            / "pred_utility_test"
-            / "per_model_pred_util.csv"
-        )
-        if not path.exists():
+        path = _pred_util_csv_path(results_dir, model_key, "per_model_pred_util.csv")
+        if path is None:
             continue
         with open(path, newline="", encoding="utf-8") as fh:
             rows = list(csv.DictReader(fh))
@@ -2954,13 +3002,8 @@ def load_pred_util_per_model(results_dir: pathlib.Path) -> dict[str, dict]:
 
 def load_pred_util_per_set(results_dir: pathlib.Path, model_key: str) -> list[dict]:
     """Per-ladder predictive-utility rows for one model."""
-    path = (
-        resolve_model_results_dir(model_key, results_dir)
-        / "ladder_vs_comparison_statements"
-        / "pred_utility_test"
-        / "per_set_pred_util.csv"
-    )
-    if not path.exists():
+    path = _pred_util_csv_path(results_dir, model_key, "per_set_pred_util.csv")
+    if path is None:
         return []
     with open(path, newline="", encoding="utf-8") as fh:
         return list(csv.DictReader(fh))
@@ -3134,7 +3177,20 @@ def fig10_pred_util_reasoning_lift(pred_util: dict[str, dict]) -> plt.Figure | N
     ax.set_xticklabels(pair_labels, rotation=25, ha="right", fontsize=9)
     ax.set_ylabel("Mean held-out test AUC")
     ax.set_ylim(0.82, 1.0)
-    ax.legend(loc="upper left", frameon=False, fontsize=9)
+    # Force a stable, neutral legend style independent of which model-family
+    # happened to be plotted last.
+    from matplotlib.patches import Patch
+
+    legend_handles = [
+        Patch(facecolor="#888888", edgecolor="white", label="reasoning off"),
+        Patch(
+            facecolor="#888888",
+            edgecolor="white",
+            hatch="//",
+            label="reasoning on",
+        ),
+    ]
+    ax.legend(handles=legend_handles, loc="upper left", frameon=False, fontsize=9)
     style_axes(ax)
     plt.tight_layout()
     return fig

@@ -14,6 +14,8 @@ Usage:
     PYTHONPATH=src python -m llm_coherence.experiments.within_ladder.run_within_ladder_experiment \\
         --run-live --model glm-45-hybrid
     PYTHONPATH=src python -m llm_coherence.experiments.within_ladder.run_within_ladder_experiment \\
+        --run-live --live-provider hf --model kimi-k2-openrouter-thinking --bill-to MINTLABJHUANU
+    PYTHONPATH=src python -m llm_coherence.experiments.within_ladder.run_within_ladder_experiment \\
         --model gpt-54-mini --smoke
 """
 
@@ -27,6 +29,7 @@ import time
 import argparse
 import uuid
 from collections import defaultdict
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from itertools import combinations
 from pathlib import Path
@@ -46,6 +49,18 @@ from llm_coherence.paths import (
 )
 from llm_coherence.runtime.agents import MODEL_SPECS
 from llm_coherence.runtime.api_keys import require_api_key
+from llm_coherence.runtime.preflight_check import MODEL_COST_ESTIMATES
+from llm_coherence.experiments.hf_helpers import (
+    DEFAULT_HF_PROVIDER,
+    HF_CHAT_URL,
+    fix_ssl_env,
+    is_fatal_error as hf_is_fatal_error,
+    load_hf_token,
+    retry_after_seconds as hf_retry_after_seconds,
+    resolve_hf_router_model as hf_resolve_hf_router_model,
+)
+
+OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions"
 from llm_coherence.runtime.forced_choice_logprobs import (
     ForcedChoiceScoringError,
     normalized_choice_probabilities,
@@ -1089,72 +1104,198 @@ def write_clean_and_cost_log(raw_rows, provider, model_key):
     persist_per_request_cost_log(model_key, cost_entries)
 
 
-def run_live(model_key, concurrency=5):
-    """Run within-ladder validation via live OpenRouter API calls."""
-    api_model, provider, extra_body = MODELS[model_key]
-    if provider != "openrouter":
-        print(f"[{model_key}] --run-live only supports openrouter models")
-        return
+@dataclass(frozen=True)
+class LiveRunConfig:
+    model_key: str
+    concurrency: int = 5
+    timeout: float = 120.0
+    pace: float = 0.0
+    budget: float | None = None
+    max_tokens: int | None = None
+    limit: int | None = None
+    smoke: bool = False
+    dry_run: bool = False
+    hf_provider: str = DEFAULT_HF_PROVIDER
+    hf_model: str | None = None
+    hf_bill_to: str = ""
+    hf_cache_read_per_m: float = 0.15
 
-    input_path = model_output_path(model_key, "input.jsonl")
-    output_path = model_output_path(model_key, "output.jsonl")
 
-    if not os.path.exists(input_path):
-        print(f"No input file: {input_path}. Run --generate first.")
-        return
+def _live_load_jsonl(path: Path) -> list[dict]:
+    rows: list[dict] = []
+    if not path.is_file():
+        return rows
+    with path.open(encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                rows.append(json.loads(line))
+    return rows
 
-    api_key = require_api_key("openrouter")
 
-    with open(input_path) as f:
-        requests = [json.loads(line) for line in f]
-    input_ids, norm_to_canonical = load_input_request_maps(model_key)
-    sync_artifacts_to_input(model_key)
+def _live_write_jsonl(path: Path, rows: list[dict]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as f:
+        for row in rows:
+            f.write(json.dumps(row, ensure_ascii=False) + "\n")
 
-    already_done = set()
-    existing_success_rows = []
-    if os.path.exists(output_path):
-        with open(output_path) as f:
-            for line in f:
-                r = json.loads(line)
-                canonical = canonical_custom_id(r["custom_id"], input_ids, norm_to_canonical)
-                if canonical is None:
-                    continue
-                # Only treat parseable A/B answers as done so failed/null rows retry.
-                if r.get("answer") in ("A", "B"):
-                    already_done.add(canonical)
-                    existing_success_rows.append({**r, "custom_id": canonical})
-        print(f"[{model_key}] Resuming: {len(already_done)}/{len(requests)} already done")
 
-    remaining = [r for r in requests if r["custom_id"] not in already_done]
-    if not remaining:
-        print(f"[{model_key}] All {len(requests)} requests complete.")
-        return
+def _live_ordered_output(input_ids: list[str], by_id: dict[str, dict]) -> list[dict]:
+    return [by_id[cid] for cid in input_ids if cid in by_id]
 
-    cfg = _model_runtime_config(model_key)
-    request_timeout = float(cfg.base_timeout) if cfg is not None else 60.0
-    # Thinking models often need longer than the default; keep a floor for OpenRouter.
-    request_timeout = max(request_timeout, 60.0)
-    print(
-        f"[{model_key}] Running {len(remaining)} requests via OpenRouter "
-        f"(concurrency={concurrency}, timeout={request_timeout:.0f}s)"
+
+def _live_resolve_hf_router_model(cfg: LiveRunConfig) -> str:
+    return hf_resolve_hf_router_model(
+        cfg.model_key,
+        hf_model_override=cfg.hf_model,
+        hf_provider=cfg.hf_provider or DEFAULT_HF_PROVIDER,
     )
 
-    import httpx
 
-    sem = asyncio.Semaphore(concurrency)
-    raw_results = []
+def _live_cache_input_rate(model_key: str, hf_cache_read_per_m: float) -> float:
+    if hf_cache_read_per_m:
+        return hf_cache_read_per_m
+    rates = MODEL_COST_ESTIMATES.get(model_key) or {}
+    return float(rates.get("input", 0.0)) * 0.25
+
+
+def _live_apply_model_key_pricing(
+    entry: dict,
+    model_key: str,
+    *,
+    hf_cache_read_per_m: float = 0.15,
+) -> dict:
+    rates = MODEL_COST_ESTIMATES.get(model_key)
+    if not rates:
+        return entry
+    prompt = int(entry.get("prompt_tokens") or 0)
+    completion = int(entry.get("completion_tokens") or 0)
+    cached = int(entry.get("cache_read_input_tokens") or 0)
+    oai_cached = int(entry.get("openai_cached_tokens") or 0)
+    if not (prompt or completion):
+        return entry
+    cached_total = max(cached, oai_cached, 0)
+    uncached = max(prompt - cached_total, 0)
+    cache_rate = _live_cache_input_rate(model_key, hf_cache_read_per_m)
+    cost = round(
+        uncached / 1_000_000 * rates["input"]
+        + cached_total / 1_000_000 * cache_rate
+        + completion / 1_000_000 * rates["output"],
+        8,
+    )
+    entry["cost"] = cost
+    entry["cost_usd"] = cost
+    entry["cost_source"] = "computed_from_usage"
+    entry["pricing_source"] = f"preflight_check.MODEL_COST_ESTIMATES:{model_key}"
+    api_model, _, _ = MODELS[model_key]
+    entry["model"] = api_model
+    return entry
+
+
+def _prepare_live_run(cfg: LiveRunConfig) -> tuple[
+    Path,
+    Path,
+    list[dict],
+    list[str],
+    dict[str, dict],
+    set[str],
+    list[dict],
+]:
+    input_path = Path(model_output_path(cfg.model_key, "input.jsonl"))
+    output_path = Path(model_output_path(cfg.model_key, "output.jsonl"))
+    if not input_path.is_file():
+        raise SystemExit(f"Missing {input_path}. Run --generate first.")
+
+    requests = _live_load_jsonl(input_path)
+    input_ids, norm_to_canonical = load_input_request_maps(cfg.model_key)
+    sync_artifacts_to_input(cfg.model_key, verbose=False)
+
+    by_id: dict[str, dict] = {}
+    already_done: set[str] = set()
+    for row in _live_load_jsonl(output_path):
+        cid = canonical_custom_id(row.get("custom_id", ""), input_ids, norm_to_canonical)
+        if cid is None:
+            continue
+        by_id[cid] = {**row, "custom_id": cid}
+        if row.get("answer") in ("A", "B"):
+            already_done.add(cid)
+
+    remaining = [r for r in requests if r["custom_id"] not in already_done]
+    if cfg.smoke:
+        remaining = remaining[:42]
+    if cfg.limit is not None:
+        remaining = remaining[: max(cfg.limit, 0)]
+
+    input_id_list = [r["custom_id"] for r in requests]
+    return input_path, output_path, requests, input_id_list, by_id, already_done, remaining
+
+
+def _load_prior_live_cost_entries(
+    model_key: str,
+    already_done: set[str],
+    input_ids: set[str],
+    norm_to_canonical: dict[str, str],
+) -> list[dict]:
+    cost_path = Path(model_output_path(model_key, "cost_log.json"))
+    prev_cost: list[dict] = []
+    if not cost_path.is_file():
+        return prev_cost
+    try:
+        payload = json.loads(cost_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return prev_cost
+    for entry in payload.get("per_request") or []:
+        cid = canonical_custom_id(entry.get("custom_id", ""), input_ids, norm_to_canonical)
+        if cid is None or cid not in already_done:
+            continue
+        if (entry.get("prompt_tokens") or 0) > 0 or (entry.get("completion_tokens") or 0) > 0:
+            prev_cost.append({**entry, "custom_id": cid})
+    return prev_cost
+
+
+def _run_openrouter_live(cfg: LiveRunConfig) -> int:
+    fix_ssl_env()
+    api_model, provider, _ = MODELS[cfg.model_key]
+    if provider != "openrouter":
+        print(f"[{cfg.model_key}] --live-provider openrouter requires an OpenRouter model")
+        return 1
+
+    input_path, output_path, requests, input_id_list, by_id, already_done, remaining = (
+        _prepare_live_run(cfg)
+    )
+    print(f"[{cfg.model_key}] OpenRouter {api_model}")
+    print(f"  input     {input_path}")
+    print(f"  output    {output_path}")
+    print(f"  done      {len(already_done)}/{len(requests)}")
+    print(f"  remaining {len(remaining)}  conc={cfg.concurrency}")
+    if cfg.dry_run:
+        print("  dry-run: no API calls")
+        return 0
+    if not remaining:
+        print("  nothing to do")
+        return 0
+
+    api_key = require_api_key("openrouter")
+    runtime = _model_runtime_config(cfg.model_key)
+    request_timeout = max(float(runtime.base_timeout) if runtime else 60.0, 60.0)
+    input_ids, norm_to_canonical = load_input_request_maps(cfg.model_key)
+
+    raw_results: list[dict] = []
     errors = 0
     done = len(already_done)
+    sem = asyncio.Semaphore(max(cfg.concurrency, 1))
 
-    async def call_one(req):
+    async def call_one(req: dict) -> None:
         nonlocal errors, done
         async with sem:
             body = req["body"]
             for attempt in range(3):
                 try:
+                    import httpx
+
                     async with httpx.AsyncClient(timeout=request_timeout) as client:
                         resp = await client.post(
-                            "https://openrouter.ai/api/v1/chat/completions",
+                            OPENROUTER_CHAT_URL,
                             headers={
                                 "Authorization": f"Bearer {api_key}",
                                 "Content-Type": "application/json",
@@ -1171,55 +1312,341 @@ def run_live(model_key, concurrency=5):
                         })
                         done += 1
                         if done % 200 == 0:
-                            print(f"  [{model_key}] {done}/{len(requests)} done")
+                            print(f"  [{cfg.model_key}] {done}/{len(requests)} done")
                         return
-                except Exception as e:
+                except Exception:
                     if attempt < 2:
                         await asyncio.sleep(2 ** attempt)
                     else:
                         errors += 1
                         raw_results.append({
                             "custom_id": req["custom_id"],
-                            "response": {"body": {"error": str(e)}},
+                            "response": {"body": {"error": "openrouter request failed"}},
                         })
 
-    async def run_all():
-        tasks = [call_one(r) for r in remaining]
-        await asyncio.gather(*tasks)
+    async def run_all() -> None:
+        await asyncio.gather(*(call_one(r) for r in remaining))
 
     asyncio.run(run_all())
 
-    all_clean = list(existing_success_rows)
+    for raw in raw_results:
+        clean, cost_entry = extract_clean_row(raw, "openrouter", model_id=api_model, batch=False)
+        by_id[clean["custom_id"]] = clean
+
+    ordered = _live_ordered_output(input_id_list, by_id)
+    _live_write_jsonl(output_path, ordered)
+
+    prev_cost = _load_prior_live_cost_entries(cfg.model_key, already_done, input_ids, norm_to_canonical)
     new_cost_entries = []
     for raw in raw_results:
-        clean, cost_entry = extract_clean_row(
-            raw, "openrouter", model_id=api_model, batch=False
-        )
-        all_clean.append(clean)
+        _, cost_entry = extract_clean_row(raw, "openrouter", model_id=api_model, batch=False)
         new_cost_entries.append(cost_entry)
+    persist_per_request_cost_log(cfg.model_key, prev_cost + new_cost_entries)
 
-    with open(output_path, "w") as f:
-        for row in all_clean:
-            f.write(json.dumps(row) + "\n")
+    n_ok = sum(1 for row in ordered if row.get("answer") in ("A", "B"))
+    print(
+        f"[{cfg.model_key}] done. new_ok={len(raw_results) - errors} errors={errors} "
+        f"total_ok={n_ok}/{len(requests)}"
+    )
+    return 0 if errors == 0 else 1
 
-    prev_cost_entries = []
-    cost_path = model_output_path(model_key, PER_REQUEST_COST_LOG_NAME)
-    if os.path.exists(cost_path):
-        with open(cost_path) as f:
-            for e in json.load(f).get("per_request", []):
-                cid = e.get("custom_id")
-                if not cid:
+
+def _run_hf_live_inference(cfg: LiveRunConfig) -> int:
+    fix_ssl_env()
+    token = None if cfg.dry_run else load_hf_token()
+
+    input_path, output_path, requests, input_id_list, by_id, already_done, remaining = (
+        _prepare_live_run(cfg)
+    )
+    router_model = _live_resolve_hf_router_model(cfg)
+    rates = MODEL_COST_ESTIMATES.get(cfg.model_key) or {}
+    bill_to = (cfg.hf_bill_to or "").strip()
+
+    print(f"[{cfg.model_key}] HF router {router_model}")
+    print(f"  input     {input_path}")
+    print(f"  output    {output_path}")
+    print(f"  done      {len(already_done)}/{len(requests)}")
+    print(
+        f"  remaining {len(remaining)}  budget={cfg.budget}  "
+        f"conc={cfg.concurrency}  pace={cfg.pace}s"
+    )
+    if rates:
+        print(
+            f"  rates     ${rates.get('input')}/M in  ${rates.get('output')}/M out  "
+            f"(cache read ${cfg.hf_cache_read_per_m}/M)"
+        )
+    print(f"  bill-to   {bill_to or '(personal account)'}")
+    if cfg.dry_run:
+        print("  dry-run: no API calls")
+        return 0
+    if not remaining:
+        print("  nothing to do")
+        return 0
+
+    input_ids, norm_to_canonical = load_input_request_maps(cfg.model_key)
+    prev_cost = _load_prior_live_cost_entries(cfg.model_key, already_done, input_ids, norm_to_canonical)
+    spent = sum(float(e["cost"]) for e in prev_cost if isinstance(e.get("cost"), (int, float)))
+    budget = cfg.budget if cfg.budget is not None else float("inf")
+
+    runtime = _model_runtime_config(cfg.model_key)
+    max_tokens = cfg.max_tokens
+    if max_tokens is None and runtime is not None:
+        max_tokens = runtime.max_tokens
+    if max_tokens is None:
+        max_tokens = 3000
+    timeout = max(cfg.timeout, float(runtime.base_timeout) if runtime else 120.0)
+
+    new_cost: list[dict] = []
+    stop_reason: str | None = None
+    errors = 0
+    done_new = 0
+    lock = asyncio.Lock()
+    rate_lock = asyncio.Lock()
+    rate_limit_until = 0.0
+    last_launch = 0.0
+    last_flush = time.monotonic()
+    last_progress = time.monotonic()
+    since_cost_flush = 0
+    in_flight = 0
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+    if bill_to:
+        headers["X-HF-Bill-To"] = bill_to
+
+    def flush_output() -> None:
+        _live_write_jsonl(output_path, _live_ordered_output(input_id_list, by_id))
+
+    def flush_all() -> None:
+        flush_output()
+        persist_per_request_cost_log(cfg.model_key, prev_cost + new_cost)
+
+    async def wait_for_slot() -> None:
+        nonlocal last_launch
+        while True:
+            async with rate_lock:
+                now = time.monotonic()
+                wait_rl = rate_limit_until - now
+                wait_pace = cfg.pace - (now - last_launch)
+                wait = max(wait_rl, wait_pace, 0.0)
+                if wait <= 0:
+                    last_launch = now
+                    return
+            if wait_rl > 1:
+                print(f"  cooling down {wait_rl:.0f}s (rate limit / pace)")
+            await asyncio.sleep(min(wait, 5.0))
+
+    async def note_retry_wait(resp, fallback: float) -> None:
+        nonlocal rate_limit_until
+        wait = hf_retry_after_seconds(resp, fallback=fallback)
+        async with rate_lock:
+            rate_limit_until = max(rate_limit_until, time.monotonic() + wait)
+        print(f"  HTTP {resp.status_code}: waiting {wait:.0f}s before retry")
+
+    async def call_one(client, req: dict) -> None:
+        nonlocal spent, errors, done_new, stop_reason
+        nonlocal last_flush, last_progress, since_cost_flush, in_flight
+        if stop_reason or spent >= budget:
+            if not stop_reason and spent >= budget:
+                stop_reason = f"budget ${budget:.2f}"
+            return
+
+        await wait_for_slot()
+        if stop_reason or spent >= budget:
+            return
+
+        body = {
+            "model": router_model,
+            "messages": req["body"]["messages"],
+            "max_tokens": max_tokens,
+            "temperature": 0.0,
+            "stream": False,
+        }
+        last_err = "unknown error"
+        data = None
+        async with lock:
+            in_flight += 1
+        try:
+            for attempt in range(8):
+                if stop_reason:
+                    break
+                try:
+                    resp = await client.post(HF_CHAT_URL, headers=headers, json=body)
+                    status = resp.status_code
+                    text = resp.text
+                    if hf_is_fatal_error(status, text):
+                        stop_reason = f"HTTP {status}: {text[:240]}"
+                        last_err = stop_reason
+                        break
+                    if status == 429 or status >= 500:
+                        await note_retry_wait(resp, fallback=min(15 * (2 ** attempt), 120))
+                        await wait_for_slot()
+                        continue
+                    if status >= 400:
+                        last_err = f"HTTP {status}: {text[:240]}"
+                        break
+                    data = resp.json()
+                    if isinstance(data, dict) and data.get("choices"):
+                        break
+                    if isinstance(data, dict) and data.get("error"):
+                        err_txt = str(data.get("error"))
+                        if hf_is_fatal_error(402, err_txt):
+                            stop_reason = err_txt[:240]
+                            last_err = stop_reason
+                        else:
+                            last_err = err_txt
+                            data = None
+                    break
+                except Exception as exc:
+                    last_err = str(exc)
+                    if stop_reason:
+                        break
+                    await asyncio.sleep(min(2 ** attempt, 30))
+        finally:
+            async with lock:
+                in_flight -= 1
+
+        raw = {
+            "custom_id": req["custom_id"],
+            "response": {"body": data if isinstance(data, dict) else {"error": last_err}},
+        }
+        clean, cost_entry = extract_clean_row(
+            raw, "openrouter", model_id=router_model, batch=False
+        )
+        if clean.get("answer") not in ("A", "B") and not clean.get("error"):
+            clean["error"] = last_err
+        _live_apply_model_key_pricing(
+            cost_entry, cfg.model_key, hf_cache_read_per_m=cfg.hf_cache_read_per_m
+        )
+
+        async with lock:
+            by_id[req["custom_id"]] = clean
+            if clean.get("answer") in ("A", "B"):
+                new_cost.append(cost_entry)
+                spent += float(cost_entry.get("cost") or 0.0)
+                done_new += 1
+            else:
+                errors += 1
+            since_cost_flush += 1
+            last_progress = time.monotonic()
+            if spent >= budget and not stop_reason:
+                stop_reason = f"budget ${budget:.2f}"
+            now = time.monotonic()
+            if since_cost_flush >= 50:
+                flush_all()
+                since_cost_flush = 0
+                last_flush = now
+            elif now - last_flush > 20:
+                flush_output()
+                last_flush = now
+
+        progressed = done_new + errors
+        if progressed % 10 == 0 or done_new == 1:
+            print(
+                f"  {done_new} ok / {errors} err / {progressed}/{len(remaining)} this run  "
+                f"spent=${spent:.3f}  in_flight={in_flight}"
+            )
+
+    async def run_all() -> None:
+        import httpx
+
+        queue: asyncio.Queue = asyncio.Queue()
+        for req in remaining:
+            queue.put_nowait(req)
+        workers = max(cfg.concurrency, 1)
+        for _ in range(workers):
+            queue.put_nowait(None)
+
+        async def worker() -> None:
+            while True:
+                req = await queue.get()
+                if req is None:
+                    break
+                if stop_reason or spent >= budget:
                     continue
-                canonical = canonical_custom_id(cid, input_ids, norm_to_canonical)
-                if canonical is None or canonical not in already_done:
-                    continue
-                # Keep prior costs only for successful resumed rows.
-                if (e.get("prompt_tokens") or 0) > 0 or (e.get("completion_tokens") or 0) > 0:
-                    prev_cost_entries.append({**e, "custom_id": canonical})
-    all_cost_entries = prev_cost_entries + new_cost_entries
-    persist_per_request_cost_log(model_key, all_cost_entries)
+                await call_one(client, req)
 
-    print(f"[{model_key}] Done. {len(raw_results)} new, {errors} errors. Total: {done}/{len(requests)}")
+        async def heartbeat() -> None:
+            while True:
+                await asyncio.sleep(30)
+                idle = time.monotonic() - last_progress
+                print(
+                    f"  … still running  ok={done_new} err={errors} "
+                    f"in_flight={in_flight} idle={idle:.0f}s spent=${spent:.3f}"
+                )
+
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            hb = asyncio.create_task(heartbeat())
+            try:
+                await asyncio.gather(*(worker() for _ in range(workers)))
+            finally:
+                hb.cancel()
+
+    print(
+        f"[{cfg.model_key}] starting HF-routed live calls "
+        f"(concurrency={cfg.concurrency}, pace={cfg.pace}s, timeout={timeout:.0f}s)…"
+    )
+    try:
+        asyncio.run(run_all())
+    except KeyboardInterrupt:
+        stop_reason = "keyboard interrupt"
+        print("  interrupted — flushing paid rows")
+    flush_all()
+
+    n_ok = sum(1 for row in by_id.values() if row.get("answer") in ("A", "B"))
+    print(
+        f"[{cfg.model_key}] done. new_ok={done_new} errors={errors} "
+        f"total_ok={n_ok}/{len(requests)} spent=${spent:.4f}"
+    )
+    if stop_reason:
+        print(f"  stopped: {stop_reason}")
+        return 2
+    return 0 if errors == 0 else 1
+
+
+def run_live(
+    model_key: str,
+    *,
+    provider: str = "openrouter",
+    concurrency: int = 5,
+    timeout: float = 120.0,
+    pace: float = 0.0,
+    budget: float | None = None,
+    max_tokens: int | None = None,
+    limit: int | None = None,
+    smoke: bool = False,
+    dry_run: bool = False,
+    hf_provider: str = "featherless-ai",
+    hf_model: str | None = None,
+    hf_bill_to: str | None = None,
+    hf_cache_read_per_m: float = 0.15,
+) -> int:
+    """Run within-ladder validation via live API (OpenRouter or HF Inference Providers)."""
+    if model_key not in MODELS:
+        print(f"[{model_key}] unknown model")
+        return 1
+
+    cfg = LiveRunConfig(
+        model_key=model_key,
+        concurrency=concurrency,
+        timeout=timeout,
+        pace=pace,
+        budget=budget,
+        max_tokens=max_tokens,
+        limit=limit,
+        smoke=smoke,
+        dry_run=dry_run,
+        hf_provider=hf_provider,
+        hf_model=hf_model,
+        hf_bill_to="" if hf_bill_to is None else hf_bill_to,
+        hf_cache_read_per_m=hf_cache_read_per_m,
+    )
+    if provider == "hf":
+        return _run_hf_live_inference(cfg)
+    if provider == "openrouter":
+        return _run_openrouter_live(cfg)
+    raise SystemExit(f"Unknown live provider: {provider} (use openrouter or hf)")
 
 
 def run_local(model_key):
@@ -1342,7 +1769,7 @@ def analyze(model_key):
     expected_ladder_ids = {cid.rsplit("__", 2)[0] for cid in input_ids}
 
     results = []
-    with open(output_path) as f:
+    with open(output_path, encoding="utf-8") as f:
         for line in f:
             r = json.loads(line)
             canonical = canonical_custom_id(r["custom_id"], input_ids, norm_to_canonical)
@@ -1695,14 +2122,75 @@ def main():
         action="store_true",
         help="Generate, submit, poll until complete, and analyze (OpenAI/Anthropic batch models).",
     )
-    parser.add_argument("--run-live", action="store_true", help="Run via live API calls (OpenRouter)")
+    parser.add_argument("--run-live", action="store_true", help="Run via live API calls")
+    parser.add_argument(
+        "--live-provider",
+        choices=("openrouter", "hf"),
+        default="openrouter",
+        help="Live API backend for --run-live (default: openrouter).",
+    )
     parser.add_argument("--run-local", action="store_true", help="Run locally via vLLM logprobs (base models)")
     parser.add_argument(
         "--submit-hf-job",
         action="store_true",
         help="Submit this within-ladder run to Hugging Face Jobs.",
     )
-    parser.add_argument("--concurrency", type=int, default=5, help="Concurrency for --run-live")
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=None,
+        help="Concurrency for --run-live (default: 5 openrouter, 1 hf).",
+    )
+    parser.add_argument(
+        "--live-timeout",
+        type=float,
+        default=180.0,
+        help="Per-request timeout (seconds) for --run-live with --live-provider hf.",
+    )
+    parser.add_argument(
+        "--live-pace",
+        type=float,
+        default=0.4,
+        help="Minimum seconds between launching new --run-live hf requests.",
+    )
+    parser.add_argument(
+        "--live-budget",
+        type=float,
+        default=None,
+        help="Stop HF live run after this USD spend (optional).",
+    )
+    parser.add_argument(
+        "--live-limit",
+        type=int,
+        default=None,
+        help="Max new API calls for this --run-live process.",
+    )
+    parser.add_argument(
+        "--live-max-tokens",
+        type=int,
+        default=None,
+        help="Override max_tokens for --run-live hf (default: model config).",
+    )
+    parser.add_argument(
+        "--hf-provider",
+        default="featherless-ai",
+        help="HF Inference Provider slug for --live-provider hf.",
+    )
+    parser.add_argument(
+        "--hf-model",
+        default=None,
+        help="HF Hub model id override (default: from MODEL_SPECS / aliases).",
+    )
+    parser.add_argument(
+        "--bill-to",
+        default=None,
+        help="HF org for `X-HF-Bill-To` when `--live-provider hf` (omit to bill to your token's personal account).",
+    )
+    parser.add_argument(
+        "--live-dry-run",
+        action="store_true",
+        help="Print --run-live plan without calling the API.",
+    )
     parser.add_argument(
         "--poll-interval",
         type=int,
@@ -1868,7 +2356,26 @@ def main():
         )
 
     elif args.run_live:
-        run_live(args.model, concurrency=args.concurrency)
+        live_concurrency = args.concurrency
+        if live_concurrency is None:
+            live_concurrency = 1 if args.live_provider == "hf" else 5
+        code = run_live(
+            args.model,
+            provider=args.live_provider,
+            concurrency=live_concurrency,
+            timeout=args.live_timeout,
+            pace=args.live_pace if args.live_provider == "hf" else 0.0,
+            budget=args.live_budget,
+            max_tokens=args.live_max_tokens,
+            limit=args.live_limit,
+            smoke=_SMOKE_SCOPE,
+            dry_run=args.live_dry_run,
+            hf_provider=args.hf_provider,
+            hf_model=args.hf_model,
+            hf_bill_to=args.bill_to,
+        )
+        if code:
+            return code
 
     elif args.run_local:
         run_local(args.model)

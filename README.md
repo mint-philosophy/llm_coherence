@@ -104,12 +104,13 @@ PYTHONPATH=src python scripts/00_repository/validate_artifacts.py --write-indexe
 
 ## API Keys
 
-Model-run steps require provider access. Set environment variables (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`) or create local files under `api_keys/`:
+Model-run steps require provider access. Set environment variables (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`, `HF_TOKEN`) or create local files under `api_keys/`:
 
 ```text
 api_keys/api_key_openai.txt
 api_keys/api_key_anthropic.txt
 api_keys/api_key_openrouter.txt
+api_keys/hf_token
 ```
 
 Keys are loaded through `src/llm_coherence/runtime/api_keys.py` and are not included in this repository.
@@ -205,6 +206,30 @@ bash scripts/00_repository/01_build_hf_jobs_image.sh "$IMAGE"
 ```
 
 
+
+### Within-ladder live inference (Instance 1 / Step 10a)
+
+OpenRouter models use `--run-live` with the default `--live-provider openrouter`. For Hugging Face Inference Providers, use `--live-provider hf` and (optionally) pass `--bill-to` to set the `X-HF-Bill-To` header for org billing:
+
+```bash
+PYTHONPATH=src python scripts/04_model_runs/10a_run_within_ladder_experiment.py \
+  --model kimi-k2-openrouter-thinking \
+  --run-live \
+  --live-provider hf \
+  --bill-to MINTLABJHUANU \
+  --live-budget 20 \
+  --concurrency 1
+```
+
+After a live run, analyze with `--analyze` on the same model key.
+
+Dry-run without API calls:
+
+```bash
+PYTHONPATH=src python scripts/04_model_runs/10a_run_within_ladder_experiment.py \
+  --model kimi-k2-openrouter-thinking \
+  --run-live --live-provider hf --live-dry-run
+```
 
 ### Within-ladder GLM experiment (Instance 1 / Step 10a)
 
