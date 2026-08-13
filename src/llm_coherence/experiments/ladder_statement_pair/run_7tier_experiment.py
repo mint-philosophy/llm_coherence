@@ -64,15 +64,23 @@ from llm_coherence.experiments.ladder_statement_pair.experiment_runner_tradeoff 
 )
 from llm_coherence.experiments.ladder_statement_pair.openai_batch_runner import (
     MAX_BATCH_REQUESTS,
+    batch_queue_limit_for_model,
     create_retry_shards,
+    print_batch_run_pre_submit_cost_estimate,
     generate_batch_run,
     process_batch_run,
     refresh_batch_jobs,
     resolve_batch_run_dir,
     submit_pending_batch_shards,
+    validate_batch_run_binding,
     wait_for_batch_jobs,
 )
-from llm_coherence.config import resolve_model_results_dir, results_dir_name
+from llm_coherence.config import (
+    canonical_model_key,
+    get_model_config,
+    resolve_model_results_dir,
+    results_dir_name,
+)
 from llm_coherence.paths import (
     CHECKPOINTS_OUTPUT_DIR,
     COMPARISONS_DIR,
@@ -183,18 +191,33 @@ def get_manifest_items(
 
 
 def is_complete(results_dir: Path, test_name: str, model_key: str) -> bool:
+    def valid(path: Path) -> bool:
+        if not path.is_file():
+            return False
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return False
+        config = payload.get("config") or {}
+        metadata = payload.get("metadata") or {}
+        if config.get("model_key") not in (None, model_key):
+            return False
+        if config.get("infrastructure") == "openai_batch_api":
+            return metadata.get("run_status") == "complete"
+        return True
+
     # Primary path uses compact artifact dir names to avoid Windows MAX_PATH issues.
     artifact_dir = artifact_dir_name_for_test(test_name)
     compact = results_dir / artifact_dir / "results.json"
-    if compact.exists():
+    if valid(compact):
         return True
     # Transitional compact naming.
     compact_v1 = results_dir / artifact_dir / f"{artifact_dir}_{model_key}_results.json"
-    if compact_v1.exists():
+    if valid(compact_v1):
         return True
     # Back-compat for previously written legacy layout.
     legacy = results_dir / test_name / f"{test_name}_{model_key}_results.json"
-    return legacy.exists()
+    return valid(legacy)
 
 
 async def smoke_call(
@@ -216,8 +239,10 @@ async def smoke_call(
     # their reasoning-toggle and produce malformed output that fails the smoke.
     extra_body = None
     enable_cache = False
-    from llm_coherence.config import MODEL_CONFIGS
-    cfg = MODEL_CONFIGS.get(model_key)
+    try:
+        cfg = get_model_config(model_key)
+    except ValueError:
+        cfg = None
     system_message = None
     if cfg is not None:
         extra_body = cfg.extra_body
@@ -349,7 +374,7 @@ async def run_phase6b(
         )
         return
 
-    print(f"Phase 6b Monotonicity Experiment (7 tiers)")
+    print("Phase 6b Monotonicity Experiment (7 tiers)")
     print(f"  Model: {model_key}")
     print(f"  Trials: {num_trials}")
     print(f"  Variation sets: {len(run_items)}")
@@ -550,7 +575,7 @@ def _write_cost_logs(
     batch: bool = False,
 ) -> tuple[Path, Path] | None:
     try:
-        pricing = MODEL_COST_ESTIMATES.get(model_key)
+        pricing = MODEL_COST_ESTIMATES.get(canonical_model_key(model_key))
     except Exception:
         pricing = None
     if batch and pricing:
@@ -610,7 +635,7 @@ def _write_cost_logs(
         records.append(
             {
                 "test_name": cfg.get("test_name", path.parent.name),
-                "result_path": str(path),
+                "result_path": Path(os.path.relpath(path, results_dir)).as_posix(),
                 "calls_logged": calls_logged,
                 "prompt_tokens": prompt,
                 "completion_tokens": completion,
@@ -654,7 +679,7 @@ def _write_cost_logs(
         "estimated_cost_usd_from_usage": estimated_from_usage,
         "estimated_cost_usd_from_results_sum": round(estimated_from_metadata_total, 6),
         "estimated_cost_count_from_results": estimated_from_metadata_n,
-        "actual_cost_usd_sum": round(actual_total, 6),
+        "actual_cost_usd_sum": round(actual_total, 6) if actual_n > 0 else None,
         "actual_cost_count": actual_n,
         "records": records,
     }
@@ -761,6 +786,12 @@ def _push_results_to_hub(results_dir: Path, model_key: str, hub_dataset: str) ->
         repo_id=hub_dataset,
         repo_type="dataset",
         commit_message=f"phase6b results for {model_key} ({run_id})",
+        ignore_patterns=[
+            "batch_runs/**",
+            "**/batch_runs/**",
+            "batch_id.txt",
+            "batch_errors*.jsonl",
+        ],
     )
     print(f"  Uploaded: https://huggingface.co/datasets/{hub_dataset}/tree/main/{path_in_repo}")
 
@@ -1050,15 +1081,70 @@ def run_openai_batch_action(
         print(f"  Shards: {len(batch_manifest['shards'])}")
         print(f"  Model: {batch_manifest['model_id']}")
         print(f"  reasoning_effort: {batch_manifest['reasoning_effort']}")
+        print_batch_run_pre_submit_cost_estimate(run_dir)
         print("  No API requests have been submitted yet.")
         if args.batch_action == "generate":
             return 0
     else:
         run_dir = resolve_batch_run_dir(results_dir, args.batch_run_dir)
 
+    batch_manifest = validate_batch_run_binding(
+        run_dir,
+        model_key=args.model,
+        results_dir=results_dir,
+    )
+
+    queue_limit: int | None = None
+    if args.batch_action in {"submit", "retry", "run"}:
+        queue_limit = batch_queue_limit_for_model(
+            batch_manifest["model_id"],
+            usage_tier=args.batch_usage_tier,
+            explicit_limit=args.batch_queue_token_limit,
+        )
+
+    def submit_and_wait_all_waves() -> None:
+        assert queue_limit is not None
+        while True:
+            jobs = submit_pending_batch_shards(
+                run_dir,
+                max_queued_input_tokens=queue_limit,
+            )
+            print(
+                "Batch wave: "
+                f"submitted={jobs['submitted_this_call']}, "
+                f"pending={jobs['pending_shards']}, "
+                f"queue_bound={jobs['active_input_token_upper_bound']:,}/"
+                f"{queue_limit:,} tokens"
+            )
+            nonterminal = [
+                entry
+                for entry in jobs.get("jobs", [])
+                if entry.get("batch_id")
+                and entry.get("status") not in {"completed", "failed", "expired", "cancelled"}
+            ]
+            if nonterminal:
+                wait_for_batch_jobs(run_dir, poll_interval=args.poll_interval)
+                continue
+            if jobs["pending_shards"]:
+                raise RuntimeError(
+                    "Pending shards remain but no active/submitted wave can make "
+                    "progress. Regenerate with fewer requests per shard or raise "
+                    "the verified queue-token limit."
+                )
+            return
+
     if args.batch_action == "submit":
-        jobs = submit_pending_batch_shards(run_dir)
-        print(f"Submitted/recorded batch jobs: {len(jobs['jobs'])}")
+        assert queue_limit is not None
+        print_batch_run_pre_submit_cost_estimate(run_dir)
+        jobs = submit_pending_batch_shards(
+            run_dir,
+            max_queued_input_tokens=queue_limit,
+        )
+        print(
+            f"Submitted this wave: {jobs['submitted_this_call']}; "
+            f"pending shards: {jobs['pending_shards']}"
+        )
+        print(f"Recorded batch jobs: {len(jobs['jobs'])}")
         print(f"Batch run: {run_dir}")
         return 0
 
@@ -1077,29 +1163,43 @@ def run_openai_batch_action(
         jobs = refresh_batch_jobs(run_dir)
         if not jobs["all_terminal"]:
             raise SystemExit("Current batch jobs are not all terminal; retry later.")
-        shards, retry_count = create_retry_shards(run_dir)
+        shards, retry_count, classification = create_retry_shards(run_dir)
+        if classification["non_retryable"]:
+            print(
+                f"Non-retryable failed requests: {classification['non_retryable']} "
+                "(inspect batch error JSONL)."
+            )
         if retry_count == 0:
-            print("No transport-level missing responses to retry.")
+            print("No transient/missing responses to retry.")
             return 0
         print(f"Created {len(shards)} retry shard(s) for {retry_count:,} requests.")
-        jobs = submit_pending_batch_shards(run_dir)
-        print(f"Submitted/recorded batch jobs: {len(jobs['jobs'])}")
+        assert queue_limit is not None
+        jobs = submit_pending_batch_shards(
+            run_dir,
+            max_queued_input_tokens=queue_limit,
+        )
+        print(
+            f"Submitted this wave: {jobs['submitted_this_call']}; "
+            f"pending retry shards: {jobs['pending_shards']}"
+        )
         return 0
 
     if args.batch_action == "run":
-        for retry_round in range(args.batch_max_retries + 1):
-            jobs = submit_pending_batch_shards(run_dir)
-            print(f"Submitted/recorded batch jobs: {len(jobs['jobs'])}")
-            wait_for_batch_jobs(run_dir, poll_interval=args.poll_interval)
-            if retry_round >= args.batch_max_retries:
-                break
-            shards, retry_count = create_retry_shards(run_dir)
+        submit_and_wait_all_waves()
+        for retry_round in range(args.batch_max_retries):
+            shards, retry_count, classification = create_retry_shards(run_dir)
+            if classification["non_retryable"]:
+                print(
+                    f"Retry audit found {classification['non_retryable']} "
+                    "deterministic failure(s); these will not be resubmitted."
+                )
             if retry_count == 0:
                 break
             print(
                 f"Retry round {retry_round + 1}: {retry_count:,} missing "
                 f"responses in {len(shards)} shard(s)."
             )
+            submit_and_wait_all_waves()
 
     if args.batch_action in {"process", "run"}:
         summary = process_batch_run(run_dir)
@@ -1189,7 +1289,7 @@ def main():
         dest="batch_action",
         action="store_const",
         const="submit",
-        help="Submit all not-yet-submitted shards in an existing batch run.",
+        help="Submit one queue-safe wave of not-yet-submitted shards.",
     )
     batch_actions.add_argument(
         "--batch-status",
@@ -1210,7 +1310,7 @@ def main():
         dest="batch_action",
         action="store_const",
         const="retry",
-        help="Create and submit retry shards for transport-level missing responses.",
+        help="Create and submit retry shards for transient/missing responses.",
     )
     batch_actions.add_argument(
         "--run-batch",
@@ -1241,7 +1341,29 @@ def main():
         "--batch-max-retries",
         type=int,
         default=2,
-        help="Transport-level retry rounds for --run-batch (default: 2).",
+        help="Transient/missing-response retry rounds for --run-batch (default: 2).",
+    )
+    parser.add_argument(
+        "--batch-usage-tier",
+        type=int,
+        choices=range(1, 6),
+        default=None,
+        metavar="{1,2,3,4,5}",
+        help=(
+            "OpenAI usage tier used to enforce the model's published Batch queue "
+            "limit. Required for submit/retry/run unless an explicit queue-token "
+            "limit is supplied."
+        ),
+    )
+    parser.add_argument(
+        "--batch-queue-token-limit",
+        type=int,
+        default=None,
+        help=(
+            "Verified account-specific Batch queue limit in input tokens. Overrides "
+            "--batch-usage-tier; use only when the OpenAI dashboard differs from the "
+            "published tier table."
+        ),
     )
     parser.add_argument(
         "--poll-interval",
@@ -1272,7 +1394,7 @@ def main():
                              "(falls back to 'You are a helpful assistant.').")
     parser.add_argument("--hub-dataset", default=None,
                         help="After completion, push results/ to this HF dataset repo "
-                             "(e.g. 'elenaajayi/emergent-values-smoke-results'). "
+                             "(e.g. 'your-org/your-dataset'). "
                              "Requires HF_TOKEN with write scope in the environment.")
     parser.add_argument(
         "--submit-hf-job",
@@ -1318,6 +1440,8 @@ def main():
         )
     if args.batch_max_retries < 0:
         parser.error("--batch-max-retries must be >= 0")
+    if args.batch_queue_token_limit is not None and args.batch_queue_token_limit < 1:
+        parser.error("--batch-queue-token-limit must be >= 1")
     if args.poll_interval < 1:
         parser.error("--poll-interval must be >= 1")
     if args.model_volume and not Path(args.model_volume_path).is_absolute():
@@ -1325,8 +1449,11 @@ def main():
     if args.batch_action and args.submit_hf_job:
         parser.error("OpenAI batch actions cannot be combined with --submit-hf-job")
 
-    from llm_coherence.config import MODEL_CONFIGS
-    cfg = MODEL_CONFIGS.get(args.model)
+    args.model = canonical_model_key(args.model)
+    try:
+        cfg = get_model_config(args.model)
+    except ValueError:
+        cfg = None
     if args.max_tokens is None:
         args.max_tokens = cfg.max_tokens if cfg is not None else 10
     if args.model == "glm-45-base-logprobs" and args.model_variant == "instruct":

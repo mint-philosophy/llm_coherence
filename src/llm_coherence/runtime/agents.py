@@ -8,7 +8,7 @@ import random
 from dataclasses import dataclass
 from typing import Any
 
-from llm_coherence.config import MODEL_CONFIGS
+from llm_coherence.config import MODEL_CONFIGS, canonical_model_key
 from llm_coherence.runtime.api_keys import API_KEY_ENV_BY_TYPE, ensure_api_key_env
 from llm_coherence.runtime.forced_choice_logprobs import (
     ForcedChoiceScoringError,
@@ -33,8 +33,8 @@ MODEL_SPECS: dict[str, ModelSpec] = {
     "gpt-54": ModelSpec("openai/gpt-5.4-2026-03-05", "openai"),
     "gpt-54-thinking": ModelSpec("openai/gpt-5.4-2026-03-05", "openai"),
     "gpt-55-openai": ModelSpec("openai/gpt-5.5", "openai"),
-    "gpt-56": ModelSpec("openai/gpt-5.6-sol", "openai"),
-    "gpt-56-thinking": ModelSpec("openai/gpt-5.6-sol", "openai"),
+    "gpt-56-sol": ModelSpec("openai/gpt-5.6-sol", "openai"),
+    "gpt-56-sol-thinking": ModelSpec("openai/gpt-5.6-sol", "openai"),
     "gpt-56-terra": ModelSpec("openai/gpt-5.6-terra", "openai"),
     "gpt-56-terra-thinking": ModelSpec("openai/gpt-5.6-terra", "openai"),
     "gpt-56-luna": ModelSpec("openai/gpt-5.6-luna", "openai"),
@@ -71,10 +71,11 @@ MODEL_SPECS: dict[str, ModelSpec] = {
 
 
 def model_name_for_key(model_key: str) -> str | None:
-    spec = MODEL_SPECS.get(model_key)
+    resolved_key = canonical_model_key(model_key)
+    spec = MODEL_SPECS.get(resolved_key)
     if spec is not None:
         return spec.model_name
-    cfg = MODEL_CONFIGS.get(model_key)
+    cfg = MODEL_CONFIGS.get(resolved_key)
     return cfg.model_name_full if cfg is not None else None
 
 
@@ -459,7 +460,8 @@ def create_agent(
     **kwargs: Any,
 ) -> LiteLLMAgent:
     """Create a LiteLLM-backed API agent from an llm_coherence model key."""
-    spec = MODEL_SPECS.get(model_key)
+    resolved_key = canonical_model_key(model_key)
+    spec = MODEL_SPECS.get(resolved_key)
     if spec is None:
         raise ValueError(f"Unknown model key: {model_key}")
     if spec.model_type == "vllm_base_model_logprobs":
@@ -478,7 +480,7 @@ def create_agent(
 
     ensure_api_key_env(spec.model_type)
 
-    cfg = MODEL_CONFIGS.get(model_key)
+    cfg = MODEL_CONFIGS.get(resolved_key)
     resolved_extra_body = extra_body if extra_body is not None else (cfg.extra_body if cfg else None)
     resolved_enable_cache = enable_cache or (cfg.enable_cache if cfg else False)
 

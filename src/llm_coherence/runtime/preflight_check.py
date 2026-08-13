@@ -4,8 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from llm_coherence.config import canonical_model_key
 
-# Approximate cost per 1M tokens in USD.
+
+# Approximate standard cost per 1M tokens in USD. OpenAI rates checked
+# 2026-08-10 against https://developers.openai.com/api/docs/models/compare.
 MODEL_COST_ESTIMATES = {
     "claude-opus-openrouter": {"input": 5.0, "output": 25.0},
     "claude-opus": {"input": 5.0, "output": 25.0},
@@ -14,12 +17,12 @@ MODEL_COST_ESTIMATES = {
     "deepseek-r1": {"input": 0.55, "output": 2.19},
     "gpt-55": {"input": 5.0, "output": 30.0},
     "gpt-55-openai": {"input": 5.0, "output": 30.0},
-    "gpt-56": {"input": 5.0, "output": 30.0},
-    "gpt-56-thinking": {"input": 5.0, "output": 30.0},
-    "gpt-56-terra": {"input": 2.5, "output": 15.0},
-    "gpt-56-terra-thinking": {"input": 2.5, "output": 15.0},
-    "gpt-56-luna": {"input": 1.0, "output": 6.0},
-    "gpt-56-luna-thinking": {"input": 1.0, "output": 6.0},
+    "gpt-56-sol": {"input": 5.0, "output": 30.0},
+    "gpt-56-sol-thinking": {"input": 5.0, "output": 30.0},
+    "gpt-56-terra": {"input": 2.0, "output": 12.0},
+    "gpt-56-terra-thinking": {"input": 2.0, "output": 12.0},
+    "gpt-56-luna": {"input": 0.2, "output": 1.2},
+    "gpt-56-luna-thinking": {"input": 0.2, "output": 1.2},
     "gpt-54-nano": {"input": 0.20, "output": 1.25},
     "gpt-54-nano-thinking": {"input": 0.20, "output": 1.25},
     "gpt-54-mini": {"input": 0.75, "output": 4.50},
@@ -51,8 +54,8 @@ EXPENSIVE_MODELS = {
     "gpt-54-thinking",
     "gpt-55",
     "gpt-55-openai",
-    "gpt-56",
-    "gpt-56-thinking",
+    "gpt-56-sol",
+    "gpt-56-sol-thinking",
     "gpt-56-terra",
     "gpt-56-terra-thinking",
     "gpt-56-luna",
@@ -94,7 +97,7 @@ CALIBRATED_OUTPUT_TOKENS: dict[str, int] = {
 
 def is_thinking_run(model_key: str) -> bool:
     """Whether the model has native reasoning enabled."""
-    return model_key.endswith("-thinking")
+    return canonical_model_key(model_key).endswith("-thinking")
 
 
 def estimate_cost(
@@ -103,6 +106,7 @@ def estimate_cost(
     with_reasoning: bool,
 ) -> float | None:
     """Estimate total cost in USD. Returns None if the model is not priced."""
+    model_key = canonical_model_key(model_key)
     costs = MODEL_COST_ESTIMATES.get(model_key)
     if not costs:
         return None

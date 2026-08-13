@@ -119,6 +119,8 @@ _VARIANT_SUFFIX_RE = re.compile(
 
 # Canonical publication base names (before ``(reasoning on/off)`` suffix).
 PAPER_MODEL_BASE_NAMES: dict[str, str] = {
+    "gpt-56-sol": "GPT-5.6 Sol",
+    # Retained only to label any artifacts produced before the explicit Sol key.
     "gpt-56": "GPT-5.6 Sol",
     "gpt-56-terra": "GPT-5.6 Terra",
     "gpt-56-luna": "GPT-5.6 Luna",
@@ -795,8 +797,8 @@ def write_combined_headline_table(
 
 PAPER_MODEL_CONFIG_GROUPS: list[list[str]] = [
     [
-        "gpt-56",
-        "gpt-56-thinking",
+        "gpt-56-sol",
+        "gpt-56-sol-thinking",
         "gpt-56-terra",
         "gpt-56-terra-thinking",
         "gpt-56-luna",

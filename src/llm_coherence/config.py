@@ -15,6 +15,24 @@ from typing import Optional
 
 
 # Model configuration
+GPT56_RESPONSES_MIN_OUTPUT_TOKENS = 16
+
+
+def validate_openai_responses_max_output_tokens(
+    model_id: str, max_output_tokens: int
+) -> None:
+    """Reject GPT-5.6 Responses requests below the provider's enforced floor."""
+    if (
+        model_id.startswith("gpt-5.6")
+        and max_output_tokens < GPT56_RESPONSES_MIN_OUTPUT_TOKENS
+    ):
+        raise ValueError(
+            f"{model_id} requires max_output_tokens >= "
+            f"{GPT56_RESPONSES_MIN_OUTPUT_TOKENS}; got {max_output_tokens}. "
+            "This is enforced by the OpenAI Responses API."
+        )
+
+
 
 @dataclass
 class ModelConfig:
@@ -118,33 +136,39 @@ MODEL_CONFIGS = {
 
     # GPT-5.6 Sol (OpenAI direct API). GPT-5.6 defaults to medium reasoning,
     # so the off condition must send reasoning_effort="none" explicitly.
-    # OpenAI exposes reasoning-token usage, not a raw chain-of-thought trace,
-    # through the Chat Completions batch path used by these experiments.
-    'gpt-56': ModelConfig(
-        model_key='gpt-56',
+    # OpenAI exposes reasoning-token usage and opt-in summaries, not the raw
+    # private chain of thought, through the Responses Batch API path used here.
+    'gpt-56-sol': ModelConfig(
+        model_key='gpt-56-sol',
         temperature=0.0,
-        max_tokens=10,
+        # GPT-5.4 used 10; GPT-5.6 Responses enforces a minimum of 16.
+        max_tokens=GPT56_RESPONSES_MIN_OUTPUT_TOKENS,
         concurrency_limit=50,
         base_timeout=15.0,
         extra_body={"reasoning_effort": "none"},
         reasoning_artifact_type="none",
     ),
-    'gpt-56-thinking': ModelConfig(
-        model_key='gpt-56-thinking',
+    'gpt-56-sol-thinking': ModelConfig(
+        model_key='gpt-56-sol-thinking',
         temperature=0.0,
         # Match the manuscript's GPT-5.4 Standard reasoning-on cap.
         max_tokens=200,
         concurrency_limit=50,
         base_timeout=30.0,
-        extra_body={"reasoning_effort": "high"},
-        # The API does not expose private reasoning tokens.  The manuscript's
-        # reasoning prompt separately elicits a visible prose justification.
-        reasoning_artifact_type="prose_justification",
+        extra_body={
+            "reasoning_effort": "high",
+            "reasoning": {"summary": "auto"},
+        },
+        # OpenAI does not expose private reasoning tokens. Request the most
+        # detailed supported reasoning summary as a separate response item;
+        # the manuscript prompt still elicits its visible prose justification.
+        reasoning_artifact_type="summary",
     ),
     'gpt-56-terra': ModelConfig(
         model_key='gpt-56-terra',
         temperature=0.0,
-        max_tokens=10,
+        # GPT-5.4 Mini used 10; GPT-5.6 Responses enforces a minimum of 16.
+        max_tokens=GPT56_RESPONSES_MIN_OUTPUT_TOKENS,
         concurrency_limit=75,
         base_timeout=12.0,
         extra_body={"reasoning_effort": "none"},
@@ -157,13 +181,17 @@ MODEL_CONFIGS = {
         max_tokens=150,
         concurrency_limit=75,
         base_timeout=30.0,
-        extra_body={"reasoning_effort": "high"},
-        reasoning_artifact_type="prose_justification",
+        extra_body={
+            "reasoning_effort": "high",
+            "reasoning": {"summary": "auto"},
+        },
+        reasoning_artifact_type="summary",
     ),
     'gpt-56-luna': ModelConfig(
         model_key='gpt-56-luna',
         temperature=0.0,
-        max_tokens=10,
+        # GPT-5.4 Nano used 10; GPT-5.6 Responses enforces a minimum of 16.
+        max_tokens=GPT56_RESPONSES_MIN_OUTPUT_TOKENS,
         concurrency_limit=100,
         base_timeout=10.0,
         extra_body={"reasoning_effort": "none"},
@@ -172,12 +200,15 @@ MODEL_CONFIGS = {
     'gpt-56-luna-thinking': ModelConfig(
         model_key='gpt-56-luna-thinking',
         temperature=0.0,
-        # Match the manuscript's GPT-5.4 Nano reasoning-on cap.
-        max_tokens=150,
+        # Calibrated after 150 tokens truncated 2/210 five-ladder smoke responses.
+        max_tokens=200,
         concurrency_limit=100,
         base_timeout=30.0,
-        extra_body={"reasoning_effort": "high"},
-        reasoning_artifact_type="prose_justification",
+        extra_body={
+            "reasoning_effort": "high",
+            "reasoning": {"summary": "auto"},
+        },
+        reasoning_artifact_type="summary",
     ),
 
     # Opus 4.6 (via OpenRouter)
@@ -294,6 +325,8 @@ DEFAULT_MODEL = 'gpt-54-nano'
 
 # Legacy CLI keys → canonical MODEL_CONFIGS entry.
 MODEL_KEY_ALIASES: dict[str, str] = {
+    "gpt-56": "gpt-56-sol",
+    "gpt-56-thinking": "gpt-56-sol-thinking",
     "opus-46-openrouter-thinking": "opus-46-thinking",
 }
 
@@ -312,7 +345,10 @@ def _candidate_results_dir_names(model_key: str) -> list[str]:
     key = canonical_model_key(model_key)
     stripped = results_dir_name(key)
     names: list[str] = []
-    for name in (stripped, key, model_key):
+    legacy_aliases = [
+        alias for alias, canonical in MODEL_KEY_ALIASES.items() if canonical == key
+    ]
+    for name in (stripped, key, model_key, *legacy_aliases):
         if name and name not in names:
             names.append(name)
     return names
@@ -339,9 +375,10 @@ def model_key_from_results_folder(folder_name: str, known_keys: set[str]) -> str
             candidates.append(f"{base}-openrouter-thinking")
         candidates.append(f"{folder_name}-openrouter")
     for candidate in candidates:
-        if candidate in known_keys:
-            return candidate
-    return stripped
+        resolved = canonical_model_key(candidate)
+        if resolved in known_keys:
+            return resolved
+    return canonical_model_key(stripped)
 
 
 def get_model_config(model_key: str) -> ModelConfig:

@@ -19,15 +19,13 @@ Usage:
 
 import asyncio
 import json
-import math
 import os
 import re
 import sys
 import time
 import argparse
 import uuid
-from collections import defaultdict
-from datetime import datetime, timezone
+from collections import Counter
 from itertools import combinations
 from pathlib import Path
 
@@ -35,8 +33,9 @@ from llm_coherence.config import (
     MODEL_CONFIGS,
     MODEL_KEY_ALIASES,
     ModelConfig,
+    canonical_model_key,
     get_model_config,
-    resolve_model_results_dir,
+    validate_openai_responses_max_output_tokens,
 )
 from llm_coherence.paths import (
     PRUNED_FINAL_PATH,
@@ -63,6 +62,7 @@ from llm_coherence.runtime.usage_cost import (
     format_cost_artifact_note,
     get_model_pricing,
     records_from_per_request_entries,
+    resolve_rates,
     summary_from_phase6b_cost_log,
     usage_cost_breakdown,
     write_per_request_cost_log_file,
@@ -76,6 +76,13 @@ _VARIATIONS_PATH: Path = DEFAULT_VARIATIONS_PATH
 _START_FROM: int = 0
 _MAX_VARIATION_SETS: int | None = None
 _SMOKE_SCOPE: bool = False
+
+# Pre-submit estimates must work offline: tiktoken may need encoding downloads on
+# a fresh machine. These constants are calibrated to the completed GPT-5.6
+# within-ladder runs while keeping the calculation transparent in terminal output.
+_ESTIMATED_UTF8_BYTES_PER_INPUT_TOKEN = 5
+_ESTIMATED_INPUT_FRAMING_TOKENS_PER_REQUEST = 8
+_ESTIMATED_REASONING_OFF_OUTPUT_TOKENS_PER_REQUEST = 5
 
 
 def resolve_under_repo(rel: str | Path) -> Path:
@@ -141,8 +148,8 @@ _OPENAI_BATCH_MODEL_IDS = {
     "gpt-54-nano-thinking": "gpt-5.4-nano-2026-03-17",
     "gpt-54-mini-thinking": "gpt-5.4-mini-2026-03-17",
     "gpt-54-thinking": "gpt-5.4-2026-03-05",
-    "gpt-56": "gpt-5.6-sol",
-    "gpt-56-thinking": "gpt-5.6-sol",
+    "gpt-56-sol": "gpt-5.6-sol",
+    "gpt-56-sol-thinking": "gpt-5.6-sol",
     "gpt-56-terra": "gpt-5.6-terra",
     "gpt-56-terra-thinking": "gpt-5.6-terra",
     "gpt-56-luna": "gpt-5.6-luna",
@@ -510,26 +517,30 @@ def _reasoning_is_on(extra_body: dict, *, with_reasoning: bool) -> bool:
     return False
 
 
-def _openai_batch_request_body(
+def _openai_responses_batch_request_body(
     api_model: str,
     prompt: str,
     max_tokens: int,
     temperature: float,
     extra_body: dict,
 ) -> dict:
-    """Build OpenAI batch chat-completions body for the within-ladder batch API."""
+    """Build an OpenAI Responses API body for the within-ladder Batch API."""
+    validate_openai_responses_max_output_tokens(api_model, max_tokens)
     body = {
         "model": api_model,
-        "messages": [{"role": "user", "content": prompt}],
-        "max_completion_tokens": max_tokens,
+        "input": prompt,
+        "max_output_tokens": max_tokens,
     }
     effort = extra_body.get("reasoning_effort")
     if effort is not None:
-        body["reasoning_effort"] = effort
+        body["reasoning"] = {"effort": effort}
     if effort in (None, "none"):
         body["temperature"] = temperature
     for key, value in extra_body.items():
         if key in ("reasoning_effort", "temperature"):
+            continue
+        if key == "reasoning" and isinstance(value, dict):
+            body["reasoning"] = {**body.get("reasoning", {}), **value}
             continue
         body[key] = value
     return body
@@ -560,11 +571,11 @@ def generate_pairs(ladders, model_key, with_reasoning=False):
             if provider == "vllm_logprobs":
                 requests.append({"custom_id": custom_id, "prompt": prompt})
             elif provider == "openai":
-                body = _openai_batch_request_body(
+                body = _openai_responses_batch_request_body(
                     api_model, prompt, max_tokens, temperature, extra_body
                 )
                 requests.append({"custom_id": custom_id, "method": "POST",
-                                 "url": "/v1/chat/completions", "body": body})
+                                 "url": "/v1/responses", "body": body})
             elif provider == "anthropic":
                 body = {
                     "model": api_model,
@@ -594,11 +605,11 @@ def generate_pairs(ladders, model_key, with_reasoning=False):
             if provider == "vllm_logprobs":
                 requests.append({"custom_id": custom_id_flip, "prompt": prompt_flip})
             elif provider == "openai":
-                body_flip = _openai_batch_request_body(
+                body_flip = _openai_responses_batch_request_body(
                     api_model, prompt_flip, max_tokens, temperature, extra_body
                 )
                 requests.append({"custom_id": custom_id_flip, "method": "POST",
-                                 "url": "/v1/chat/completions", "body": body_flip})
+                                 "url": "/v1/responses", "body": body_flip})
             elif provider == "anthropic":
                 body_flip = {
                     "model": api_model,
@@ -624,23 +635,57 @@ def generate_pairs(ladders, model_key, with_reasoning=False):
     return requests
 
 
-def submit_batch(model_key):
+def _guard_duplicate_batch_submission(
+    model_key: str,
+    *,
+    force_resubmit: bool = False,
+) -> Path:
+    """Refuse to overwrite a recorded batch ID without explicit confirmation."""
+    batch_id_path = Path(model_output_path(model_key, "batch_id.txt"))
+    if not batch_id_path.is_file():
+        return batch_id_path
+
+    existing_batch_id = batch_id_path.read_text(encoding="utf-8").strip()
+    if not existing_batch_id:
+        return batch_id_path
+
+    if not force_resubmit:
+        raise SystemExit(
+            f"[{model_key}] Refusing duplicate batch submission: "
+            f"{batch_id_path} already tracks {existing_batch_id}. "
+            "Use --fetch for that batch, choose a new --results-dir for a new run, "
+            "or pass --force-resubmit only when you intentionally want another "
+            "potentially billable batch."
+        )
+
+    print(
+        f"[{model_key}] WARNING: --force-resubmit will replace the locally tracked "
+        f"batch ID {existing_batch_id}; the existing remote batch is not cancelled."
+    )
+    return batch_id_path
+
+
+def submit_batch(model_key, *, force_resubmit: bool = False):
     """Submit batch via the appropriate provider API."""
     _, provider, _ = MODELS[model_key]
     input_path = model_output_path(model_key, "input.jsonl")
+    batch_id_path = _guard_duplicate_batch_submission(
+        model_key,
+        force_resubmit=force_resubmit,
+    )
 
     if provider == "openai":
+        print_pre_submit_batch_cost_estimate(model_key, input_path=input_path)
         from openai import OpenAI
         client = OpenAI(api_key=require_api_key("openai"))
-        file_obj = client.files.create(file=open(input_path, "rb"), purpose="batch")
+        with open(input_path, "rb") as handle:
+            file_obj = client.files.create(file=handle, purpose="batch")
         batch = client.batches.create(
-            input_file_id=file_obj.id, endpoint="/v1/chat/completions",
+            input_file_id=file_obj.id, endpoint="/v1/responses",
             completion_window="24h",
             metadata={"description": f"within-ladder validation — {model_key}"}
         )
-        batch_id_path = model_output_path(model_key, "batch_id.txt")
-        with open(batch_id_path, "w") as f:
-            f.write(batch.id)
+        batch_id_path.write_text(batch.id, encoding="utf-8")
         print(f"[{model_key}] Submitted OpenAI batch: {batch.id}")
         return batch.id
 
@@ -656,9 +701,7 @@ def submit_batch(model_key):
                     params=req["params"]
                 ))
         batch = client.messages.batches.create(requests=requests)
-        batch_id_path = model_output_path(model_key, "batch_id.txt")
-        with open(batch_id_path, "w") as f:
-            f.write(batch.id)
+        batch_id_path.write_text(batch.id, encoding="utf-8")
         print(f"[{model_key}] Submitted Anthropic batch: {batch.id}")
         return batch.id
 
@@ -696,23 +739,39 @@ def fetch_results(model_key, batch_id=None) -> bool | None:
                 return False
             return None
         counts = batch.request_counts
-        if not batch.output_file_id or (counts and counts.completed == 0):
+        expected_requests = len(load_input_request_maps(model_key)[0])
+        completed = int(counts.completed) if counts else 0
+        failed = int(counts.failed) if counts else 0
+        total = int(counts.total) if counts else 0
+        complete_coverage = (
+            batch.output_file_id
+            and failed == 0
+            and completed == total
+            and completed == expected_requests
+        )
+        if not complete_coverage:
             if batch.error_file_id:
                 err_path = model_output_path(model_key, "batch_errors.jsonl")
                 err_content = client.files.content(batch.error_file_id)
                 err_text = err_content.text.strip()
-                Path(err_path).write_text(err_text + ("\n" if err_text else ""), encoding="utf-8")
+                Path(err_path).write_text(
+                    err_text + ("\n" if err_text else ""), encoding="utf-8"
+                )
                 print(f"[{model_key}] Batch errors saved to {err_path}")
                 for line in err_text.splitlines()[:3]:
                     print(f"  sample error: {line[:500]}")
-            failed = counts.failed if counts else "?"
             print(
-                f"[{model_key}] Batch completed with no successful outputs "
-                f"(failed={failed}). Regenerate input and resubmit."
+                f"[{model_key}] Refusing partial Batch output: expected="
+                f"{expected_requests}, total={total}, completed={completed}, "
+                f"failed={failed}. No output.jsonl was written."
             )
             return False
         raw_content = client.files.content(batch.output_file_id)
-        raw_rows = [json.loads(line) for line in raw_content.text.strip().split("\n")]
+        raw_rows = [
+            json.loads(line)
+            for line in raw_content.text.splitlines()
+            if line.strip()
+        ]
         write_clean_and_cost_log(raw_rows, "openai", model_key)
         return True
 
@@ -739,6 +798,7 @@ def run_batch_pipeline(
     *,
     with_reasoning: bool = False,
     poll_interval: int = 30,
+    force_resubmit: bool = False,
 ) -> None:
     """Generate batch input, submit, poll until complete, then analyze."""
     _, provider, _ = MODELS[model_key]
@@ -752,7 +812,7 @@ def run_batch_pipeline(
     print(f"Generated {n_requests} requests to {out_path}")
     print(f"  = {n_ladders} ladders × 21 pairs × 2 directions = {n_ladders * 42}")
 
-    batch_id = submit_batch(model_key)
+    batch_id = submit_batch(model_key, force_resubmit=force_resubmit)
     if not batch_id:
         return
 
@@ -834,6 +894,8 @@ def parse_answer(content: str | None) -> str | None:
 
 def resolve_row_answer(row: dict) -> str | None:
     """Resolve A/B from a clean output row, including reasoning traces."""
+    if not _is_complete_finish_reason(row.get("finish_reason")):
+        return None
     stored = row.get("answer")
     if stored in ("A", "B"):
         return stored
@@ -869,12 +931,55 @@ def backfill_output_answers(model_key: str) -> int:
     return updated
 
 
+def _is_complete_finish_reason(finish_reason: object) -> bool:
+    """Return whether a model response completed normally and can be scored."""
+    return (
+        isinstance(finish_reason, str)
+        and finish_reason.strip().lower() in {"stop", "end_turn"}
+    )
+
+
+def _openai_responses_fields(body: dict) -> tuple[str | None, str | None, str | None]:
+    """Return visible text, optional reasoning summary, and terminal reason."""
+    text_parts: list[str] = []
+    reasoning_parts: list[str] = []
+    for item in body.get("output") or []:
+        if not isinstance(item, dict):
+            continue
+        if item.get("type") == "message":
+            for block in item.get("content") or []:
+                if not isinstance(block, dict):
+                    continue
+                if block.get("type") == "output_text" and isinstance(block.get("text"), str):
+                    text_parts.append(block["text"])
+                elif block.get("type") == "refusal" and isinstance(block.get("refusal"), str):
+                    text_parts.append(block["refusal"])
+        elif item.get("type") == "reasoning":
+            for block in item.get("summary") or []:
+                if isinstance(block, dict) and isinstance(block.get("text"), str):
+                    reasoning_parts.append(block["text"])
+
+    incomplete = body.get("incomplete_details") or {}
+    reason = incomplete.get("reason") if isinstance(incomplete, dict) else None
+    if reason is None and body.get("status") == "completed":
+        reason = "stop"
+    return (
+        "".join(text_parts) or None,
+        "".join(reasoning_parts) or None,
+        reason or body.get("status"),
+    )
+
+
 def _answer_from_raw_row(row: dict, provider: str) -> str | None:
     """Parse A/B from a raw batch/API row when clean fields are missing."""
     if provider == "openai":
-        msg = row.get("response", {}).get("body", {}).get("choices", [{}])[0].get("message", {})
-        content = msg.get("content", "") or ""
-        reasoning = msg.get("reasoning", "") or ""
+        body = row.get("response", {}).get("body", {})
+        if body.get("output") is not None:
+            content, reasoning, _ = _openai_responses_fields(body)
+        else:
+            msg = body.get("choices", [{}])[0].get("message", {})
+            content = msg.get("content", "") or ""
+            reasoning = msg.get("reasoning", "") or ""
     elif provider == "anthropic":
         res = row.get("result", {})
         msg = res.get("message", res)
@@ -916,6 +1021,25 @@ def extract_clean_row(raw, provider, *, model_id=None, batch=False):
             batch=batch,
         )
         usage = {**fields, "model": resolved_model}
+    elif provider == "openai":
+        body = raw.get("response", {}).get("body", {})
+        if body.get("output") is not None:
+            content, reasoning, finish_reason = _openai_responses_fields(body)
+        else:
+            choices = body.get("choices", [{}])
+            if choices:
+                msg = choices[0].get("message", {})
+                content = msg.get("content")
+                reasoning = msg.get("reasoning")
+                finish_reason = choices[0].get("finish_reason")
+        resolved_model = model_id or body.get("model")
+        fields = usage_cost_breakdown(
+            body.get("usage", {}),
+            provider=provider,
+            model_id=resolved_model,
+            batch=batch,
+        )
+        usage = {**fields, "model": resolved_model}
     else:
         body = raw.get("response", {}).get("body", {})
         choices = body.get("choices", [{}])
@@ -933,7 +1057,9 @@ def extract_clean_row(raw, provider, *, model_id=None, batch=False):
         )
         usage = {**fields, "model": resolved_model}
 
-    answer = parse_answer(content) or parse_answer(reasoning)
+    answer = None
+    if _is_complete_finish_reason(finish_reason):
+        answer = parse_answer(content) or parse_answer(reasoning)
     clean = {"custom_id": raw["custom_id"], "answer": answer, "finish_reason": finish_reason}
     if content and content.strip() not in ("A", "B"):
         clean["content"] = content
@@ -948,6 +1074,185 @@ def _ladder_id_from_custom_id(custom_id: str) -> str:
     return custom_id.rsplit("__", 2)[0]
 
 
+def _within_ladder_cost_pricing(model_key: str) -> dict[str, float] | None:
+    """Return rates matching how this within-ladder model is actually run."""
+    api_model, provider, _ = MODELS[model_key]
+    if provider in ("openai", "anthropic"):
+        rates, _ = resolve_rates(provider, api_model, batch=True)
+        if rates is not None:
+            return rates
+    return get_model_pricing(model_key)
+
+
+def _utf8_text_bytes(value: object) -> int:
+    """Count UTF-8 bytes in nested request text fields."""
+    if isinstance(value, str):
+        return len(value.encode("utf-8"))
+    if isinstance(value, list):
+        return sum(_utf8_text_bytes(item) for item in value)
+    if isinstance(value, dict):
+        return sum(_utf8_text_bytes(item) for item in value.values())
+    return 0
+
+
+def estimate_pre_submit_batch_cost(
+    model_key: str,
+    *,
+    input_path: str | Path | None = None,
+) -> dict | None:
+    """Estimate an OpenAI Batch run from its generated request JSONL.
+
+    This is intentionally an offline planning estimate. Input tokens use a
+    text-size heuristic; reasoning-off responses assume the observed A/B
+    protocol norm of five output tokens per request. Reasoning-on requests use
+    their configured output cap so the estimate remains conservative.
+    """
+    _, provider, _ = MODELS[model_key]
+    if provider != "openai":
+        return None
+
+    pricing = _within_ladder_cost_pricing(model_key)
+    if pricing is None:
+        return None
+
+    path = (
+        Path(input_path)
+        if input_path is not None
+        else Path(model_output_path(model_key, "input.jsonl"))
+    )
+    if not path.is_file():
+        raise FileNotFoundError(
+            f"[{model_key}] No Batch input found at {path}. Run --generate first."
+        )
+
+    request_count = 0
+    reasoning_on_requests = 0
+    input_text_bytes = 0
+    projected_output_tokens = 0
+    output_token_cap = 0
+
+    with open(path, encoding="utf-8") as handle:
+        for line_number, line in enumerate(handle, start=1):
+            if not line.strip():
+                continue
+            try:
+                request = json.loads(line)
+            except json.JSONDecodeError as exc:
+                raise ValueError(
+                    f"Invalid JSON in {path} at line {line_number}: {exc.msg}"
+                ) from exc
+
+            body = request.get("body")
+            if not isinstance(body, dict):
+                raise ValueError(f"Missing request body in {path} at line {line_number}")
+            max_output_tokens = body.get("max_output_tokens")
+            if (
+                isinstance(max_output_tokens, bool)
+                or not isinstance(max_output_tokens, int)
+                or max_output_tokens < 1
+            ):
+                raise ValueError(
+                    f"Invalid max_output_tokens in {path} at line {line_number}"
+                )
+
+            text_fields = {
+                key: body[key]
+                for key in ("input", "instructions", "messages")
+                if key in body
+            }
+            input_text_bytes += _utf8_text_bytes(text_fields)
+            request_count += 1
+            output_token_cap += max_output_tokens
+
+            if _reasoning_is_on(body, with_reasoning=False):
+                reasoning_on_requests += 1
+                projected_output_tokens += max_output_tokens
+            else:
+                projected_output_tokens += min(
+                    _ESTIMATED_REASONING_OFF_OUTPUT_TOKENS_PER_REQUEST,
+                    max_output_tokens,
+                )
+
+    if request_count == 0:
+        raise ValueError(f"Batch input is empty: {path}")
+
+    estimated_input_tokens = (
+        input_text_bytes + _ESTIMATED_UTF8_BYTES_PER_INPUT_TOKEN - 1
+    ) // _ESTIMATED_UTF8_BYTES_PER_INPUT_TOKEN
+    estimated_input_tokens += (
+        request_count * _ESTIMATED_INPUT_FRAMING_TOKENS_PER_REQUEST
+    )
+    projected_cost = estimate_cost_from_totals(
+        pricing,
+        prompt_tokens=estimated_input_tokens,
+        completion_tokens=projected_output_tokens,
+    )
+    maximum_output_cost = estimate_cost_from_totals(
+        pricing,
+        prompt_tokens=estimated_input_tokens,
+        completion_tokens=output_token_cap,
+    )
+
+    return {
+        "request_count": request_count,
+        "reasoning_on_requests": reasoning_on_requests,
+        "reasoning_off_requests": request_count - reasoning_on_requests,
+        "input_text_bytes": input_text_bytes,
+        "estimated_input_tokens": estimated_input_tokens,
+        "projected_output_tokens": projected_output_tokens,
+        "output_token_cap": output_token_cap,
+        "estimated_cost_usd": projected_cost,
+        "maximum_output_cost_usd": maximum_output_cost,
+        "input_rate_per_mtok": pricing["input"],
+        "output_rate_per_mtok": pricing["output"],
+    }
+
+
+def print_pre_submit_batch_cost_estimate(
+    model_key: str,
+    *,
+    input_path: str | Path | None = None,
+) -> dict | None:
+    """Print and return the offline cost estimate for a generated Batch file."""
+    estimate = estimate_pre_submit_batch_cost(model_key, input_path=input_path)
+    if estimate is None:
+        return None
+
+    reasoning_on = estimate["reasoning_on_requests"]
+    descriptor = (
+        "conservative planning estimate"
+        if reasoning_on
+        else "projected"
+    )
+    print(
+        f"[{model_key}] Pre-submit OpenAI Batch cost estimate: "
+        f"~${estimate['estimated_cost_usd']:,.6f} ({descriptor})."
+    )
+    print(
+        f"  Basis: {estimate['request_count']:,} requests, "
+        f"~{estimate['estimated_input_tokens']:,} input tokens "
+        "(offline UTF-8 text-size heuristic), "
+        f"~{estimate['projected_output_tokens']:,} output tokens."
+    )
+    if reasoning_on:
+        print(
+            f"  Reasoning-on assumption: {reasoning_on:,} requests reach their "
+            "configured output-token caps."
+        )
+    else:
+        print(
+            "  Reasoning-off assumption: 5 output tokens/request; "
+            f"all-cap scenario ~${estimate['maximum_output_cost_usd']:,.6f}."
+        )
+    print(
+        f"  Batch rates: ${estimate['input_rate_per_mtok']:g} input / "
+        f"${estimate['output_rate_per_mtok']:g} output per 1M tokens. "
+        "Estimate only; after --fetch, phase6b_cost_log.json and cost_log.json "
+        "use observed API token usage."
+    )
+    return estimate
+
+
 def write_within_ladder_cost_artifacts(
     model_key: str,
     cost_entries: list[dict],
@@ -956,12 +1261,12 @@ def write_within_ladder_cost_artifacts(
     if not cost_entries:
         return None
 
-    pricing = get_model_pricing(model_key)
+    pricing = _within_ladder_cost_pricing(model_key)
     output_path = model_output_path(model_key, "output.jsonl")
     records, token_totals, est_records_total, est_records_n = records_from_per_request_entries(
         cost_entries,
         group_key=lambda e: _ladder_id_from_custom_id(e["custom_id"]),
-        result_path=str(output_path),
+        result_path=repo_relative(output_path),
         pricing=pricing,
     )
     counts = cost_counts_from_entries(cost_entries)
@@ -999,6 +1304,13 @@ def write_within_ladder_cost_artifacts(
         reasoning_total=token_totals["reasoning"],
         provider_reported_n=counts["provider_reported_n"],
         computed_n=counts["computed_n"],
+        notes=(
+            "estimated_cost_usd uses published Batch rates ($/1M) and observed "
+            "token totals. actual_cost_usd is null because OpenAI does not report "
+            "per-request billed USD in Batch output."
+            if MODELS[model_key][1] == "openai" and counts["actual_n"] == 0
+            else None
+        ),
     )
     out_dir = model_within_ladder_dir(model_key, get_results_root())
     return write_phase6b_cost_artifacts(out_dir, cost_log, summary)
@@ -1061,14 +1373,43 @@ def write_clean_and_cost_log(raw_rows, provider, model_key):
     batch = provider in ("openai", "anthropic")
     output_path = model_output_path(model_key, "output.jsonl")
 
+    expected_ids, _ = load_input_request_maps(model_key)
+    raw_ids = [row.get("custom_id") for row in raw_rows]
+    duplicate_ids = sorted(
+        custom_id
+        for custom_id, count in Counter(raw_ids).items()
+        if custom_id and count > 1
+    )
+    actual_ids = {custom_id for custom_id in raw_ids if custom_id}
+    missing = expected_ids.difference(actual_ids)
+    unexpected = actual_ids.difference(expected_ids)
+    bad_http = [
+        row.get("custom_id")
+        for row in raw_rows
+        if provider == "openai"
+        and (row.get("response") or {}).get("status_code") != 200
+    ]
+    if duplicate_ids or missing or unexpected or bad_http:
+        raise ValueError(
+            "Refusing to write partial/misaligned within-ladder output: "
+            f"missing={len(missing)}, unexpected={len(unexpected)}, "
+            f"duplicates={len(duplicate_ids)}, HTTP_errors={len(bad_http)}."
+        )
+
     cost_entries = []
-    with open(output_path, "w", encoding="utf-8") as f:
-        for raw in raw_rows:
-            clean, cost_entry = extract_clean_row(
-                raw, provider, model_id=api_model, batch=batch
-            )
+    clean_rows = []
+    for raw in raw_rows:
+        clean, cost_entry = extract_clean_row(
+            raw, provider, model_id=api_model, batch=batch
+        )
+        clean_rows.append(clean)
+        cost_entries.append(cost_entry)
+
+    tmp_path = Path(output_path).with_suffix(".jsonl.tmp")
+    with tmp_path.open("w", encoding="utf-8") as f:
+        for clean in clean_rows:
             f.write(json.dumps(clean) + "\n")
-            cost_entries.append(cost_entry)
+    os.replace(tmp_path, output_path)
 
     persist_per_request_cost_log(model_key, cost_entries)
 
@@ -1315,22 +1656,51 @@ def analyze(model_key):
 
     _, provider, _ = MODELS[model_key]
     ladders = load_ladders()
-    valence_map = {l["original_statement_id"]: l["valence"] for l in ladders}
+    valence_map = {
+        ladder["original_statement_id"]: ladder["valence"] for ladder in ladders
+    }
     expected_ladder_ids = {cid.rsplit("__", 2)[0] for cid in input_ids}
 
     results = []
+    result_ids_seen: list[str] = []
     with open(output_path) as f:
         for line in f:
             r = json.loads(line)
             canonical = canonical_custom_id(r["custom_id"], input_ids, norm_to_canonical)
             if canonical is not None:
                 results.append({**r, "custom_id": canonical})
+                result_ids_seen.append(canonical)
+
+    duplicate_ids = {
+        custom_id
+        for custom_id, count in Counter(result_ids_seen).items()
+        if count > 1
+    }
+    result_ids = set(result_ids_seen)
+    missing_request_ids = input_ids.difference(result_ids)
+    unexpected_request_ids = result_ids.difference(input_ids)
+    if duplicate_ids or missing_request_ids or unexpected_request_ids:
+        raise ValueError(
+            "Within-ladder analysis requires exact input/output coverage; refusing "
+            "a potentially biased partial score. "
+            f"missing={len(missing_request_ids)}, "
+            f"unexpected={len(unexpected_request_ids)}, "
+            f"duplicates={len(duplicate_ids)}."
+        )
 
     pair_results = {}
     parse_errors = 0
+    finish_reason_counts: dict[str, int] = {}
+    incomplete_response_ids: list[str] = []
 
     for r in results:
         cid = r["custom_id"]
+
+        finish_reason = str(r.get("finish_reason") or "unknown")
+        finish_reason_counts[finish_reason] = finish_reason_counts.get(finish_reason, 0) + 1
+        if not _is_complete_finish_reason(finish_reason):
+            incomplete_response_ids.append(cid)
+            continue
 
         answer = resolve_row_answer(r)
         if answer is None:
@@ -1360,6 +1730,17 @@ def analyze(model_key):
             pair_results[key]["correct_AB"] = (answer == "B")
         else:
             pair_results[key]["correct_BA"] = (answer == "A")
+
+    if incomplete_response_ids or parse_errors:
+        sample = incomplete_response_ids[:5]
+        raise ValueError(
+            "Within-ladder analysis requires every response to finish normally and "
+            "contain a parseable A/B; refusing a potentially biased partial score. "
+            f"incomplete={len(incomplete_response_ids)}, "
+            f"unparseable={parse_errors}, "
+            f"finish_reasons={finish_reason_counts}, "
+            f"sample_incomplete_ids={sample}."
+        )
 
     # Aggregate per ladder
     ladder_scores = {}
@@ -1403,7 +1784,7 @@ def analyze(model_key):
             print(f"  {v}: {v_correct}/{v_total} ({100*v_correct/v_total:.1f}%)")
 
     # By tier distance
-    print(f"\nAccuracy by tier distance:")
+    print("\nAccuracy by tier distance:")
     for d in range(1, 7):
         d_correct = sum(
             s["by_distance"].get(d, {}).get("correct", 0)
@@ -1423,24 +1804,26 @@ def analyze(model_key):
         per_ladder.append({"ladder_id": lid, "accuracy": acc, "n": s["total"], "valence": s["valence"]})
     per_ladder.sort(key=lambda x: x["accuracy"])
 
-    print(f"\nWorst 10 ladders (lowest accuracy):")
+    print("\nWorst 10 ladders (lowest accuracy):")
     for item in per_ladder[:10]:
         print(f"  {item['ladder_id']}: {item['accuracy']:.2%} ({item['n']} pairs, {item['valence']})")
 
-    print(f"\nBest 10 ladders:")
+    print("\nBest 10 ladders:")
     for item in per_ladder[-10:]:
         print(f"  {item['ladder_id']}: {item['accuracy']:.2%} ({item['n']} pairs, {item['valence']})")
 
     # Save full results
     summary = {
         "model_key": model_key,
-        "variations_path": str(get_variations_path()),
+        "variations_path": repo_relative(get_variations_path()),
+        "complete_input_coverage": True,
         "n_ladders_expected": len(expected_ladder_ids),
         "n_requests_expected": len(input_ids),
         "overall_accuracy": overall_correct / overall_total if overall_total else 0.0,
         "n_ladders": len(ladder_scores),
         "n_total_pairs": overall_total,
         "parse_errors": parse_errors,
+        "finish_reason_counts": finish_reason_counts,
         "per_ladder": per_ladder,
         "by_distance": {d: {
             "correct": sum(s["by_distance"].get(d, {}).get("correct", 0) for s in ladder_scores.values()),
@@ -1652,6 +2035,15 @@ def submit_within_ladder_hf_job(args: argparse.Namespace) -> int:
     return 0
 
 
+def _resolve_smoke_max_variation_sets(
+    *, smoke: bool, max_variation_sets: int | None
+) -> int | None:
+    """Default smoke runs to one ladder while preserving an explicit larger slice."""
+    if smoke and max_variation_sets is None:
+        return 1
+    return max_variation_sets
+
+
 def main():
     global _RESULTS_ROOT, _VARIATIONS_PATH, _START_FROM, _MAX_VARIATION_SETS, _SMOKE_SCOPE
 
@@ -1660,6 +2052,14 @@ def main():
     parser.add_argument("--generate", action="store_true", help="Generate batch input")
     parser.add_argument("--generate-all", action="store_true", help="Generate for all representative models")
     parser.add_argument("--submit", action="store_true", help="Submit batch")
+    parser.add_argument(
+        "--force-resubmit",
+        action="store_true",
+        help=(
+            "Allow --submit/--run-batch to replace an existing tracked batch ID. "
+            "This can create another billable remote batch and does not cancel the old one."
+        ),
+    )
     parser.add_argument("--fetch", action="store_true", help="Fetch results")
     parser.add_argument("--analyze", action="store_true", help="Analyze results")
     parser.add_argument(
@@ -1718,7 +2118,8 @@ def main():
         default=False,
         help=(
             "Smoke run: slice to a small ladder subset (default --max-variation-sets 1) "
-            "and run the full batch pipeline (generate → submit → fetch → analyze) "
+            "or set --max-variation-sets N for a multi-ladder smoke. Run the full "
+            "batch pipeline (generate → submit → fetch → analyze) "
             "unless another step flag is set. Output stays at "
             "<results-dir>/<model>/within_ladder/."
         ),
@@ -1763,6 +2164,16 @@ def main():
         parser.error("--poll-interval must be >= 1")
     if args.model_volume and not Path(args.model_volume_path).is_absolute():
         parser.error("--model-volume-path must be absolute")
+    if args.force_resubmit and not (args.submit or args.run_batch):
+        parser.error("--force-resubmit requires --submit or --run-batch")
+
+    smoke_limit_defaulted = args.smoke and args.max_variation_sets is None
+    args.max_variation_sets = _resolve_smoke_max_variation_sets(
+        smoke=args.smoke,
+        max_variation_sets=args.max_variation_sets,
+    )
+    if smoke_limit_defaulted:
+        print("Smoke run: defaulting --max-variation-sets to 1")
 
     has_step = any(
         (
@@ -1780,9 +2191,6 @@ def main():
     )
     if args.smoke and not has_step:
         args.run_batch = True
-        if args.max_variation_sets is None:
-            args.max_variation_sets = 1
-            print("Smoke run: defaulting --max-variation-sets to 1")
 
     _RESULTS_ROOT = resolve_under_repo(args.results_dir)
     _VARIATIONS_PATH = resolve_under_repo(args.variations)
@@ -1808,6 +2216,7 @@ def main():
             n_requests, _ = write_batch_input(model_key, with_reasoning=args.with_reasoning)
             out_path = model_output_path(model_key, "input.jsonl")
             print(f"  Generated {n_requests} requests to {out_path}")
+            print_pre_submit_batch_cost_estimate(model_key, input_path=out_path)
         return
 
     if args.analyze_all:
@@ -1824,6 +2233,10 @@ def main():
             f"{len(available)} models available (from config.py); "
             f"includes: {', '.join(available[:8])}, ..."
         )
+
+    # Legacy aliases remain accepted, but all new logs and artifacts use the
+    # explicit family name (for example, gpt-56-sol rather than gpt-56).
+    args.model = canonical_model_key(args.model)
 
     if args.model.startswith("gpt-56") and (args.generate or args.run_batch):
         reasoning_key = args.model.endswith("-thinking")
@@ -1849,12 +2262,14 @@ def main():
         print(f"Loaded {n_ladders} ladders from {_VARIATIONS_PATH}")
         print(f"Generated {n_requests} requests to {out_path}")
         print(f"  = {n_ladders} ladders × 21 pairs × 2 directions = {n_ladders * 42}")
+        print_pre_submit_batch_cost_estimate(args.model, input_path=out_path)
 
     elif args.run_batch:
         run_batch_pipeline(
             args.model,
             with_reasoning=args.with_reasoning,
             poll_interval=args.poll_interval,
+            force_resubmit=args.force_resubmit,
         )
 
     elif args.run_live:
@@ -1864,7 +2279,7 @@ def main():
         run_local(args.model)
 
     elif args.submit:
-        submit_batch(args.model)
+        submit_batch(args.model, force_resubmit=args.force_resubmit)
 
     elif args.fetch:
         result = fetch_results(args.model)
