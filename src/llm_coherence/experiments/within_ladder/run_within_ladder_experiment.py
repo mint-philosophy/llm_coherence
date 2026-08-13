@@ -1004,6 +1004,7 @@ def extract_clean_row(raw, provider, *, model_id=None, batch=False):
     reasoning = None
     finish_reason = None
     usage = {}
+    error = None
 
     if provider == "anthropic":
         msg = raw.get("result", {}).get("message", raw.get("result", {}))
@@ -1042,15 +1043,35 @@ def extract_clean_row(raw, provider, *, model_id=None, batch=False):
         usage = {**fields, "model": resolved_model}
     else:
         body = raw.get("response", {}).get("body", {})
-        choices = body.get("choices", [{}])
+        if isinstance(body.get("error"), (str, dict)):
+            error = body.get("error")
+        choices = body.get("choices") or []
         if choices:
-            msg = choices[0].get("message", {})
+            msg = choices[0].get("message", {}) or {}
             content = msg.get("content")
-            reasoning = msg.get("reasoning")
+            # OpenRouter / Moonshot thinking models may put CoT in several fields.
+            reasoning = (
+                msg.get("reasoning")
+                or msg.get("reasoning_content")
+                or msg.get("reasoning_details")
+            )
+            if isinstance(reasoning, list):
+                parts = []
+                for item in reasoning:
+                    if isinstance(item, dict):
+                        parts.append(
+                            item.get("text")
+                            or item.get("summary")
+                            or item.get("content")
+                            or ""
+                        )
+                    else:
+                        parts.append(str(item))
+                reasoning = "\n".join(p for p in parts if p)
             finish_reason = choices[0].get("finish_reason")
         resolved_model = model_id or body.get("model")
         fields = usage_cost_breakdown(
-            body.get("usage", {}),
+            body.get("usage", {}) or {},
             provider=provider,
             model_id=resolved_model,
             batch=batch,
@@ -1065,6 +1086,8 @@ def extract_clean_row(raw, provider, *, model_id=None, batch=False):
         clean["content"] = content
     if reasoning:
         clean["reasoning"] = reasoning
+    if error is not None and answer is None:
+        clean["error"] = error
 
     cost_entry = {"custom_id": raw["custom_id"], **usage}
     return clean, cost_entry
@@ -1436,13 +1459,18 @@ def run_live(model_key, concurrency=5):
     sync_artifacts_to_input(model_key)
 
     already_done = set()
+    existing_success_rows = []
     if os.path.exists(output_path):
         with open(output_path) as f:
             for line in f:
                 r = json.loads(line)
                 canonical = canonical_custom_id(r["custom_id"], input_ids, norm_to_canonical)
-                if canonical is not None:
+                if canonical is None:
+                    continue
+                # Only treat parseable A/B answers as done so failed/null rows retry.
+                if r.get("answer") in ("A", "B"):
                     already_done.add(canonical)
+                    existing_success_rows.append({**r, "custom_id": canonical})
         print(f"[{model_key}] Resuming: {len(already_done)}/{len(requests)} already done")
 
     remaining = [r for r in requests if r["custom_id"] not in already_done]
@@ -1450,7 +1478,14 @@ def run_live(model_key, concurrency=5):
         print(f"[{model_key}] All {len(requests)} requests complete.")
         return
 
-    print(f"[{model_key}] Running {len(remaining)} requests via OpenRouter (concurrency={concurrency})")
+    cfg = _model_runtime_config(model_key)
+    request_timeout = float(cfg.base_timeout) if cfg is not None else 60.0
+    # Thinking models often need longer than the default; keep a floor for OpenRouter.
+    request_timeout = max(request_timeout, 60.0)
+    print(
+        f"[{model_key}] Running {len(remaining)} requests via OpenRouter "
+        f"(concurrency={concurrency}, timeout={request_timeout:.0f}s)"
+    )
 
     import httpx
 
@@ -1465,7 +1500,7 @@ def run_live(model_key, concurrency=5):
             body = req["body"]
             for attempt in range(3):
                 try:
-                    async with httpx.AsyncClient(timeout=60) as client:
+                    async with httpx.AsyncClient(timeout=request_timeout) as client:
                         resp = await client.post(
                             "https://openrouter.ai/api/v1/chat/completions",
                             headers={
@@ -1476,6 +1511,8 @@ def run_live(model_key, concurrency=5):
                         )
                         resp.raise_for_status()
                         data = resp.json()
+                        if isinstance(data, dict) and data.get("error") and not data.get("choices"):
+                            raise RuntimeError(f"OpenRouter error payload: {data.get('error')}")
                         raw_results.append({
                             "custom_id": req["custom_id"],
                             "response": {"body": data},
@@ -1500,16 +1537,7 @@ def run_live(model_key, concurrency=5):
 
     asyncio.run(run_all())
 
-    existing_rows = []
-    if already_done:
-        with open(output_path) as f:
-            for line in f:
-                r = json.loads(line)
-                canonical = canonical_custom_id(r["custom_id"], input_ids, norm_to_canonical)
-                if canonical is not None:
-                    existing_rows.append({**r, "custom_id": canonical})
-
-    all_clean = existing_rows
+    all_clean = list(existing_success_rows)
     new_cost_entries = []
     for raw in raw_results:
         clean, cost_entry = extract_clean_row(
@@ -1526,13 +1554,15 @@ def run_live(model_key, concurrency=5):
     cost_path = model_output_path(model_key, PER_REQUEST_COST_LOG_NAME)
     if os.path.exists(cost_path):
         with open(cost_path) as f:
-            prev_cost_entries = []
             for e in json.load(f).get("per_request", []):
                 cid = e.get("custom_id")
                 if not cid:
                     continue
                 canonical = canonical_custom_id(cid, input_ids, norm_to_canonical)
-                if canonical is not None:
+                if canonical is None or canonical not in already_done:
+                    continue
+                # Keep prior costs only for successful resumed rows.
+                if (e.get("prompt_tokens") or 0) > 0 or (e.get("completion_tokens") or 0) > 0:
                     prev_cost_entries.append({**e, "custom_id": canonical})
     all_cost_entries = prev_cost_entries + new_cost_entries
     persist_per_request_cost_log(model_key, all_cost_entries)

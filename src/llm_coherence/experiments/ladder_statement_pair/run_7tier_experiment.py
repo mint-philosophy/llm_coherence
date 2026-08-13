@@ -88,9 +88,16 @@ from llm_coherence.paths import (
     LADDER_VS_COMPARISON_SUBDIR,
     REPO_ROOT,
 )
-from llm_coherence.runtime.agents import create_agent
+from llm_coherence.runtime.agents import create_agent, model_name_for_key
 from llm_coherence.runtime.budget_monitor import BudgetMonitor
 from llm_coherence.runtime.preflight_check import MODEL_COST_ESTIMATES
+from llm_coherence.runtime.usage_cost import (
+    actual_cost_from_usage_summary,
+    build_cost_summary_notes_from_metadata,
+    estimate_cost_from_totals,
+    infer_provider,
+    resolve_rates,
+)
 
 _PARAMETRIC_ROOT = REPO_ROOT
 
@@ -517,33 +524,27 @@ def _extract_total(usage_stats: dict, key: str) -> int:
     return int(val) if isinstance(val, (int, float)) else 0
 
 
-def _estimate_cost_from_totals(
-    rates: dict[str, float] | None,
-    prompt_tokens: int,
-    completion_tokens: int,
-    cache_creation_input_tokens: int,
-    cache_read_input_tokens: int,
-    openai_cached_tokens: int,
-) -> float | None:
-    if not rates:
-        return None
-    uncached = max(
-        prompt_tokens
-        - cache_creation_input_tokens
-        - cache_read_input_tokens
-        - openai_cached_tokens,
-        0,
-    )
-    in_rate = rates["input"]
-    out_rate = rates["output"]
-    total = (
-        uncached / 1_000_000 * in_rate
-        + cache_creation_input_tokens / 1_000_000 * in_rate * 1.25
-        + cache_read_input_tokens / 1_000_000 * in_rate * 0.10
-        + openai_cached_tokens / 1_000_000 * in_rate * 0.10
-        + completion_tokens / 1_000_000 * out_rate
-    )
-    return round(total, 6)
+def _resolve_pricing(
+    model_key: str,
+    *,
+    batch: bool = False,
+) -> tuple[dict[str, float] | None, str]:
+    """Prefer configured rates; otherwise use the provider-rate fallback."""
+    canonical_key = canonical_model_key(model_key)
+    try:
+        pricing = MODEL_COST_ESTIMATES.get(canonical_key)
+    except Exception:
+        pricing = None
+    if pricing:
+        if batch:
+            pricing = {name: rate * 0.5 for name, rate in pricing.items()}
+        source = "llm_coherence.runtime.preflight_check.MODEL_COST_ESTIMATES"
+        if batch:
+            source = f"OpenAI Batch API (50% of {source})"
+        return pricing, source
+    mid = model_name_for_key(canonical_key)
+    rates, label = resolve_rates(infer_provider(mid), mid, batch=batch)
+    return rates, label
 
 
 def _iter_result_files(results_dir: Path, model_key: str) -> list[Path]:
@@ -574,12 +575,7 @@ def _write_cost_logs(
     *,
     batch: bool = False,
 ) -> tuple[Path, Path] | None:
-    try:
-        pricing = MODEL_COST_ESTIMATES.get(canonical_model_key(model_key))
-    except Exception:
-        pricing = None
-    if batch and pricing:
-        pricing = {name: rate * 0.5 for name, rate in pricing.items()}
+    pricing, pricing_source = _resolve_pricing(model_key, batch=batch)
 
     result_files = _iter_result_files(results_dir, model_key)
     if not result_files:
@@ -628,9 +624,13 @@ def _write_cost_logs(
             estimated_from_metadata_n += 1
 
         actual = meta.get("actual_cost_usd")
+        if not isinstance(actual, (int, float)):
+            actual = actual_cost_from_usage_summary(usage)
         if isinstance(actual, (int, float)):
             actual_total += float(actual)
             actual_n += 1
+        else:
+            actual = None
 
         records.append(
             {
@@ -648,7 +648,7 @@ def _write_cost_logs(
             }
         )
 
-    estimated_from_usage = _estimate_cost_from_totals(
+    estimated_from_usage = estimate_cost_from_totals(
         pricing,
         prompt_tokens=prompt_total,
         completion_tokens=completion_total,
@@ -661,12 +661,7 @@ def _write_cost_logs(
         "model_key": model_key,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "updated_at": datetime.now(timezone.utc).isoformat(),
-        "pricing_source": (
-            "OpenAI Batch API (50% of "
-            "llm_coherence.runtime.preflight_check.MODEL_COST_ESTIMATES)"
-            if batch
-            else "llm_coherence.runtime.preflight_check.MODEL_COST_ESTIMATES"
-        ),
+        "pricing_source": pricing_source,
         "pricing_per_1m": pricing,
         "result_files_count": len(records),
         "calls_logged": calls_logged_total,
@@ -688,7 +683,7 @@ def _write_cost_logs(
         "model": model_key,
         "n_recorded": calls_logged_total,
         "n_priced_files": len(records),
-        "estimated_cost_usd": estimated_from_usage,
+        "estimated_cost_usd": estimated_from_usage if actual_n == 0 else None,
         "actual_cost_usd": round(actual_total, 6) if actual_n > 0 else None,
         "tokens": {
             "prompt_tokens_total": prompt_total,
@@ -698,10 +693,7 @@ def _write_cost_logs(
             "cache_read_input_tokens_total": cache_read_total,
             "openai_cached_tokens_total": oai_cached_total,
         },
-        "notes": (
-            "Modeled after property_ladder_pruning cost artifacts. "
-            "estimated_cost_usd uses MODEL_COST_ESTIMATES and observed token totals."
-        ),
+        "notes": build_cost_summary_notes_from_metadata(has_actual=actual_n > 0),
     }
 
     cost_log_path = results_dir / COST_LOG_NAME

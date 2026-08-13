@@ -1,8 +1,6 @@
-<h1 align="center">Incoherent Values? Probing LLM Preferences Through Parametric Variation</h1>
+# Incoherent Values? Probing LLM Preferences Through Parametric Variation
 
-<p align="center">
-  Code and data for testing whether LLM forced-choice preferences remain ordered across controlled seven-tier outcome ladders.
-</p>
+Code and data for testing whether LLM forced-choice preferences remain ordered across controlled seven-tier outcome ladders.
 
 This repository provides the validated inputs, model-run wrappers, and analysis code for measuring monotonic preference coherence and predictive utility across LLMs. 
 
@@ -12,21 +10,22 @@ Complete experiment artifacts are hosted on Hugging Face. Git tracks the reprodu
 
 All datasets created during the experiment—including canonical inputs under `data/` and model-run payloads under `outputs/`—are available on Hugging Face:
 
-🤗 Dataset: **https://huggingface.co/datasets/MINTLABJHUANU/LLMCoherence_Var_100**
-
+🤗 Dataset: **[https://huggingface.co/datasets/MINTLABJHUANU/LLMCoherence_Var_100](https://huggingface.co/datasets/MINTLABJHUANU/LLMCoherence_Var_100)**
 
 Clone or download that dataset repo to populate `data/` and `outputs/` locally without rerunning API calls.
 
 ## Repository Structure
 
-| Path | Purpose |
-| --- | --- |
-| `data/` | Canonical inputs and intermediate instrument data. Numbered subfolders (`01_`–`06_`) follow the experiment order. |
-| `outputs/` | Model-run payloads, per-model analysis, and checkpoints. Ignored by Git. |
-| `results/` | Paper figures, tables, and small tracked summaries. |
-| `api_keys/` | Local provider API keys (`api_key_<provider>.txt`). Ignored by Git. |
-| `scripts/` | Numbered command wrappers for rerunning the pipeline. |
-| `src/llm_coherence/` | Importable Python package used by the wrappers. |
+
+| Path                 | Purpose                                                                                                           |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `data/`              | Canonical inputs and intermediate instrument data. Numbered subfolders (`01_`–`06_`) follow the experiment order. |
+| `outputs/`           | Model-run payloads, per-model analysis, and checkpoints. Ignored by Git.                                          |
+| `results/`           | Paper figures, tables, and small tracked summaries.                                                               |
+| `api_keys/`          | Local provider API keys (`api_key_<provider>.txt`). Ignored by Git.                                               |
+| `scripts/`           | Numbered command wrappers for rerunning the pipeline.                                                             |
+| `src/llm_coherence/` | Importable Python package used by the wrappers.                                                                   |
+
 
 Use `scripts/` to run the pipeline. Use `src/llm_coherence/` to edit or audit the implementation. Wrapper files are intentionally small and delegate to `main()` functions in `src/`.
 
@@ -46,23 +45,29 @@ data/06_forced_choice_inputs/phase6b_variations_pruned/
 
 The main count progression is:
 
-| Stage | Count |
-| --- | ---: |
-| Source outcomes | 510 |
-| Screened candidate outcomes | 181 |
-| Generated ladder candidates | 146 |
-| Final validated ladders | 100 |
+
+| Stage                       | Count |
+| --------------------------- | ----- |
+| Source outcomes             | 510   |
+| Screened candidate outcomes | 181   |
+| Generated ladder candidates | 146   |
+| Final validated ladders     | 100   |
+
+
+
 
 ## Installation
+
+
 
 ### Required dependencies
 
 - **Python** `>=3.11,<3.13` (use 3.11 or 3.12) — required for all local analysis, replication from the Hub dataset, and API-based model runs.
 
-Optional — only if you **re-run `glm-45-base-logprobs` from scratch** (self-hosted vLLM on GPU; not routed through OpenRouter). Skip these if you download existing outputs from [MINTLABJHUANU/LLMCoherence_Var_100](https://huggingface.co/datasets/MINTLABJHUANU/LLMCoherence_Var_100) or only run other models via API:
+Optional — only if you **re-run** `glm-45-base-logprobs` **from scratch** (self-hosted vLLM on GPU; not routed through OpenRouter). Skip these if you download existing outputs from [MINTLABJHUANU/LLMCoherence_Var_100](https://huggingface.co/datasets/MINTLABJHUANU/LLMCoherence_Var_100) or only run other models via API:
 
 - **Docker** — [Docker Desktop](https://www.docker.com/products/docker-desktop/) and a **Docker Hub** account (`docker login`) to build and push `Dockerfile.hf_jobs`.
-- **Hugging Face** -  set `api_keys/hf_token` (or `hf auth login`) to **submit** GLM jobs with `--submit-hf-job` 
+- **Hugging Face** -  set `api_keys/hf_token` (or `hf auth login`) to **submit** GLM jobs with `--submit-hf-job`
 
 Create an isolated environment and install the package:
 
@@ -94,6 +99,8 @@ Refresh browsable indexes after adding local model-run payloads under `outputs/`
 ```bash
 PYTHONPATH=src python scripts/00_repository/validate_artifacts.py --write-indexes
 ```
+
+
 
 ## API Keys
 
@@ -166,21 +173,23 @@ For a full rerun, remove or increase the smoke bounds (`--max-variation-sets`, `
 
 Run scripts from the repository root with `PYTHONPATH=src python <script>`.
 
-| Step | Command wrapper | Implementation |
-| ---: | --- | --- |
-| 1 | `scripts/01_instrument_design/01_create_filtered_dataset.py` | `src/llm_coherence/generation/create_filtered_dataset.py` |
-| 2 | `scripts/01_instrument_design/02_screen_outcomes.py` | `src/llm_coherence/generation/filter_statements.py` |
-| 3 | `scripts/01_instrument_design/03_generate_7tier_ladders.py` | `src/llm_coherence/generation/generate_7tier_variations.py` |
-| 4 | `scripts/02_ladder_validation/04_within_ladder_pruning.py` | `src/llm_coherence/validation/within_ladder_pruning.py` |
-| 5 | `scripts/02_ladder_validation/05_property_ladder_pruning.py` | `src/llm_coherence/validation/property_ladder_pruning.py` |
-| 7 | `scripts/02_ladder_validation/07_ranking_ladder_pruning.py` | `src/llm_coherence/validation/ranking_ladder_pruning.py` |
-| 8 | `scripts/02_ladder_validation/08_build_final_pruned_variations.py` | `src/llm_coherence/validation/build_final_pruned_variations.py` |
-| 9 | `scripts/03_forced_choice_inputs/09_generate_forced_choice_inputs.py` | `src/llm_coherence/generation/generate_7tier_comparisons.py` |
-| 10a | `scripts/04_model_runs/10a_run_within_ladder_experiment.py` | `src/llm_coherence/experiments/within_ladder/run_within_ladder_experiment.py` |
-| 10b | `scripts/04_model_runs/10b_run_7tier_experiment.py` | `src/llm_coherence/experiments/ladder_statement_pair/run_7tier_experiment.py` |
-| 11 | `scripts/05_analysis/11_analyze_7tier_coherence.py` | `src/llm_coherence/analysis/analyze_7tier_coherence.py` |
-| 12 | `scripts/05_analysis/12_predictive_utility.py` | `src/llm_coherence/analysis/predictive_utility.py` |
-| 13 | `scripts/06_reporting/13_make_fig_table.py` | `src/llm_coherence/reporting/make_fig_table.py` |
+
+| Step | Command wrapper                                                       | Implementation                                                                |
+| ---- | --------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| 1    | `scripts/01_instrument_design/01_create_filtered_dataset.py`          | `src/llm_coherence/generation/create_filtered_dataset.py`                     |
+| 2    | `scripts/01_instrument_design/02_screen_outcomes.py`                  | `src/llm_coherence/generation/filter_statements.py`                           |
+| 3    | `scripts/01_instrument_design/03_generate_7tier_ladders.py`           | `src/llm_coherence/generation/generate_7tier_variations.py`                   |
+| 4    | `scripts/02_ladder_validation/04_within_ladder_pruning.py`            | `src/llm_coherence/validation/within_ladder_pruning.py`                       |
+| 5    | `scripts/02_ladder_validation/05_property_ladder_pruning.py`          | `src/llm_coherence/validation/property_ladder_pruning.py`                     |
+| 7    | `scripts/02_ladder_validation/07_ranking_ladder_pruning.py`           | `src/llm_coherence/validation/ranking_ladder_pruning.py`                      |
+| 8    | `scripts/02_ladder_validation/08_build_final_pruned_variations.py`    | `src/llm_coherence/validation/build_final_pruned_variations.py`               |
+| 9    | `scripts/03_forced_choice_inputs/09_generate_forced_choice_inputs.py` | `src/llm_coherence/generation/generate_7tier_comparisons.py`                  |
+| 10a  | `scripts/04_model_runs/10a_run_within_ladder_experiment.py`           | `src/llm_coherence/experiments/within_ladder/run_within_ladder_experiment.py` |
+| 10b  | `scripts/04_model_runs/10b_run_7tier_experiment.py`                   | `src/llm_coherence/experiments/ladder_statement_pair/run_7tier_experiment.py` |
+| 11   | `scripts/05_analysis/11_analyze_7tier_coherence.py`                   | `src/llm_coherence/analysis/analyze_7tier_coherence.py`                       |
+| 12   | `scripts/05_analysis/12_predictive_utility.py`                        | `src/llm_coherence/analysis/predictive_utility.py`                            |
+| 13   | `scripts/06_reporting/13_make_fig_table.py`                           | `src/llm_coherence/reporting/make_fig_table.py`                               |
+
 
 The early instrument-design and ladder-audit stages require API access and are not necessary for most replication workflows. Most users should start from the tracked validated ladders and forced-choice inputs.
 
@@ -194,6 +203,8 @@ Build and push the HF Jobs image from the repository root:
 IMAGE=your-dockerhub-user/llm-coherence-vllm:glm-base-YYYYMMDD
 bash scripts/00_repository/01_build_hf_jobs_image.sh "$IMAGE"
 ```
+
+
 
 ### Within-ladder GLM experiment (Instance 1 / Step 10a)
 
@@ -253,6 +264,8 @@ The within-ladder HF job runs Step 10a inside the container as `--generate`, `--
 ```text
 outputs/glm-45-base-logprobs/within_ladder/
 ```
+
+
 
 ### 100-ladder GLM experiment (Instance 2 / Step 10b)
 
@@ -326,21 +339,22 @@ Tracked GitHub contents are sufficient to inspect the instrument and rerun the p
 
 Expected local output layout:
 
-| Path | Contents |
-| --- | --- |
-| `data/05_ladder_validation/` | Ladder validation: pruned ladder JSONs, audit reports, and judge run folders (`within_ladder_validation_tier/`, `property/`, `ranking/`). |
-| `outputs/<model_key>/within_ladder/` | Instance 1 (step 10a): tier-pair preferences, cost logs, `summary.json`. |
-| `outputs/<model_key>/ladder_vs_comparison_statements/` | Instance 2 (step 10b): per-ladder `results.json`, reasoning traces, cost logs. |
-| `outputs/<model_key>/ladder_vs_comparison_statements/coherence_test/` | Step 11: `phase6b_coherence_*.json`, justification analysis, per-category summaries. |
-| `outputs/<model_key>/ladder_vs_comparison_statements/pred_utility_test/` | Step 12: predictive-utility CSVs and summaries. |
-| `outputs/checkpoints/<model_key>/` | Resumable checkpoints for step 10b. |
-| `results/figures/` | Generated figures (step 13). |
-| `results/tables/` | Generated tables (step 13). |
+
+| Path                                                                     | Contents                                                                                                                                  |
+| ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `data/05_ladder_validation/`                                             | Ladder validation: pruned ladder JSONs, audit reports, and judge run folders (`within_ladder_validation_tier/`, `property/`, `ranking/`). |
+| `outputs/<model_key>/within_ladder/`                                     | Instance 1 (step 10a): tier-pair preferences, cost logs, `summary.json`.                                                                  |
+| `outputs/<model_key>/ladder_vs_comparison_statements/`                   | Instance 2 (step 10b): per-ladder `results.json`, reasoning traces, cost logs.                                                            |
+| `outputs/<model_key>/ladder_vs_comparison_statements/coherence_test/`    | Step 11: `phase6b_coherence_*.json`, justification analysis, per-category summaries.                                                      |
+| `outputs/<model_key>/ladder_vs_comparison_statements/pred_utility_test/` | Step 12: predictive-utility CSVs and summaries.                                                                                           |
+| `outputs/checkpoints/<model_key>/`                                       | Resumable checkpoints for step 10b.                                                                                                       |
+| `results/figures/`                                                       | Generated figures (step 13).                                                                                                              |
+| `results/tables/`                                                        | Generated tables (step 13).                                                                                                               |
+
 
 Smoke runs for step 10b write under `outputs/<model_key>/smoke_<model_key>/ladder_vs_comparison_statements/` instead of the full-run path above.
 
 The tracked `results/model_run_index.json` snapshot inventories local payloads under `outputs/<model_key>/`. Refresh it with `validate_artifacts.py --write-indexes` after copying or generating model-run artifacts.
-
 
 ```bash
 # Update the dataset README on Hugging Face
@@ -353,13 +367,20 @@ python scripts/00_repository/hf_upload/hf_dataset.py upload outputs --skip-exist
 python scripts/00_repository/hf_upload/hf_dataset.py prepare /path/to/artifact_bundle
 ```
 
+
+
 ## Public Summaries
 
-Two small summary files are tracked for inspection:
+A small index of local model-run payloads is tracked for inspection:
 
 ```text
-results/phase6b_coherence_summary.json
 results/model_run_index.json
+```
+
+Per-model coherence metrics live with the rest of that model's outputs (step 11):
+
+```text
+outputs/<model>/ladder_vs_comparison_statements/coherence_test/phase6b_coherence_<model>.json
 ```
 
 These are not substitutes for the raw model-response artifact bundle on [Hugging Face](https://huggingface.co/datasets/MINTLABJHUANU/LLMCoherence_Var_100/tree/main).
@@ -372,7 +393,7 @@ Released under the MIT License. See [LICENSE](LICENSE).
 
 If you use this repository or its experiment artifacts, please cite:
 
-> Ajayi, E., Chowdhury, A., & Lazar, S. (2026). *Incoherent Values? Probing LLM Preferences Through Parametric Variation*. arXiv:2606.21102. https://arxiv.org/abs/2606.21102
+> Ajayi, E., Chowdhury, A., & Lazar, S. (2026). *Incoherent Values? Probing LLM Preferences Through Parametric Variation*. arXiv:2606.21102. [https://arxiv.org/abs/2606.21102](https://arxiv.org/abs/2606.21102)
 
 ```bibtex
 @misc{ajayi_chowdhury_lazar_2026_incoherent_values,

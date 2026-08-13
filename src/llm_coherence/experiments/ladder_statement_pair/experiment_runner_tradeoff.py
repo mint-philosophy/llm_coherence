@@ -27,6 +27,13 @@ from llm_coherence.runtime.templates import (
     comparison_prompt_template_default,
     comparison_prompt_template_reasoning_default,
 )
+from llm_coherence.runtime.usage_cost import (
+    actual_cost_from_usage_summary,
+    estimate_cost_from_totals,
+    infer_provider,
+    resolve_rates,
+    summarize_usage_log,
+)
 from llm_coherence.runtime.utils import generate_responses, parse_responses_forced_choice
 
 _EXPERIMENT_DIR = Path(__file__).resolve().parent
@@ -70,36 +77,40 @@ def _estimate_cost(model_key: str, total_api_calls: int, with_reasoning: bool) -
 
 
 def _actual_cost(model_key: str, usage_stats: dict) -> float | None:
-    """Compute real cost from observed usage stats + preflight pricing table.
+    """Best available USD for one ladder run (same preference order as 10a).
 
-    Splits prompt tokens into uncached / cached portions so per-provider
-    cache rates apply correctly:
-        Anthropic ephemeral cache: 1.25× input on creation, 0.10× on read.
-        OpenAI prompt caching:     0.10× input on cached tokens (per the
-            preflight_check comment; verify against live pricing if the
-            number ever ends up materially affecting a budget).
-    Cache fields are mutually exclusive in practice (a given call goes
-    through one provider) so summing them is safe.
+    1. Sum per-request ``cost_usd`` when the agent logged provider/live costs.
+    2. Else tokens × ``MODEL_COST_ESTIMATES``.
+    3. Else tokens × live OpenRouter published rates.
     """
     try:
-        prices = MODEL_COST_ESTIMATES.get(model_key)
-        if not prices or not usage_stats:
+        if not usage_stats:
             return None
+        reported = actual_cost_from_usage_summary(usage_stats)
+        if reported is not None:
+            return reported
+
+        prices = MODEL_COST_ESTIMATES.get(model_key)
+        if not prices:
+            mid = model_name_for_key(model_key)
+            prices, _ = resolve_rates(infer_provider(mid), mid)
+        if not prices:
+            return None
+
         prompt = (usage_stats.get("prompt_tokens") or {}).get("total") or 0
         completion = (usage_stats.get("completion_tokens") or {}).get("total") or 0
         cache_create = (usage_stats.get("cache_creation_input_tokens") or {}).get("total") or 0
         cache_read = (usage_stats.get("cache_read_input_tokens") or {}).get("total") or 0
         oai_cached = (usage_stats.get("openai_cached_tokens") or {}).get("total") or 0
-        # SDK `prompt_tokens` already counts cached tokens once — uncached is
-        # what's left after subtracting any provider-cached portion.
-        uncached = max(prompt - cache_create - cache_read - oai_cached, 0)
-        in_p = prices["input"]
-        return (
-            uncached / 1_000_000 * in_p
-            + cache_create / 1_000_000 * in_p * 1.25
-            + cache_read / 1_000_000 * in_p * 0.10
-            + oai_cached / 1_000_000 * in_p * 0.10
-            + completion / 1_000_000 * prices["output"]
+        if int(prompt) + int(completion) == 0:
+            return None
+        return estimate_cost_from_totals(
+            prices,
+            prompt_tokens=int(prompt),
+            completion_tokens=int(completion),
+            cache_creation_input_tokens=int(cache_create),
+            cache_read_input_tokens=int(cache_read),
+            openai_cached_tokens=int(oai_cached),
         )
     except Exception:
         return None
@@ -141,33 +152,8 @@ def _host_info() -> dict:
 
 
 def _summarize_usage(entries: list) -> dict:
-    """Aggregate per-call usage dicts into min/median/p95/max/total summaries.
-
-    Used to record prompt/completion/reasoning token stats in results metadata so
-    the real max_completion_tokens for thinking-on runs can be calibrated empirically.
-    """
-    def stats(raw):
-        vals = sorted(v for v in raw if v is not None)
-        if not vals:
-            return None
-        n = len(vals)
-        return {
-            "n": n,
-            "min": vals[0],
-            "median": vals[n // 2],
-            "p95": vals[min(n - 1, int(n * 0.95))],
-            "max": vals[-1],
-            "total": sum(vals),
-        }
-    return {
-        "calls_logged": len(entries),
-        "prompt_tokens": stats(e.get("prompt_tokens") for e in entries),
-        "completion_tokens": stats(e.get("completion_tokens") for e in entries),
-        "reasoning_tokens": stats(e.get("reasoning_tokens") for e in entries),
-        "cache_creation_input_tokens": stats(e.get("cache_creation_input_tokens") for e in entries),
-        "cache_read_input_tokens": stats(e.get("cache_read_input_tokens") for e in entries),
-        "openai_cached_tokens": stats(e.get("openai_cached_tokens") for e in entries),
-    }
+    """Aggregate per-call usage (tokens + cost) for results metadata."""
+    return summarize_usage_log(entries)
 
 
 # Prompt building
@@ -633,7 +619,7 @@ async def run_experiment(
 
     agent_extra_body = getattr(agent, "extra_body", None) or None
     agent_retry_counts = getattr(agent, "retry_counts", None)
-    usage_summary = _summarize_usage(getattr(agent, "usage_log", []))
+    usage_summary = _summarize_usage(getattr(agent, "usage_log", []) or [])
     comparison_path = comparison_file_path(data_dir, test_name, comparison_path)
     prompt_template_used = (
         "comparison_prompt_template_reasoning_default"
