@@ -8,8 +8,10 @@ module restores a reproducible batch path that:
 * shards at the API's 50,000-request/file limit;
 * records enough run metadata to rebuild the existing per-ladder result schema;
 * downloads successful and error files without assuming output order; and
-* retries transient transport/server failures while preserving deterministic errors;
-* preserves opted-in OpenAI reasoning summaries in per-ladder JSONL sidecars.
+* retries transient transport/server failures while preserving deterministic
+  errors and fixed experimental response-token ceilings;
+* preserves available opted-in OpenAI reasoning summaries in per-ladder JSONL
+  sidecars and records coverage when the provider omits a summary.
 
 Native reasoning is controlled by ``MODEL_CONFIGS.extra_body``.  In particular,
 GPT-5.6's off condition must include ``reasoning_effort="none"`` explicitly;
@@ -64,7 +66,7 @@ LATEST_BATCH_RUN_NAME = "latest_batch_run.txt"
 BATCH_MANIFEST_NAME = "batch_manifest.json"
 BATCH_JOBS_NAME = "batch_jobs.json"
 BATCH_PROCESSING_SUMMARY_NAME = "batch_processing_summary.json"
-REASONING_TRACES_NAME = "reasoning_traces.jsonl"
+REASONING_SUMMARIES_NAME = "reasoning_summaries.jsonl"
 
 # Pre-submit estimates must remain offline. These values match the transparent
 # heuristic used by the within-ladder Batch runner and are calibrated against
@@ -691,13 +693,18 @@ def _batch_request_uses_reasoning(body: dict[str, Any]) -> bool:
     return effort not in (None, "none")
 
 
-def estimate_batch_run_pre_submit_cost(run_dir: Path) -> dict[str, Any] | None:
-    """Estimate one generated Step-10b OpenAI Batch run without API calls.
+def estimate_batch_run_pre_submit_cost(
+    run_dir: Path,
+    *,
+    shards: Iterable[dict[str, Any]] | None = None,
+) -> dict[str, Any] | None:
+    """Estimate a generated Step-10b OpenAI Batch run without API calls.
 
     Input tokens use the same UTF-8 text-size heuristic as the within-ladder
     runner. Reasoning-off requests use the observed forced-choice norm of five
     output tokens per request; reasoning-on requests use their configured caps
-    so the planning estimate remains conservative.
+    so the planning estimate remains conservative. ``shards`` restricts the
+    estimate to a newly created retry wave.
     """
     manifest = validate_batch_inputs(run_dir)
     model_id = str(manifest["model_id"])
@@ -711,7 +718,10 @@ def estimate_batch_run_pre_submit_cost(run_dir: Path) -> dict[str, Any] | None:
     projected_output_tokens = 0
     output_token_cap = 0
 
-    for shard in manifest.get("shards", []):
+    selected_shards = (
+        list(shards) if shards is not None else list(manifest.get("shards", []))
+    )
+    for shard in selected_shards:
         path = run_dir / shard["input_file"]
         for line_number, request in enumerate(_iter_jsonl(path), start=1):
             body = request.get("body")
@@ -739,7 +749,11 @@ def estimate_batch_run_pre_submit_cost(run_dir: Path) -> dict[str, Any] | None:
                     max_output_tokens,
                 )
 
-    expected_requests = int(manifest.get("total_requests", 0))
+    expected_requests = (
+        sum(int(shard.get("request_count", 0)) for shard in selected_shards)
+        if shards is not None
+        else int(manifest.get("total_requests", 0))
+    )
     if request_count == 0:
         raise ValueError(f"Batch input is empty: {run_dir}")
     if request_count != expected_requests:
@@ -785,16 +799,23 @@ def estimate_batch_run_pre_submit_cost(run_dir: Path) -> dict[str, Any] | None:
 
 def print_batch_run_pre_submit_cost_estimate(
     run_dir: Path,
+    *,
+    shards: Iterable[dict[str, Any]] | None = None,
+    estimate_scope: str = "Pre-submit",
 ) -> dict[str, Any] | None:
     """Print and return the offline planning estimate for a Step-10b run."""
-    estimate = estimate_batch_run_pre_submit_cost(run_dir)
+    selected_shards = list(shards) if shards is not None else None
+    estimate = estimate_batch_run_pre_submit_cost(
+        run_dir,
+        shards=selected_shards,
+    )
     if estimate is None:
         return None
 
     reasoning_on = estimate["reasoning_on_requests"]
     descriptor = "conservative planning estimate" if reasoning_on else "projected"
     print(
-        f"[{estimate['model_key']}] Pre-submit OpenAI Batch cost estimate: "
+        f"[{estimate['model_key']}] {estimate_scope} OpenAI Batch cost estimate: "
         f"~${estimate['estimated_cost_usd']:,.6f} ({descriptor})."
     )
     print(
@@ -1223,7 +1244,13 @@ def _initial_request_ids(run_dir: Path, manifest: dict[str, Any]) -> set[str]:
 def create_retry_shards(
     run_dir: Path,
 ) -> tuple[list[dict[str, Any]], int, dict[str, Any]]:
-    """Retry missing/transient requests while excluding deterministic 4xx failures."""
+    """Retry missing/transient requests without changing model conditions.
+
+    OpenAI can return ``status=incomplete`` with HTTP 200 when a response
+    reaches ``max_output_tokens``. Those rows remain incomplete analytical
+    observations. They are not selectively rerun at a larger token ceiling,
+    because doing so would give only the hardest items a different condition.
+    """
     manifest = validate_batch_inputs(run_dir)
     jobs = _load_jobs(run_dir)
     if any(
@@ -1234,20 +1261,41 @@ def create_retry_shards(
     successful, failures, _ = _response_inventory(run_dir)
     expected = _initial_request_ids(run_dir, manifest)
     missing = expected.difference(successful)
-    retryable = {
+    retryable_missing = {
         custom_id
         for custom_id in missing
         if custom_id not in failures or failures[custom_id]["retryable"]
     }
-    non_retryable = missing.difference(retryable)
+    token_capped_incomplete = {
+        custom_id
+        for custom_id, row in successful.items()
+        if (row.get("response") or {}).get("body", {}).get("status") == "incomplete"
+        and (
+            ((row.get("response") or {}).get("body", {}).get("incomplete_details") or {})
+            .get("reason")
+            == "max_output_tokens"
+        )
+    }
+    retryable = retryable_missing
+    non_retryable = missing.difference(retryable_missing)
     classification = {
         "missing_total": len(missing),
+        "incomplete_total": sum(
+            1
+            for row in successful.values()
+            if (row.get("response") or {}).get("body", {}).get("status")
+            == "incomplete"
+        ),
+        "retryable_missing": len(retryable_missing),
+        "token_capped_incomplete": len(token_capped_incomplete),
+        "retryable_incomplete": 0,
         "retryable": len(retryable),
         "non_retryable": len(non_retryable),
         "non_retryable_examples": [
             {"custom_id": custom_id, **failures[custom_id]}
             for custom_id in sorted(non_retryable)[:10]
         ],
+        "incomplete_retry_token_caps": [],
     }
     if not missing:
         return [], 0, classification
@@ -1256,23 +1304,30 @@ def create_retry_shards(
 
     attempt = 1 + max((int(s.get("attempt", 0)) for s in manifest["shards"]), default=0)
 
-    def missing_requests() -> Iterator[dict[str, Any]]:
-        remaining = set(retryable)
-        for shard in manifest["shards"]:
-            if shard.get("kind", "initial") != "initial":
-                continue
+    def retry_requests() -> Iterator[dict[str, Any]]:
+        latest_requests: dict[str, dict[str, Any]] = {}
+        ordered_shards = sorted(
+            enumerate(manifest["shards"]),
+            key=lambda item: (int(item[1].get("attempt", 0)), item[0]),
+        )
+        for _, shard in ordered_shards:
             for row in _iter_jsonl(run_dir / shard["input_file"]):
                 custom_id = row.get("custom_id")
-                if custom_id in remaining:
-                    remaining.remove(custom_id)
-                    yield row
-        if remaining:
+                if custom_id in retryable:
+                    latest_requests[custom_id] = row
+
+        unavailable = retryable.difference(latest_requests)
+        if unavailable:
             raise RuntimeError(
-                f"Could not recover {len(remaining)} missing requests from initial shards."
+                f"Could not recover {len(unavailable)} retry requests from "
+                "generated Batch shards."
             )
 
+        for custom_id in sorted(retryable):
+            yield latest_requests[custom_id]
+
     shards, retry_count = _write_sharded_requests(
-        missing_requests(),
+        retry_requests(),
         run_dir=run_dir,
         prefix=f"batch_retry_a{attempt}",
         kind="retry",
@@ -1451,7 +1506,9 @@ def process_batch_run(run_dir: Path) -> dict[str, Any]:
 
     slots: dict[tuple[int, int, str], list[str | None]] = {}
     reasoning_traces_by_set: dict[int, list[dict[str, Any]]] = defaultdict(list)
+    reasoning_summary_block_count_by_set: dict[int, int] = defaultdict(int)
     missing_reasoning_summary_ids: list[str] = []
+    missing_reasoning_summary_ids_by_set: dict[int, list[str]] = defaultdict(list)
     usage_by_set: dict[int, list[dict[str, Any]]] = defaultdict(list)
     cost_by_set: dict[int, float] = defaultdict(float)
     response_count_by_set: dict[int, int] = defaultdict(int)
@@ -1467,25 +1524,29 @@ def process_batch_run(run_dir: Path) -> dict[str, Any]:
             raise ValueError(f"Trial index out of range in {custom_id!r}.")
         body = row["response"]["body"]
         diagnostics = _response_text_and_diagnostics(body)
-        values[trial_index] = diagnostics["text"]
+        values[trial_index] = (
+            diagnostics["text"]
+            if diagnostics["response_status"] == "completed"
+            and not diagnostics["incomplete_reason"]
+            else None
+        )
         if reasoning_summary_requested:
             summaries = diagnostics["reasoning_summaries"]
             if not summaries:
                 missing_reasoning_summary_ids.append(custom_id)
+                missing_reasoning_summary_ids_by_set[set_index].append(custom_id)
             else:
+                reasoning_summary_block_count_by_set[set_index] += len(summaries)
                 reasoning_traces_by_set[set_index].append(
                     {
-                        "schema_version": "1.0",
-                        "artifact_type": "openai_reasoning_summary",
                         "custom_id": custom_id,
-                        "set_index": set_index,
-                        "comparison_index": comparison_index,
-                        "direction": direction,
-                        "trial_index": trial_index,
-                        "response_id": body.get("id"),
-                        "model": body.get("model") or model_id,
-                        "summary_mode": reasoning_summary_mode,
-                        "summaries": summaries,
+                        "pair_idx": comparison_index,
+                        "direction": "A" if direction == "ab" else "B",
+                        "trial": trial_index,
+                        "content": diagnostics["text"],
+                        "summary": "\n\n".join(
+                            summary["text"] for summary in summaries
+                        ),
                     }
                 )
         response_count_by_set[set_index] += 1
@@ -1504,15 +1565,6 @@ def process_batch_run(run_dir: Path) -> dict[str, Any]:
         if isinstance(usage.get("cost"), (int, float)):
             cost_by_set[set_index] += float(usage["cost"])
 
-    if missing_reasoning_summary_ids:
-        raise ValueError(
-            "The Batch manifest requested native OpenAI reasoning summaries, "
-            "but one or more successful Responses API bodies did not contain a "
-            "non-empty summary_text block. No result files or reasoning sidecars "
-            f"were written. missing_summaries={len(missing_reasoning_summary_ids)}; "
-            f"examples={sorted(missing_reasoning_summary_ids)[:5]}"
-        )
-
     total_unparseable = 0
     result_payloads: list[
         tuple[Path, dict[str, Any], Path | None, list[dict[str, Any]]]
@@ -1529,6 +1581,7 @@ def process_batch_run(run_dir: Path) -> dict[str, Any]:
         )
         preferences: list[dict[str, Any]] = []
         set_unparseable = 0
+        set_zero_parseable_comparison_indices: list[int] = []
         for comparison_index, comparison in enumerate(comparisons):
             original = slots.get(
                 (set_index, comparison_index, "ab"),
@@ -1557,6 +1610,7 @@ def process_batch_run(run_dir: Path) -> dict[str, Any]:
             parsed_total = count_a + count_b
             set_unparseable += expected - parsed_total
             if parsed_total == 0:
+                set_zero_parseable_comparison_indices.append(comparison_index)
                 zero_parseable_pairs.append(
                     f"{set_record['test_name']} comparison {comparison_index}"
                 )
@@ -1583,8 +1637,17 @@ def process_batch_run(run_dir: Path) -> dict[str, Any]:
             reasoning_traces_by_set.get(set_index, []),
             key=lambda record: str(record["custom_id"]),
         )
-        reasoning_summary_blocks = sum(
-            len(record["summaries"]) for record in reasoning_traces
+        reasoning_summary_blocks = reasoning_summary_block_count_by_set.get(
+            set_index, 0
+        )
+        missing_set_summary_ids = sorted(
+            missing_reasoning_summary_ids_by_set.get(set_index, [])
+        )
+        set_response_count = response_count_by_set.get(set_index, 0)
+        summary_coverage_rate = (
+            len(reasoning_traces) / set_response_count
+            if set_response_count
+            else None
         )
         end_time = _utc_now()
         payload = {
@@ -1622,11 +1685,14 @@ def process_batch_run(run_dir: Path) -> dict[str, Any]:
                     "artifact_type": manifest.get("reasoning_artifact_type")
                     or ("summary" if reasoning_summary_requested else "none"),
                     "summary_requested": reasoning_summary_requested,
-                    "summary_mode": reasoning_summary_mode,
+                    "summary_mode_requested": reasoning_summary_mode,
                     "responses_with_summary": len(reasoning_traces),
+                    "responses_without_summary": len(missing_set_summary_ids),
+                    "summary_coverage_rate": summary_coverage_rate,
+                    "missing_summary_examples": missing_set_summary_ids[:10],
                     "summary_block_count": reasoning_summary_blocks,
                     "sidecar": (
-                        REASONING_TRACES_NAME
+                        REASONING_SUMMARIES_NAME
                         if reasoning_summary_requested
                         else None
                     ),
@@ -1634,12 +1700,18 @@ def process_batch_run(run_dir: Path) -> dict[str, Any]:
                 },
                 "batch_job_count": len(jobs.get("jobs", [])),
                 "batch_run_id": run_dir.name,
-                "run_status": "complete",
+                "run_status": "complete" if set_unparseable == 0 else "incomplete",
                 "response_diagnostics": {
                     "finish_reason_counts": dict(finish_reason_by_set.get(set_index, {})),
                     "response_status_counts": dict(response_status_by_set.get(set_index, {})),
                     "refusal_count": refusals_by_set.get(set_index, 0),
                     "incomplete_count": incomplete_by_set.get(set_index, 0),
+                    "zero_parseable_comparison_count": len(
+                        set_zero_parseable_comparison_indices
+                    ),
+                    "zero_parseable_comparison_indices": (
+                        set_zero_parseable_comparison_indices
+                    ),
                 },
                 "estimated_cost_usd": computed_cost,
                 "actual_cost_usd": None,
@@ -1664,18 +1736,11 @@ def process_batch_run(run_dir: Path) -> dict[str, Any]:
             / "results.json"
         )
         traces_path = (
-            result_path.parent / REASONING_TRACES_NAME
+            result_path.parent / REASONING_SUMMARIES_NAME
             if reasoning_summary_requested
             else None
         )
         result_payloads.append((result_path, payload, traces_path, reasoning_traces))
-
-    if zero_parseable_pairs:
-        raise ValueError(
-            "At least one comparison has zero parseable A/B responses; writing a "
-            "0.0 probability would corrupt the coherence metrics, so no result "
-            f"files were written. Examples: {zero_parseable_pairs[:5]}"
-        )
 
     written_files: list[str] = []
     written_trace_files: list[str] = []
@@ -1707,14 +1772,27 @@ def process_batch_run(run_dir: Path) -> dict[str, Any]:
         "successful_responses": len(responses),
         "missing_responses": len(missing_ids),
         "unparseable_or_missing_responses": total_unparseable,
+        "processing_status": "complete" if total_unparseable == 0 else "incomplete",
+        "zero_parseable_comparison_count": len(zero_parseable_pairs),
+        "zero_parseable_comparison_examples": zero_parseable_pairs[:10],
         "response_file_stats": response_stats,
         "batch_status_counts": dict(job_status_counts),
         "reasoning_summary_requested": reasoning_summary_requested,
         "responses_with_reasoning_summary": sum(
             len(records) for records in reasoning_traces_by_set.values()
         ),
-        "reasoning_trace_files_written": len(written_trace_files),
-        "reasoning_trace_files": written_trace_files,
+        "responses_without_reasoning_summary": len(missing_reasoning_summary_ids),
+        "reasoning_summary_coverage_rate": (
+            sum(len(records) for records in reasoning_traces_by_set.values())
+            / len(responses)
+            if reasoning_summary_requested and responses
+            else None
+        ),
+        "missing_reasoning_summary_examples": sorted(
+            missing_reasoning_summary_ids
+        )[:10],
+        "reasoning_summary_files_written": len(written_trace_files),
+        "reasoning_summary_files": written_trace_files,
         "result_files_written": len(written_files),
         "result_files": written_files,
     }

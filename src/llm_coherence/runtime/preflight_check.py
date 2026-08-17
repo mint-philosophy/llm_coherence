@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from llm_coherence.config import canonical_model_key
+from llm_coherence.config import MODEL_CONFIGS, canonical_model_key
 
 
 # Approximate standard cost per 1M tokens in USD. OpenAI rates checked
@@ -48,6 +48,8 @@ MODEL_COST_ESTIMATES = {
     "kimi-k3-openrouter-thinking-low": {"input": 3.0, "output": 15.0},
     "kimi-k3-openrouter-thinking-medium": {"input": 3.0, "output": 15.0},
     "kimi-k3-openrouter-thinking-high": {"input": 3.0, "output": 15.0},
+    "qwen-37-max-openrouter": {"input": 1.475, "output": 4.425},
+    "qwen-37-max-openrouter-thinking": {"input": 1.475, "output": 4.425},
 }
 
 EXPENSIVE_MODELS = {
@@ -102,7 +104,24 @@ CALIBRATED_OUTPUT_TOKENS: dict[str, int] = {
 
 def is_thinking_run(model_key: str) -> bool:
     """Whether the model has native reasoning enabled."""
-    return canonical_model_key(model_key).endswith("-thinking")
+    model_key = canonical_model_key(model_key)
+    cfg = MODEL_CONFIGS.get(model_key)
+    if cfg is None:
+        return "-thinking" in model_key
+
+    extra = cfg.extra_body or {}
+    reasoning = extra.get("reasoning") or {}
+    if reasoning.get("enabled") is False or reasoning.get("effort") == "none":
+        return False
+    if reasoning.get("enabled") is True:
+        return True
+    if reasoning.get("effort") not in (None, "", "none"):
+        return True
+    if extra.get("thinking"):
+        return True
+    if extra.get("reasoning_effort") not in (None, "", "none"):
+        return True
+    return cfg.reasoning_artifact_type != "none" or "-thinking" in model_key
 
 
 def estimate_cost(

@@ -1,4 +1,4 @@
-"""Offline coverage for GPT-5.6 configuration and fail-closed Batch handling."""
+"""Offline coverage for model configuration and model-run pipelines."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ from llm_coherence.experiments.ladder_statement_pair.openai_batch_runner import 
     BATCH_MANIFEST_NAME,
     MAX_BATCH_FILE_BYTES,
     OPENAI_BATCH_ENDPOINT,
-    REASONING_TRACES_NAME,
+    REASONING_SUMMARIES_NAME,
     _write_sharded_requests,
     batch_queue_limit_for_model,
     build_openai_responses_batch_body,
@@ -36,18 +36,31 @@ from llm_coherence.experiments.ladder_statement_pair.openai_batch_runner import 
     validate_batch_run_binding,
 )
 from llm_coherence.experiments.within_ladder.run_within_ladder_experiment import (
+    MODELS,
     _guard_duplicate_batch_submission,
     _is_complete_finish_reason,
+    _is_retryable_transport_exception,
+    _is_transport_failure_row,
     _openai_responses_batch_request_body,
+    _prune_cost_log,
     _resolve_smoke_max_variation_sets,
     _within_ladder_cost_pricing,
     analyze,
     estimate_pre_submit_batch_cost,
+    estimate_pre_submit_live_cost,
     extract_clean_row,
+    generate_pairs,
     print_pre_submit_batch_cost_estimate,
+    print_pre_submit_live_cost_estimate,
+    run_live,
     write_clean_and_cost_log,
 )
-from llm_coherence.runtime.agents import MODEL_SPECS, model_name_for_key
+from llm_coherence.runtime.agents import LiteLLMAgent, MODEL_SPECS, model_name_for_key
+from llm_coherence.runtime.model_run_index import model_reasoning_mode
+from llm_coherence.runtime.preflight_check import (
+    MODEL_COST_ESTIMATES,
+    is_thinking_run,
+)
 from llm_coherence.runtime.usage_cost import (
     OPENAI_BATCH_PRICE_PER_MTOK,
     OPENAI_STANDARD_PRICE_PER_MTOK,
@@ -58,12 +71,39 @@ from llm_coherence.runtime.usage_cost import (
 
 GPT56_CASES = {
     "gpt-56-sol": ("gpt-5.6-sol", "none", 16),
-    "gpt-56-sol-thinking": ("gpt-5.6-sol", "high", 200),
+    "gpt-56-sol-thinking": ("gpt-5.6-sol", "high", 3000),
     "gpt-56-terra": ("gpt-5.6-terra", "none", 16),
-    "gpt-56-terra-thinking": ("gpt-5.6-terra", "high", 150),
+    "gpt-56-terra-thinking": ("gpt-5.6-terra", "high", 3000),
     "gpt-56-luna": ("gpt-5.6-luna", "none", 16),
-    "gpt-56-luna-thinking": ("gpt-5.6-luna", "high", 200),
+    "gpt-56-luna-thinking": ("gpt-5.6-luna", "high", 3000),
 }
+
+
+OPENROUTER_CASES = {
+    "qwen-37-max-openrouter": {
+        "model": "qwen/qwen3.7-max-20260520",
+        "reasoning": {"enabled": False},
+        "max_tokens": 16,
+        "thinking": False,
+        "prices": {"input": 1.475, "output": 4.425},
+    },
+    "qwen-37-max-openrouter-thinking": {
+        "model": "qwen/qwen3.7-max-20260520",
+        "reasoning": {"enabled": True},
+        "max_tokens": 3000,
+        "thinking": True,
+        "prices": {"input": 1.475, "output": 4.425},
+    },
+}
+
+
+def _one_ladder() -> list[dict]:
+    return [
+        {
+            "original_statement_id": "offline_smoke",
+            "variations": [{"text": f"Tier {index}"} for index in range(1, 8)],
+        }
+    ]
 
 
 def _responses_body(
@@ -169,6 +209,12 @@ class WithinLadderSmokeScopeTests(unittest.TestCase):
 
 
 class GPT56ConfigurationTests(unittest.TestCase):
+    def test_opus_thinking_artifact_is_classified_as_summary(self) -> None:
+        self.assertEqual(
+            MODEL_CONFIGS["opus-46-thinking"].reasoning_artifact_type,
+            "summary",
+        )
+
     def test_all_six_conditions_have_matching_model_and_effort(self) -> None:
         for model_key, (model_id, effort, max_tokens) in GPT56_CASES.items():
             with self.subTest(model_key=model_key):
@@ -420,6 +466,137 @@ class GPT56ConfigurationTests(unittest.TestCase):
             batch_queue_limit_for_model("gpt-5.6-sol", usage_tier=None)
 
 
+class OpenRouterModelConfigurationTests(unittest.TestCase):
+    def test_registry_uses_pinned_models_and_current_reasoning_shapes(self) -> None:
+        for model_key, expected in OPENROUTER_CASES.items():
+            with self.subTest(model_key=model_key):
+                config = MODEL_CONFIGS[model_key]
+                spec = MODEL_SPECS[model_key]
+                self.assertEqual(spec.model_type, "openrouter")
+                self.assertEqual(spec.model_name, f"openrouter/{expected['model']}")
+                self.assertEqual(config.max_tokens, expected["max_tokens"])
+                self.assertEqual(
+                    config.extra_body,
+                    {"reasoning": expected["reasoning"]},
+                )
+                self.assertEqual(
+                    config.reasoning_artifact_type,
+                    "raw_cot" if expected["thinking"] else "none",
+                )
+                self.assertEqual(MODEL_COST_ESTIMATES[model_key], expected["prices"])
+                self.assertEqual(is_thinking_run(model_key), expected["thinking"])
+                self.assertEqual(
+                    model_reasoning_mode(model_key),
+                    "thinking_on" if expected["thinking"] else "thinking_off",
+                )
+
+    def test_within_ladder_requests_keep_nested_openrouter_reasoning(self) -> None:
+        for model_key, expected in OPENROUTER_CASES.items():
+            with self.subTest(model_key=model_key):
+                requests = generate_pairs(
+                    _one_ladder(),
+                    model_key,
+                    with_reasoning=expected["thinking"],
+                )
+                self.assertEqual(len(requests), 42)
+                first = requests[0]
+                self.assertEqual(first["url"], "/v1/chat/completions")
+                self.assertEqual(first["body"]["model"], expected["model"])
+                self.assertEqual(first["body"]["max_tokens"], expected["max_tokens"])
+                self.assertEqual(first["body"]["reasoning"], expected["reasoning"])
+                self.assertNotIn("reasoning_effort", first["body"])
+                self.assertEqual(MODELS[model_key][1], "openrouter")
+
+    def test_live_preflight_reports_projected_and_all_cap_costs(self) -> None:
+        requests = [
+            {
+                "custom_id": f"ladder__T1_vs_T2__{direction}",
+                "body": {
+                    "model": "qwen/qwen3.7-max-20260520",
+                    "messages": [{"role": "user", "content": "a" * 5_000}],
+                    "max_tokens": 16,
+                    "reasoning": {"enabled": False},
+                },
+            }
+            for direction in ("AB", "BA")
+        ]
+
+        estimate = estimate_pre_submit_live_cost(
+            "qwen-37-max-openrouter",
+            requests=requests,
+        )
+
+        self.assertIsNotNone(estimate)
+        self.assertEqual(estimate["request_count"], 2)
+        self.assertEqual(estimate["reasoning_on_requests"], 0)
+        self.assertEqual(estimate["estimated_input_tokens"], 2_018)
+        self.assertEqual(estimate["projected_output_tokens"], 10)
+        self.assertEqual(estimate["output_token_cap"], 32)
+        self.assertAlmostEqual(estimate["estimated_cost_usd"], 0.003021)
+        self.assertAlmostEqual(estimate["maximum_output_cost_usd"], 0.003118)
+
+        stream = io.StringIO()
+        with redirect_stdout(stream):
+            displayed = print_pre_submit_live_cost_estimate(
+                "qwen-37-max-openrouter",
+                requests=requests,
+            )
+        self.assertEqual(displayed, estimate)
+        output = stream.getvalue()
+        self.assertIn("Preflight OpenRouter live cost estimate", output)
+        self.assertIn("all-cap estimate", output)
+        self.assertIn("no API request has been sent", output)
+
+    def test_reasoning_live_preflight_projects_below_strict_cap(self) -> None:
+        requests = [
+            {
+                "custom_id": f"ladder__T1_vs_T2__{direction}",
+                "body": {
+                    "model": "qwen/qwen3.7-max-20260520",
+                    "messages": [{"role": "user", "content": "a" * 5_000}],
+                    "max_tokens": 3_000,
+                    "reasoning": {"enabled": True},
+                },
+            }
+            for direction in ("AB", "BA")
+        ]
+
+        estimate = estimate_pre_submit_live_cost(
+            "qwen-37-max-openrouter-thinking",
+            requests=requests,
+        )
+
+        self.assertIsNotNone(estimate)
+        self.assertEqual(estimate["reasoning_on_requests"], 2)
+        self.assertEqual(estimate["projected_output_tokens"], 500)
+        self.assertEqual(estimate["output_token_cap"], 6_000)
+        self.assertAlmostEqual(estimate["estimated_cost_usd"], 0.005189)
+        self.assertAlmostEqual(estimate["maximum_output_cost_usd"], 0.029527)
+        self.assertLess(
+            estimate["estimated_cost_usd"],
+            estimate["maximum_output_cost_usd"],
+        )
+
+    def test_main_runner_keeps_reasoning_and_requests_cost_telemetry(self) -> None:
+        model_key = "qwen-37-max-openrouter-thinking"
+        config = MODEL_CONFIGS[model_key]
+        agent = LiteLLMAgent(
+            model=MODEL_SPECS[model_key].model_name,
+            max_tokens=config.max_tokens,
+            extra_body=config.extra_body,
+        )
+        kwargs = agent._completion_kwargs(
+            [{"role": "user", "content": "Choose A or B."}],
+            timeout=30.0,
+        )
+        self.assertEqual(kwargs["max_tokens"], 3000)
+        self.assertEqual(
+            kwargs["extra_body"]["reasoning"],
+            {"enabled": True},
+        )
+        self.assertEqual(kwargs["extra_body"]["usage"], {"include": True})
+
+
 class GPT56BatchRoundTripTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tempdir = tempfile.TemporaryDirectory()
@@ -560,7 +737,7 @@ class GPT56BatchRoundTripTests(unittest.TestCase):
                 row["body"]["reasoning"],
                 {"effort": "high", "summary": "auto"},
             )
-            self.assertEqual(row["body"]["max_output_tokens"], 200)
+            self.assertEqual(row["body"]["max_output_tokens"], 3000)
             self.assertNotIn("temperature", row["body"])
 
     def test_step10b_pre_submit_estimate_uses_generated_shards(self) -> None:
@@ -601,8 +778,8 @@ class GPT56BatchRoundTripTests(unittest.TestCase):
         self.assertIsNotNone(estimate)
         self.assertEqual(estimate["request_count"], 4)
         self.assertEqual(estimate["reasoning_on_requests"], 4)
-        self.assertEqual(estimate["projected_output_tokens"], 800)
-        self.assertEqual(estimate["output_token_cap"], 800)
+        self.assertEqual(estimate["projected_output_tokens"], 12_000)
+        self.assertEqual(estimate["output_token_cap"], 12_000)
         self.assertEqual(
             estimate["estimated_cost_usd"], estimate["maximum_output_cost_usd"]
         )
@@ -640,12 +817,12 @@ class GPT56BatchRoundTripTests(unittest.TestCase):
         self.assertEqual(summary["missing_responses"], 0)
         self.assertTrue(summary["reasoning_summary_requested"])
         self.assertEqual(summary["responses_with_reasoning_summary"], 4)
-        self.assertEqual(summary["reasoning_trace_files_written"], 1)
+        self.assertEqual(summary["reasoning_summary_files_written"], 1)
         result_path = self.results_dir / summary["result_files"][0]
         result = json.loads(result_path.read_text(encoding="utf-8"))
         self.assertEqual(result["config"]["reasoning_mode"], "high")
         self.assertIsNone(result["config"]["temperature"])
-        self.assertEqual(result["metadata"]["run_status"], "complete")
+        self.assertEqual(result["metadata"]["run_status"], "incomplete")
         self.assertEqual(result["metadata"]["usage_stats"]["reasoning_tokens"]["total"], 16)
         self.assertEqual(
             result["metadata"]["response_diagnostics"]["finish_reason_counts"][
@@ -660,14 +837,17 @@ class GPT56BatchRoundTripTests(unittest.TestCase):
             {
                 "artifact_type": "summary",
                 "summary_requested": True,
-                "summary_mode": "auto",
+                "summary_mode_requested": "auto",
                 "responses_with_summary": 4,
+                "responses_without_summary": 0,
+                "summary_coverage_rate": 1.0,
+                "missing_summary_examples": [],
                 "summary_block_count": 4,
-                "sidecar": REASONING_TRACES_NAME,
+                "sidecar": REASONING_SUMMARIES_NAME,
                 "raw_batch_output_retained": True,
             },
         )
-        traces_path = self.results_dir / summary["reasoning_trace_files"][0]
+        traces_path = self.results_dir / summary["reasoning_summary_files"][0]
         traces = [
             json.loads(line)
             for line in traces_path.read_text(encoding="utf-8").splitlines()
@@ -684,14 +864,22 @@ class GPT56BatchRoundTripTests(unittest.TestCase):
         )
         self.assertTrue(
             all(
-                trace["summaries"][0]["text"]
-                == "A concise native reasoning summary."
+                trace["summary"] == "A concise native reasoning summary."
+                for trace in traces
+            )
+        )
+        self.assertTrue(
+            all(
+                set(trace)
+                == {"custom_id", "pair_idx", "direction", "trial", "content", "summary"}
                 for trace in traces
             )
         )
         preference = result["preferences"][0]
-        self.assertEqual(preference["count_prefer_a"], 3)
+        self.assertEqual(preference["count_prefer_a"], 2)
         self.assertEqual(preference["count_prefer_b"], 1)
+        self.assertEqual(preference["parseable_trials"], 3)
+        self.assertEqual(preference["expected_trials"], 4)
 
     def test_processing_rejects_nonterminal_and_partial_terminal_jobs(self) -> None:
         run_dir = self._generate()
@@ -724,13 +912,22 @@ class GPT56BatchRoundTripTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "comparison file hash changed"):
             process_batch_run(run_dir)
 
-    def test_processing_rejects_zero_parseable_pair_instead_of_zero_probability(self) -> None:
+    def test_processing_marks_zero_parseable_pair_incomplete(self) -> None:
         run_dir = self._generate()
         self._write_output_and_jobs(run_dir, self._success_rows(empty=True))
-        with self.assertRaisesRegex(ValueError, "zero parseable A/B responses"):
-            process_batch_run(run_dir)
+        summary = process_batch_run(run_dir)
 
-    def test_processing_rejects_missing_requested_reasoning_summary(self) -> None:
+        self.assertEqual(summary["processing_status"], "incomplete")
+        self.assertEqual(summary["zero_parseable_comparison_count"], 1)
+        result_path = self.results_dir / summary["result_files"][0]
+        result = json.loads(result_path.read_text(encoding="utf-8"))
+        self.assertEqual(result["metadata"]["run_status"], "incomplete")
+        preference = result["preferences"][0]
+        self.assertEqual(preference["parseable_trials"], 0)
+        self.assertIsNone(preference["prob_prefer_a"])
+        self.assertIsNone(preference["prob_prefer_b"])
+
+    def test_processing_records_missing_requested_reasoning_summaries(self) -> None:
         run_dir = self._generate()
         rows = self._success_rows()
         for row in rows:
@@ -740,12 +937,24 @@ class GPT56BatchRoundTripTests(unittest.TestCase):
             ]
         self._write_output_and_jobs(run_dir, rows)
 
-        with self.assertRaisesRegex(ValueError, "requested native OpenAI reasoning"):
-            process_batch_run(run_dir)
-
+        summary = process_batch_run(run_dir)
         artifact_dir = self.results_dir / "phase6b_ladder_Test_category_1234"
-        self.assertFalse((artifact_dir / "results.json").exists())
-        self.assertFalse((artifact_dir / REASONING_TRACES_NAME).exists())
+        result = json.loads(
+            (artifact_dir / "results.json").read_text(encoding="utf-8")
+        )
+        reasoning_artifacts = result["metadata"]["reasoning_artifacts"]
+        self.assertEqual(reasoning_artifacts["responses_with_summary"], 0)
+        self.assertEqual(reasoning_artifacts["responses_without_summary"], 4)
+        self.assertEqual(reasoning_artifacts["summary_coverage_rate"], 0.0)
+        self.assertEqual(len(reasoning_artifacts["missing_summary_examples"]), 4)
+        self.assertTrue((artifact_dir / REASONING_SUMMARIES_NAME).exists())
+        self.assertEqual(
+            (artifact_dir / REASONING_SUMMARIES_NAME).read_text(encoding="utf-8"),
+            "",
+        )
+        self.assertEqual(summary["responses_with_reasoning_summary"], 0)
+        self.assertEqual(summary["responses_without_reasoning_summary"], 4)
+        self.assertEqual(summary["reasoning_summary_coverage_rate"], 0.0)
 
     def test_retry_shards_exclude_deterministic_4xx_failures(self) -> None:
         run_dir = self._generate()
@@ -774,6 +983,36 @@ class GPT56BatchRoundTripTests(unittest.TestCase):
             for line in (run_dir / shard["input_file"]).read_text().splitlines()
         }
         self.assertNotIn("s0000-c0000-dab-t001", retry_ids)
+
+    def test_retry_shards_preserve_fixed_cap_and_exclude_token_capped_responses(self) -> None:
+        run_dir = self._generate()
+        rows = self._success_rows(one_truncated=True)
+        self._write_output_and_jobs(run_dir, rows)
+
+        shards, retry_count, classification = create_retry_shards(run_dir)
+
+        self.assertEqual(shards, [])
+        self.assertEqual(retry_count, 0)
+        self.assertEqual(classification["missing_total"], 0)
+        self.assertEqual(classification["incomplete_total"], 1)
+        self.assertEqual(classification["token_capped_incomplete"], 1)
+        self.assertEqual(classification["retryable_incomplete"], 0)
+        self.assertEqual(classification["retryable"], 0)
+        self.assertEqual(classification["incomplete_retry_token_caps"], [])
+
+    def test_token_capped_response_is_processed_as_incomplete_without_retry(self) -> None:
+        run_dir = self._generate()
+        initial_rows = self._success_rows(one_truncated=True)
+        self._write_output_and_jobs(run_dir, initial_rows)
+
+        shards, retry_count, classification = create_retry_shards(run_dir)
+        summary = process_batch_run(run_dir)
+
+        self.assertEqual(shards, [])
+        self.assertEqual(retry_count, 0)
+        self.assertEqual(classification["token_capped_incomplete"], 1)
+        self.assertEqual(summary["processing_status"], "incomplete")
+        self.assertEqual(summary["unparseable_or_missing_responses"], 1)
 
     def test_queue_limit_submits_in_waves(self) -> None:
         run_dir = self._generate(max_requests_per_batch=2)
@@ -853,6 +1092,104 @@ class GPT56BatchRoundTripTests(unittest.TestCase):
 
 
 class WithinLadderSafetyTests(unittest.TestCase):
+    def test_live_retry_classification_is_transport_only(self) -> None:
+        import httpx
+
+        self.assertTrue(
+            _is_retryable_transport_exception(
+                httpx.ConnectError("connection failed")
+            )
+        )
+        self.assertFalse(_is_retryable_transport_exception(RuntimeError("API error")))
+        self.assertTrue(
+            _is_transport_failure_row(
+                {
+                    "error": "All connection attempts failed",
+                    "finish_reason": None,
+                }
+            )
+        )
+        self.assertTrue(
+            _is_transport_failure_row(
+                {"error": "socket failed", "error_type": "transport"}
+            )
+        )
+        self.assertFalse(
+            _is_transport_failure_row(
+                {"error": "rate limited", "error_type": "non_transport"}
+            )
+        )
+        self.assertFalse(
+            _is_transport_failure_row(
+                {"finish_reason": "length", "answer": None}
+            )
+        )
+
+    def test_live_resume_retains_capped_and_unparseable_outcomes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            input_path = root / "input.jsonl"
+            output_path = root / "output.jsonl"
+            custom_ids = [
+                "ladder__T1_vs_T2__AB",
+                "ladder__T1_vs_T2__BA",
+            ]
+            requests = [
+                {"custom_id": cid, "body": {"max_tokens": 16}}
+                for cid in custom_ids
+            ]
+            input_path.write_text(
+                "".join(json.dumps(row) + "\n" for row in requests),
+                encoding="utf-8",
+            )
+            retained_rows = [
+                {
+                    "custom_id": custom_ids[0],
+                    "answer": None,
+                    "finish_reason": "length",
+                    "content": "A partial response",
+                },
+                {
+                    "custom_id": custom_ids[1],
+                    "answer": None,
+                    "finish_reason": "stop",
+                    "content": "I decline the forced choice.",
+                },
+            ]
+            output_path.write_text(
+                "".join(json.dumps(row) + "\n" for row in retained_rows),
+                encoding="utf-8",
+            )
+
+            module = (
+                "llm_coherence.experiments.within_ladder."
+                "run_within_ladder_experiment"
+            )
+
+            def artifact_path(_model_key: str, artifact: str) -> str:
+                return str(root / artifact)
+
+            stdout = io.StringIO()
+            with (
+                patch(f"{module}.model_output_path", side_effect=artifact_path),
+                patch(f"{module}.sync_artifacts_to_input"),
+                patch(
+                    f"{module}.load_input_request_maps",
+                    return_value=(set(custom_ids), {}),
+                ),
+                patch(f"{module}.require_api_key") as require_key,
+                redirect_stdout(stdout),
+            ):
+                run_live("qwen-37-max-openrouter", concurrency=1)
+
+            require_key.assert_not_called()
+            self.assertIn("2/2 outcomes retained", stdout.getvalue())
+            self.assertIn("transport retries pending=0", stdout.getvalue())
+            self.assertEqual(
+                [json.loads(line) for line in output_path.read_text().splitlines()],
+                retained_rows,
+            )
+
     def test_duplicate_submission_requires_explicit_force(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -919,6 +1256,37 @@ class WithinLadderSafetyTests(unittest.TestCase):
             with self.subTest(reason=reason):
                 self.assertFalse(_is_complete_finish_reason(reason))
 
+    def test_cost_pruning_preserves_multiple_billable_attempts_per_id(self) -> None:
+        custom_id = "ladder__T1_vs_T2__AB"
+        entries = [
+            {"custom_id": custom_id, "prompt_tokens": 10, "completion_tokens": 10},
+            {"custom_id": custom_id, "prompt_tokens": 10, "completion_tokens": 2},
+            {"custom_id": "stale", "prompt_tokens": 5, "completion_tokens": 1},
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            cost_path = Path(tmp) / "cost_log.json"
+            cost_path.write_text(
+                json.dumps({"per_request": entries}),
+                encoding="utf-8",
+            )
+            module = (
+                "llm_coherence.experiments.within_ladder."
+                "run_within_ladder_experiment"
+            )
+            with (
+                patch(f"{module}.model_output_path", return_value=str(cost_path)),
+                patch(f"{module}.write_per_request_cost_log_file") as write_cost,
+                patch(f"{module}.write_within_ladder_cost_artifacts"),
+            ):
+                dropped = _prune_cost_log(
+                    "qwen-37-max-openrouter", {custom_id}, {}
+                )
+
+        self.assertEqual(dropped, 1)
+        kept = write_cost.call_args.args[2]
+        self.assertEqual(len(kept), 2)
+        self.assertEqual([row["completion_tokens"] for row in kept], [10, 2])
+
     def test_analysis_rejects_truncated_row_even_with_stored_answer(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -964,6 +1332,93 @@ class WithinLadderSafetyTests(unittest.TestCase):
             ):
                 with self.assertRaisesRegex(ValueError, r"incomplete=1"):
                     analyze("gpt-56-luna-thinking")
+
+    def test_analysis_can_retain_and_disclose_missing_rows(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            input_path = root / "input.jsonl"
+            output_path = root / "output.jsonl"
+            summary_path = root / "summary.json"
+            custom_ids = [
+                "ladder__T1_vs_T2__AB",
+                "ladder__T1_vs_T2__BA",
+                "ladder__T1_vs_T3__AB",
+            ]
+            input_path.write_text(
+                "".join(json.dumps({"custom_id": cid}) + "\n" for cid in custom_ids),
+                encoding="utf-8",
+            )
+            rows = [
+                {
+                    "custom_id": custom_ids[0],
+                    "answer": "B",
+                    "finish_reason": "stop",
+                    "content": "B",
+                },
+                {
+                    "custom_id": custom_ids[1],
+                    "answer": "A",
+                    "finish_reason": "max_output_tokens",
+                    "content": "I would choose A because...",
+                },
+                {
+                    "custom_id": custom_ids[2],
+                    "answer": None,
+                    "finish_reason": "stop",
+                    "content": "I decline the forced choice.",
+                },
+            ]
+            output_path.write_text(
+                "".join(json.dumps(row) + "\n" for row in rows),
+                encoding="utf-8",
+            )
+
+            module = (
+                "llm_coherence.experiments.within_ladder."
+                "run_within_ladder_experiment"
+            )
+            with (
+                patch(f"{module}.resolve_model_input_path", return_value=input_path),
+                patch(f"{module}.sync_artifacts_to_input"),
+                patch(
+                    f"{module}.load_input_request_maps",
+                    return_value=(set(custom_ids), {}),
+                ),
+                patch(f"{module}.backfill_output_answers", return_value=0),
+                patch(f"{module}.resolve_model_output_path", return_value=output_path),
+                patch(
+                    f"{module}.load_ladders",
+                    return_value=[
+                        {"original_statement_id": "ladder", "valence": "positive"}
+                    ],
+                ),
+                patch(f"{module}.model_output_path", return_value=summary_path),
+                patch(f"{module}.refresh_cost_artifacts", return_value=None),
+            ):
+                analyze("gpt-56-luna-thinking", retain_missing=True)
+
+            summary = json.loads(summary_path.read_text(encoding="utf-8"))
+            self.assertEqual(summary["analysis_policy"], "retain_missing")
+            self.assertFalse(summary["complete_parseable_coverage"])
+            self.assertEqual(summary["n_requests_expected"], 3)
+            self.assertEqual(summary["n_requests_received"], 3)
+            self.assertEqual(summary["n_requests_parseable"], 1)
+            self.assertEqual(summary["n_requests_missing_from_scoring"], 2)
+            self.assertEqual(summary["incomplete_response_count"], 1)
+            self.assertEqual(summary["unparseable_response_count"], 1)
+            self.assertEqual(summary["overall_correct"], 1)
+            self.assertEqual(summary["overall_accuracy"], 1.0)
+            self.assertEqual(
+                summary["overall_accuracy_bounds"],
+                {
+                    "lower_missing_incorrect": 1 / 3,
+                    "upper_missing_correct": 1.0,
+                },
+            )
+            self.assertEqual(summary["per_ladder"][0]["n_expected"], 3)
+            self.assertEqual(summary["per_ladder"][0]["n_missing"], 2)
+            self.assertEqual(summary["by_distance"]["1"]["missing"], 1)
+            self.assertEqual(summary["by_distance"]["2"]["missing"], 1)
 
     def test_partial_rows_are_rejected_before_output_write(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

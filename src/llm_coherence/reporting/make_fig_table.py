@@ -124,7 +124,8 @@ _BRAND_TOKENS = {
 }
 
 _VARIANT_SUFFIX_RE = re.compile(
-    r"-(?:thinking|with-reasoning|justification(?:-v\d+)?|logprobs)$"
+    r"-(?:thinking(?:-(?:minimal|low|medium|high|max|xhigh))?|"
+    r"with-reasoning|justification(?:-v\d+)?|logprobs)$"
 )
 
 # Canonical publication base names (before ``(reasoning on/off)`` suffix).
@@ -147,6 +148,7 @@ PAPER_MODEL_BASE_NAMES: dict[str, str] = {
     "llama-31-8b-instruct": "Llama-3.1-8B-Instruct",
     "kimi-k2": "Kimi-K2",
     "kimi-k3": "Kimi-K3",
+    "qwen-37-max": "Qwen3.7 Max",
 }
 
 
@@ -885,6 +887,8 @@ def _paper_config_reasoning_mechanism(model_key: str, cfg: ModelConfig) -> str:
         return f"reasoning_effort={effort}"
     reasoning = extra.get("reasoning")
     if isinstance(reasoning, dict):
+        if reasoning.get("effort") not in (None, ""):
+            return f"reasoning.effort={reasoning['effort']}"
         if reasoning.get("enabled") is True:
             return "reasoning.enabled=true"
         if reasoning.get("enabled") is False:

@@ -105,6 +105,57 @@ COST_LOG_NAME = "phase6b_cost_log.json"
 COST_SUMMARY_NAME = "cost_summary.json"
 
 
+def batch_job_progress(entry: dict) -> dict[str, int | float]:
+    """Return stable progress metrics for one recorded OpenAI Batch job."""
+    counts = entry.get("request_counts") or {}
+    total = int(counts.get("total") or entry.get("request_count") or 0)
+    completed = int(counts.get("completed") or 0)
+    failed = int(counts.get("failed") or 0)
+    processed = completed + failed
+    remaining = max(total - processed, 0)
+    percent = (processed / total * 100.0) if total else 0.0
+    return {
+        "total": total,
+        "completed": completed,
+        "failed": failed,
+        "processed": processed,
+        "remaining": remaining,
+        "percent": percent,
+    }
+
+
+def format_batch_job_status(entry: dict) -> str:
+    """Render one Batch job with its shard identity and useful progress."""
+    progress = batch_job_progress(entry)
+    return (
+        f"{entry.get('input_file', 'unknown shard')} -> {entry['batch_id']}: "
+        f"{entry['status']} | "
+        f"processed={progress['processed']:,}/{progress['total']:,} "
+        f"({progress['percent']:.1f}%), "
+        f"completed={progress['completed']:,}, failed={progress['failed']:,}, "
+        f"remaining={progress['remaining']:,}"
+    )
+
+
+def aggregate_batch_progress(entries: list[dict]) -> dict[str, int | float]:
+    """Aggregate progress across every submitted shard in a Batch run."""
+    per_job = [batch_job_progress(entry) for entry in entries]
+    total = sum(int(progress["total"]) for progress in per_job)
+    completed = sum(int(progress["completed"]) for progress in per_job)
+    failed = sum(int(progress["failed"]) for progress in per_job)
+    processed = completed + failed
+    remaining = max(total - processed, 0)
+    percent = (processed / total * 100.0) if total else 0.0
+    return {
+        "total": total,
+        "completed": completed,
+        "failed": failed,
+        "processed": processed,
+        "remaining": remaining,
+        "percent": percent,
+    }
+
+
 def resolve_under_parametric(rel: str | Path) -> Path:
     """Resolve a path relative to parametric_variations/ (unless already absolute)."""
     p = Path(rel)
@@ -1143,11 +1194,15 @@ def run_openai_batch_action(
     if args.batch_action == "status":
         jobs = refresh_batch_jobs(run_dir)
         for entry in jobs["jobs"]:
-            counts = entry.get("request_counts") or {}
-            print(
-                f"{entry['batch_id']}: {entry['status']} "
-                f"(completed={counts.get('completed', 0)}, failed={counts.get('failed', 0)})"
-            )
+            print(format_batch_job_status(entry))
+        overall = aggregate_batch_progress(jobs["jobs"])
+        print(
+            "Overall: "
+            f"processed={overall['processed']:,}/{overall['total']:,} "
+            f"({overall['percent']:.1f}%), "
+            f"completed={overall['completed']:,}, failed={overall['failed']:,}, "
+            f"remaining={overall['remaining']:,}"
+        )
         print(f"All terminal: {jobs['all_terminal']}")
         return 0
 
@@ -1161,10 +1216,21 @@ def run_openai_batch_action(
                 f"Non-retryable failed requests: {classification['non_retryable']} "
                 "(inspect batch error JSONL)."
             )
+        if classification.get("token_capped_incomplete"):
+            print(
+                f"Token-capped incomplete responses: "
+                f"{classification['token_capped_incomplete']}. These are retained "
+                "as incomplete and are not selectively rerun with a larger cap."
+            )
         if retry_count == 0:
             print("No transient/missing responses to retry.")
             return 0
         print(f"Created {len(shards)} retry shard(s) for {retry_count:,} requests.")
+        print_batch_run_pre_submit_cost_estimate(
+            run_dir,
+            shards=shards,
+            estimate_scope="Retry pre-submit",
+        )
         assert queue_limit is not None
         jobs = submit_pending_batch_shards(
             run_dir,
@@ -1184,6 +1250,12 @@ def run_openai_batch_action(
                 print(
                     f"Retry audit found {classification['non_retryable']} "
                     "deterministic failure(s); these will not be resubmitted."
+                )
+            if classification.get("token_capped_incomplete"):
+                print(
+                    f"Retry audit found "
+                    f"{classification['token_capped_incomplete']} token-capped "
+                    "incomplete response(s); the fixed experimental cap is preserved."
                 )
             if retry_count == 0:
                 break

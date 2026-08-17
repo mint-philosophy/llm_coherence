@@ -42,11 +42,16 @@ def model_reasoning_mode(model_key: str) -> str:
         return "logprob_scored"
     cfg = MODEL_CONFIGS[model_key]
     extra_body = cfg.extra_body or {}
-    if model_key.endswith("-thinking"):
+    reasoning = extra_body.get("reasoning") or {}
+    if reasoning.get("enabled") is False or reasoning.get("effort") == "none":
+        return "thinking_off"
+    if "-thinking" in model_key:
         return "thinking_on"
     if extra_body.get("thinking", {}).get("type") == "enabled":
         return "thinking_on"
-    if extra_body.get("reasoning", {}).get("enabled") is True:
+    if reasoning.get("enabled") is True:
+        return "thinking_on"
+    if reasoning.get("effort") not in (None, "", "none"):
         return "thinking_on"
     if extra_body.get("reasoning_effort") not in (None, "none"):
         return "thinking_on"
@@ -136,7 +141,12 @@ def build_model_run_index(
                 if path.is_dir() and path.name.startswith("phase6b_by_category_")
             ]
         reasoning_trace_files = [
-            path for path in payload_files if path.name == "reasoning_traces.jsonl"
+            path
+            for path in payload_files
+            if path.name in {
+                "reasoning_traces.jsonl",
+                "reasoning_summaries.jsonl",
+            }
         ]
         cost_files = [
             path

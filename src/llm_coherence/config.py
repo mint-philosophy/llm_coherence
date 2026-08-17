@@ -151,8 +151,9 @@ MODEL_CONFIGS = {
     'gpt-56-sol-thinking': ModelConfig(
         model_key='gpt-56-sol-thinking',
         temperature=0.0,
-        # Match the manuscript's GPT-5.4 Standard reasoning-on cap.
-        max_tokens=200,
+        # Preserve the 3,000-token ceiling used by the completed GPT-5.6
+        # reasoning-on runs so regenerated requests match their Batch manifests.
+        max_tokens=3000,
         concurrency_limit=50,
         base_timeout=30.0,
         extra_body={
@@ -177,8 +178,8 @@ MODEL_CONFIGS = {
     'gpt-56-terra-thinking': ModelConfig(
         model_key='gpt-56-terra-thinking',
         temperature=0.0,
-        # Match the manuscript's GPT-5.4 Mini reasoning-on cap.
-        max_tokens=150,
+        # Match the completed GPT-5.6 reasoning-on Batch protocol.
+        max_tokens=3000,
         concurrency_limit=75,
         base_timeout=30.0,
         extra_body={
@@ -200,8 +201,8 @@ MODEL_CONFIGS = {
     'gpt-56-luna-thinking': ModelConfig(
         model_key='gpt-56-luna-thinking',
         temperature=0.0,
-        # Calibrated after 150 tokens truncated 2/210 five-ladder smoke responses.
-        max_tokens=200,
+        # Match the completed GPT-5.6 reasoning-on Batch protocol.
+        max_tokens=3000,
         concurrency_limit=100,
         base_timeout=30.0,
         extra_body={
@@ -236,7 +237,9 @@ MODEL_CONFIGS = {
         extra_body={"thinking": {"type": "enabled", "budget_tokens": 1024}},
         model_name_full="claude-opus-4-6",
         system_message="You are a helpful assistant.",
-        reasoning_artifact_type="raw_cot",
+        # Claude 4 thinking blocks expose Anthropic-generated summaries of the
+        # full private thinking process, not raw chain-of-thought.
+        reasoning_artifact_type="summary",
     ),
 
     # OpenRouter (Nemotron)
@@ -316,6 +319,7 @@ MODEL_CONFIGS = {
         max_tokens=3000,
         concurrency_limit=50,
         base_timeout=30.0,
+        extra_body={"reasoning": {"enabled": True}},
         reasoning_artifact_type="raw_cot",
     ),
     'kimi-k2-openrouter': ModelConfig(
@@ -363,6 +367,33 @@ MODEL_CONFIGS = {
         extra_body={"reasoning_effort": "high"},
         reasoning_artifact_type="raw_cot",
     ),
+
+    # Qwen 3.7 Max via OpenRouter. This is a hybrid thinking model: reasoning
+    # can be switched fully off or on, but the current model metadata does not
+    # advertise selectable effort tiers. In the ON condition Qwen determines
+    # the trace length within the configured output-token ceiling. Pin the
+    # May 20 snapshot used by OpenRouter's canonical Qwen3.7 Max endpoint.
+    'qwen-37-max-openrouter': ModelConfig(
+        model_key='qwen-37-max-openrouter',
+        temperature=0.0,
+        max_tokens=16,
+        concurrency_limit=20,
+        base_timeout=60.0,
+        extra_body={"reasoning": {"enabled": False}},
+        reasoning_artifact_type="none",
+    ),
+    'qwen-37-max-openrouter-thinking': ModelConfig(
+        model_key='qwen-37-max-openrouter-thinking',
+        temperature=0.0,
+        max_tokens=3000,
+        concurrency_limit=20,
+        base_timeout=120.0,
+        extra_body={"reasoning": {"enabled": True}},
+        # Alibaba returns the generated trace as reasoning_content; OpenRouter
+        # normalizes it as visible reasoning text rather than a summary.
+        reasoning_artifact_type="raw_cot",
+    ),
+
 }
 
 # Default model for experiments

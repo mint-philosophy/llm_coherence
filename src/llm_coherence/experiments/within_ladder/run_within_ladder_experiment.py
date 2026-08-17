@@ -83,6 +83,7 @@ _SMOKE_SCOPE: bool = False
 _ESTIMATED_UTF8_BYTES_PER_INPUT_TOKEN = 5
 _ESTIMATED_INPUT_FRAMING_TOKENS_PER_REQUEST = 8
 _ESTIMATED_REASONING_OFF_OUTPUT_TOKENS_PER_REQUEST = 5
+_ESTIMATED_OPENROUTER_REASONING_OUTPUT_TOKENS_PER_REQUEST = 250
 
 
 def resolve_under_repo(rel: str | Path) -> Path:
@@ -404,18 +405,24 @@ def _prune_cost_log(
         return 0
     data = json.loads(per_request_path.read_text(encoding="utf-8"))
     entries = data.get("per_request") or []
-    kept_by_id: dict[str, dict] = {}
+    kept: list[dict] = []
+    dropped = 0
+    renamed = False
     for entry in entries:
         cid = entry.get("custom_id")
         if not cid:
+            dropped += 1
             continue
         canonical = canonical_custom_id(cid, input_ids, norm_to_canonical)
         if canonical is None:
+            dropped += 1
             continue
-        kept_by_id[canonical] = {**entry, "custom_id": canonical}
-    kept = list(kept_by_id.values())
-    dropped = len(entries) - len(kept)
-    if not dropped:
+        if cid != canonical:
+            renamed = True
+        # Multiple rows for one custom_id are distinct billable attempts.
+        # Preserve them all; only analytical output is deduplicated by ID.
+        kept.append({**entry, "custom_id": canonical})
+    if not dropped and not renamed:
         return 0
     if kept:
         write_per_request_cost_log_file(per_request_path, model_key, kept)
@@ -512,7 +519,7 @@ def _reasoning_is_on(extra_body: dict, *, with_reasoning: bool) -> bool:
     reasoning = extra_body.get("reasoning") or {}
     if reasoning.get("enabled") is True:
         return True
-    if reasoning.get("effort") in ("high", "minimal"):
+    if reasoning.get("effort") not in (None, "", "none"):
         return True
     return False
 
@@ -939,6 +946,52 @@ def _is_complete_finish_reason(finish_reason: object) -> bool:
     )
 
 
+def _is_retryable_transport_exception(exc: BaseException) -> bool:
+    """Return whether a live OpenRouter failure is strictly transport-level."""
+    import httpx
+
+    return isinstance(exc, httpx.TransportError)
+
+
+def _is_transport_failure_row(row: dict) -> bool:
+    """Identify retryable transport failures, including legacy clean rows.
+
+    New live rows carry an explicit ``error_type``. The narrow text fallback is
+    only for artifacts written before that field existed; provider/API errors,
+    token caps, and unparseable model responses are deliberately not transport
+    failures.
+    """
+    if not row.get("error"):
+        return False
+
+    error_type = row.get("error_type")
+    if error_type is not None:
+        return error_type == "transport"
+
+    error = row.get("error")
+    if isinstance(error, dict):
+        message = json.dumps(error, sort_keys=True)
+    else:
+        message = str(error)
+    message = message.lower()
+    legacy_transport_markers = (
+        "all connection attempts failed",
+        "connection reset",
+        "connection refused",
+        "connection error",
+        "connecterror",
+        "readerror",
+        "remoteprotocolerror",
+        "peer closed connection",
+        "temporary failure in name resolution",
+        "name or service not known",
+        "network is unreachable",
+        "timed out",
+        "timeout",
+    )
+    return any(marker in message for marker in legacy_transport_markers)
+
+
 def _openai_responses_fields(body: dict) -> tuple[str | None, str | None, str | None]:
     """Return visible text, optional reasoning summary, and terminal reason."""
     text_parts: list[str] = []
@@ -1005,6 +1058,7 @@ def extract_clean_row(raw, provider, *, model_id=None, batch=False):
     finish_reason = None
     usage = {}
     error = None
+    error_type = None
 
     if provider == "anthropic":
         msg = raw.get("result", {}).get("message", raw.get("result", {}))
@@ -1045,6 +1099,7 @@ def extract_clean_row(raw, provider, *, model_id=None, batch=False):
         body = raw.get("response", {}).get("body", {})
         if isinstance(body.get("error"), (str, dict)):
             error = body.get("error")
+            error_type = body.get("error_type")
         choices = body.get("choices") or []
         if choices:
             msg = choices[0].get("message", {}) or {}
@@ -1088,6 +1143,8 @@ def extract_clean_row(raw, provider, *, model_id=None, batch=False):
         clean["reasoning"] = reasoning
     if error is not None and answer is None:
         clean["error"] = error
+        if error_type is not None:
+            clean["error_type"] = error_type
 
     cost_entry = {"custom_id": raw["custom_id"], **usage}
     return clean, cost_entry
@@ -1276,6 +1333,178 @@ def print_pre_submit_batch_cost_estimate(
     return estimate
 
 
+def estimate_pre_submit_live_cost(
+    model_key: str,
+    *,
+    input_path: str | Path | None = None,
+    requests: list[dict] | None = None,
+) -> dict | None:
+    """Estimate an OpenRouter live run without making a network request.
+
+    Input tokens use the same transparent UTF-8 heuristic as Batch planning.
+    Reasoning-off output projects the forced-choice norm of five tokens per
+    request. Reasoning-on output projects 250 tokens per request, calibrated to
+    the current within-ladder smoke runs, while ``maximum_output_cost_usd``
+    prices every request at its configured output-token cap.
+    """
+    _, provider, _ = MODELS[model_key]
+    if provider != "openrouter":
+        return None
+
+    pricing = _within_ladder_cost_pricing(model_key)
+    if pricing is None:
+        return None
+
+    source = "in-memory OpenRouter requests"
+    request_rows = requests
+    if request_rows is None:
+        path = (
+            Path(input_path)
+            if input_path is not None
+            else Path(model_output_path(model_key, "input.jsonl"))
+        )
+        source = str(path)
+        if not path.is_file():
+            raise FileNotFoundError(
+                f"[{model_key}] No live input found at {path}. Run --generate first."
+            )
+        request_rows = []
+        with open(path, encoding="utf-8") as handle:
+            for line_number, line in enumerate(handle, start=1):
+                if not line.strip():
+                    continue
+                try:
+                    request_rows.append(json.loads(line))
+                except json.JSONDecodeError as exc:
+                    raise ValueError(
+                        f"Invalid JSON in {path} at line {line_number}: {exc.msg}"
+                    ) from exc
+
+    request_count = 0
+    reasoning_on_requests = 0
+    input_text_bytes = 0
+    projected_output_tokens = 0
+    output_token_cap = 0
+
+    for index, request in enumerate(request_rows, start=1):
+        body = request.get("body")
+        if not isinstance(body, dict):
+            raise ValueError(f"Missing request body in {source} at request {index}")
+        max_output_tokens = body.get("max_tokens")
+        if (
+            isinstance(max_output_tokens, bool)
+            or not isinstance(max_output_tokens, int)
+            or max_output_tokens < 1
+        ):
+            raise ValueError(
+                f"Invalid max_tokens in {source} at request {index}"
+            )
+
+        text_fields = {
+            key: body[key]
+            for key in ("input", "instructions", "messages")
+            if key in body
+        }
+        input_text_bytes += _utf8_text_bytes(text_fields)
+        request_count += 1
+        output_token_cap += max_output_tokens
+
+        if _reasoning_is_on(body, with_reasoning=False):
+            reasoning_on_requests += 1
+            projected_output_tokens += min(
+                _ESTIMATED_OPENROUTER_REASONING_OUTPUT_TOKENS_PER_REQUEST,
+                max_output_tokens,
+            )
+        else:
+            projected_output_tokens += min(
+                _ESTIMATED_REASONING_OFF_OUTPUT_TOKENS_PER_REQUEST,
+                max_output_tokens,
+            )
+
+    if request_count == 0:
+        raise ValueError(f"Live input is empty: {source}")
+
+    estimated_input_tokens = (
+        input_text_bytes + _ESTIMATED_UTF8_BYTES_PER_INPUT_TOKEN - 1
+    ) // _ESTIMATED_UTF8_BYTES_PER_INPUT_TOKEN
+    estimated_input_tokens += (
+        request_count * _ESTIMATED_INPUT_FRAMING_TOKENS_PER_REQUEST
+    )
+    projected_cost = estimate_cost_from_totals(
+        pricing,
+        prompt_tokens=estimated_input_tokens,
+        completion_tokens=projected_output_tokens,
+    )
+    maximum_output_cost = estimate_cost_from_totals(
+        pricing,
+        prompt_tokens=estimated_input_tokens,
+        completion_tokens=output_token_cap,
+    )
+
+    return {
+        "request_count": request_count,
+        "reasoning_on_requests": reasoning_on_requests,
+        "reasoning_off_requests": request_count - reasoning_on_requests,
+        "input_text_bytes": input_text_bytes,
+        "estimated_input_tokens": estimated_input_tokens,
+        "projected_output_tokens": projected_output_tokens,
+        "output_token_cap": output_token_cap,
+        "estimated_cost_usd": projected_cost,
+        "maximum_output_cost_usd": maximum_output_cost,
+        "input_rate_per_mtok": pricing["input"],
+        "output_rate_per_mtok": pricing["output"],
+        "reasoning_output_projection_per_request": (
+            _ESTIMATED_OPENROUTER_REASONING_OUTPUT_TOKENS_PER_REQUEST
+        ),
+    }
+
+
+def print_pre_submit_live_cost_estimate(
+    model_key: str,
+    *,
+    input_path: str | Path | None = None,
+    requests: list[dict] | None = None,
+) -> dict | None:
+    """Print and return an offline OpenRouter live-run cost estimate."""
+    estimate = estimate_pre_submit_live_cost(
+        model_key,
+        input_path=input_path,
+        requests=requests,
+    )
+    if estimate is None:
+        return None
+
+    print(
+        f"[{model_key}] Preflight OpenRouter live cost estimate: "
+        f"~${estimate['estimated_cost_usd']:,.6f} projected; "
+        f"all-cap estimate ~${estimate['maximum_output_cost_usd']:,.6f}."
+    )
+    print(
+        f"  Basis: {estimate['request_count']:,} requests, "
+        f"~{estimate['estimated_input_tokens']:,} input tokens "
+        "(offline UTF-8 text-size heuristic), "
+        f"~{estimate['projected_output_tokens']:,} projected output tokens."
+    )
+    if estimate["reasoning_on_requests"]:
+        print(
+            "  Reasoning-on projection: "
+            f"{estimate['reasoning_output_projection_per_request']:,} output "
+            "tokens/request, capped per generated request."
+        )
+    if estimate["reasoning_off_requests"]:
+        print("  Reasoning-off projection: 5 output tokens/request.")
+    print(
+        f"  Configured output-token cap: {estimate['output_token_cap']:,} total; "
+        f"rates: ${estimate['input_rate_per_mtok']:g} input / "
+        f"${estimate['output_rate_per_mtok']:g} output per 1M tokens."
+    )
+    print(
+        "  Estimate only; no API request has been sent. After --run-live, "
+        "phase6b_cost_log.json and cost_log.json use observed API usage."
+    )
+    return estimate
+
+
 def write_within_ladder_cost_artifacts(
     model_key: str,
     cost_entries: list[dict],
@@ -1451,15 +1680,14 @@ def run_live(model_key, concurrency=5):
         print(f"No input file: {input_path}. Run --generate first.")
         return
 
-    api_key = require_api_key("openrouter")
-
     with open(input_path) as f:
         requests = [json.loads(line) for line in f]
     input_ids, norm_to_canonical = load_input_request_maps(model_key)
     sync_artifacts_to_input(model_key)
 
-    already_done = set()
-    existing_success_rows = []
+    already_observed = set()
+    existing_outcomes: dict[str, dict] = {}
+    transport_retry_ids = set()
     if os.path.exists(output_path):
         with open(output_path) as f:
             for line in f:
@@ -1467,16 +1695,32 @@ def run_live(model_key, concurrency=5):
                 canonical = canonical_custom_id(r["custom_id"], input_ids, norm_to_canonical)
                 if canonical is None:
                     continue
-                # Only treat parseable A/B answers as done so failed/null rows retry.
-                if r.get("answer") in ("A", "B"):
-                    already_done.add(canonical)
-                    existing_success_rows.append({**r, "custom_id": canonical})
-        print(f"[{model_key}] Resuming: {len(already_done)}/{len(requests)} already done")
+                normalized = {**r, "custom_id": canonical}
+                if _is_transport_failure_row(normalized):
+                    if canonical not in existing_outcomes:
+                        transport_retry_ids.add(canonical)
+                    continue
 
-    remaining = [r for r in requests if r["custom_id"] not in already_done]
+                # Every received model/provider outcome is final under the fixed-cap
+                # protocol. This includes token-capped and unparseable responses,
+                # which analysis retains as disclosed missing observations.
+                existing_outcomes[canonical] = normalized
+                transport_retry_ids.discard(canonical)
+
+        already_observed = set(existing_outcomes)
+        print(
+            f"[{model_key}] Resuming: {len(already_observed)}/{len(requests)} "
+            "outcomes retained; "
+            f"transport retries pending={len(transport_retry_ids)}"
+        )
+
+    remaining = [r for r in requests if r["custom_id"] not in already_observed]
     if not remaining:
-        print(f"[{model_key}] All {len(requests)} requests complete.")
+        print(f"[{model_key}] All {len(requests)} requests have retained outcomes.")
         return
+
+    print_pre_submit_live_cost_estimate(model_key, requests=remaining)
+    api_key = require_api_key("openrouter")
 
     cfg = _model_runtime_config(model_key)
     request_timeout = float(cfg.base_timeout) if cfg is not None else 60.0
@@ -1492,7 +1736,9 @@ def run_live(model_key, concurrency=5):
     sem = asyncio.Semaphore(concurrency)
     raw_results = []
     errors = 0
-    done = len(already_done)
+    done = len(already_observed)
+    # Keep detached-run logs useful without flooding them: report roughly every 5%.
+    progress_interval = max(1, (len(requests) + 19) // 20)
 
     async def call_one(req):
         nonlocal errors, done
@@ -1518,18 +1764,36 @@ def run_live(model_key, concurrency=5):
                             "response": {"body": data},
                         })
                         done += 1
-                        if done % 200 == 0:
-                            print(f"  [{model_key}] {done}/{len(requests)} done")
+                        if done % progress_interval == 0 or done == len(requests):
+                            percent = 100.0 * done / len(requests)
+                            print(
+                                f"  [{model_key}] {done}/{len(requests)} done "
+                                f"({percent:.1f}%)",
+                                flush=True,
+                            )
                         return
                 except Exception as e:
-                    if attempt < 2:
+                    is_transport = _is_retryable_transport_exception(e)
+                    if is_transport and attempt < 2:
                         await asyncio.sleep(2 ** attempt)
                     else:
                         errors += 1
                         raw_results.append({
                             "custom_id": req["custom_id"],
-                            "response": {"body": {"error": str(e)}},
+                            "response": {
+                                "body": {
+                                    "error": str(e),
+                                    "error_type": (
+                                        "transport" if is_transport else "non_transport"
+                                    ),
+                                }
+                            },
                         })
+                        # A provider/API/model error is a retained terminal outcome.
+                        # A transport error remains pending for a later identical retry.
+                        if not is_transport:
+                            done += 1
+                        return
 
     async def run_all():
         tasks = [call_one(r) for r in remaining]
@@ -1537,7 +1801,7 @@ def run_live(model_key, concurrency=5):
 
     asyncio.run(run_all())
 
-    all_clean = list(existing_success_rows)
+    all_clean = list(existing_outcomes.values())
     new_cost_entries = []
     for raw in raw_results:
         clean, cost_entry = extract_clean_row(
@@ -1559,9 +1823,11 @@ def run_live(model_key, concurrency=5):
                 if not cid:
                     continue
                 canonical = canonical_custom_id(cid, input_ids, norm_to_canonical)
-                if canonical is None or canonical not in already_done:
+                if canonical is None:
                     continue
-                # Keep prior costs only for successful resumed rows.
+                # Preserve every prior billable attempt. Capped/unparseable rows
+                # remain final outcomes; transport retries usually have no usage,
+                # but any reported billable usage must still remain auditable.
                 if (e.get("prompt_tokens") or 0) > 0 or (e.get("completion_tokens") or 0) > 0:
                     prev_cost_entries.append({**e, "custom_id": canonical})
     all_cost_entries = prev_cost_entries + new_cost_entries
@@ -1664,8 +1930,8 @@ def run_local(model_key):
     print(f"[{model_key}] Saved {len(clean_rows)} results to {output_path}")
 
 
-def analyze(model_key):
-    """Analyze within-ladder validation results for a specific model."""
+def analyze(model_key, *, retain_missing: bool = False):
+    """Analyze within-ladder results, optionally retaining unscored rows as missing."""
     if resolve_model_input_path(model_key) is None:
         expected = within_ladder_artifact_path(model_key, "input.jsonl", get_results_root())
         print(f"No input file for {model_key}: {expected}. Run --generate first.")
@@ -1722,6 +1988,7 @@ def analyze(model_key):
     parse_errors = 0
     finish_reason_counts: dict[str, int] = {}
     incomplete_response_ids: list[str] = []
+    missing_from_scoring: list[dict[str, str]] = []
 
     for r in results:
         cid = r["custom_id"]
@@ -1730,6 +1997,13 @@ def analyze(model_key):
         finish_reason_counts[finish_reason] = finish_reason_counts.get(finish_reason, 0) + 1
         if not _is_complete_finish_reason(finish_reason):
             incomplete_response_ids.append(cid)
+            missing_from_scoring.append(
+                {
+                    "custom_id": cid,
+                    "reason": "incomplete_finish_reason",
+                    "finish_reason": finish_reason,
+                }
+            )
             continue
 
         answer = resolve_row_answer(r)
@@ -1746,6 +2020,13 @@ def analyze(model_key):
 
         if answer is None:
             parse_errors += 1
+            missing_from_scoring.append(
+                {
+                    "custom_id": cid,
+                    "reason": "unparseable_response",
+                    "finish_reason": finish_reason,
+                }
+            )
             continue
 
         key = (ladder_id, ti, tj)
@@ -1761,15 +2042,23 @@ def analyze(model_key):
         else:
             pair_results[key]["correct_BA"] = (answer == "A")
 
-    if incomplete_response_ids or parse_errors:
+    if missing_from_scoring and not retain_missing:
         sample = incomplete_response_ids[:5]
+        sample_unparseable = [
+            item["custom_id"]
+            for item in missing_from_scoring
+            if item["reason"] == "unparseable_response"
+        ][:5]
         raise ValueError(
             "Within-ladder analysis requires every response to finish normally and "
             "contain a parseable A/B; refusing a potentially biased partial score. "
             f"incomplete={len(incomplete_response_ids)}, "
             f"unparseable={parse_errors}, "
             f"finish_reasons={finish_reason_counts}, "
-            f"sample_incomplete_ids={sample}."
+            f"sample_incomplete_ids={sample}, "
+            f"sample_unparseable_ids={sample_unparseable}. "
+            "Re-run with --retain-missing to write a disclosed parseable-denominator "
+            "summary without retrying or imputing these responses."
         )
 
     # Aggregate per ladder
@@ -1794,6 +2083,12 @@ def analyze(model_key):
     # Summary
     print(f"\n=== Within-Ladder Validation: {model_key} ===")
     print(f"Parse errors: {parse_errors}")
+    if missing_from_scoring:
+        print(
+            "Retained as missing from scoring: "
+            f"{len(missing_from_scoring)} "
+            f"({len(incomplete_response_ids)} incomplete, {parse_errors} unparseable)"
+        )
     print(f"Ladders scored: {len(ladder_scores)} (expected {len(expected_ladder_ids)} from input)")
     if len(ladder_scores) != len(expected_ladder_ids):
         missing = expected_ladder_ids - set(ladder_scores)
@@ -1829,9 +2124,22 @@ def analyze(model_key):
 
     # Per-ladder scores
     per_ladder = []
+    expected_by_ladder = Counter(cid.rsplit("__", 2)[0] for cid in input_ids)
+    missing_by_ladder = Counter(
+        item["custom_id"].rsplit("__", 2)[0] for item in missing_from_scoring
+    )
     for lid, s in ladder_scores.items():
         acc = s["correct"] / s["total"] if s["total"] > 0 else 0
-        per_ladder.append({"ladder_id": lid, "accuracy": acc, "n": s["total"], "valence": s["valence"]})
+        per_ladder.append(
+            {
+                "ladder_id": lid,
+                "accuracy": acc,
+                "n": s["total"],
+                "n_expected": expected_by_ladder[lid],
+                "n_missing": missing_by_ladder[lid],
+                "valence": s["valence"],
+            }
+        )
     per_ladder.sort(key=lambda x: x["accuracy"])
 
     print("\nWorst 10 ladders (lowest accuracy):")
@@ -1843,21 +2151,52 @@ def analyze(model_key):
         print(f"  {item['ladder_id']}: {item['accuracy']:.2%} ({item['n']} pairs, {item['valence']})")
 
     # Save full results
+    n_expected = len(input_ids)
+    n_missing = len(missing_from_scoring)
+    accuracy_bounds = {
+        "lower_missing_incorrect": overall_correct / n_expected if n_expected else 0.0,
+        "upper_missing_correct": (
+            (overall_correct + n_missing) / n_expected if n_expected else 0.0
+        ),
+    }
+    expected_by_distance = Counter()
+    for custom_id in input_ids:
+        tier_pair = custom_id.rsplit("__", 2)[1]
+        left, right = tier_pair.split("_vs_")
+        expected_by_distance[int(right[1:]) - int(left[1:])] += 1
+
     summary = {
         "model_key": model_key,
         "variations_path": repo_relative(get_variations_path()),
         "complete_input_coverage": True,
+        "complete_parseable_coverage": not missing_from_scoring,
+        "analysis_policy": "retain_missing" if retain_missing else "strict_complete",
         "n_ladders_expected": len(expected_ladder_ids),
-        "n_requests_expected": len(input_ids),
+        "n_requests_expected": n_expected,
+        "n_requests_received": len(results),
+        "n_requests_parseable": overall_total,
+        "n_requests_missing_from_scoring": n_missing,
         "overall_accuracy": overall_correct / overall_total if overall_total else 0.0,
+        "overall_correct": overall_correct,
+        "overall_accuracy_denominator": "parseable_responses",
+        "overall_accuracy_bounds": accuracy_bounds,
         "n_ladders": len(ladder_scores),
         "n_total_pairs": overall_total,
+        "n_total_pairs_expected": n_expected,
         "parse_errors": parse_errors,
+        "incomplete_response_count": len(incomplete_response_ids),
+        "unparseable_response_count": parse_errors,
+        "missing_from_scoring": missing_from_scoring,
         "finish_reason_counts": finish_reason_counts,
         "per_ladder": per_ladder,
         "by_distance": {d: {
             "correct": sum(s["by_distance"].get(d, {}).get("correct", 0) for s in ladder_scores.values()),
             "total": sum(s["by_distance"].get(d, {}).get("total", 0) for s in ladder_scores.values()),
+            "expected": expected_by_distance[d],
+            "missing": expected_by_distance[d] - sum(
+                s["by_distance"].get(d, {}).get("total", 0)
+                for s in ladder_scores.values()
+            ),
         } for d in range(1, 7)},
     }
     summary_path = model_output_path(model_key, "summary.json")
@@ -1884,7 +2223,11 @@ def discover_within_ladder_models(results_root: Path | None = None) -> list[str]
     return model_keys
 
 
-def analyze_all(*, results_root: Path | None = None) -> None:
+def analyze_all(
+    *,
+    results_root: Path | None = None,
+    retain_missing: bool = False,
+) -> None:
     """Prune stale artifacts and re-analyze every model with within_ladder results."""
     root = results_root if results_root is not None else get_results_root()
     model_keys = discover_within_ladder_models(root)
@@ -1899,7 +2242,7 @@ def analyze_all(*, results_root: Path | None = None) -> None:
             print(f"[{model_key}] Skipping: not in MODELS registry")
             continue
         try:
-            analyze(model_key)
+            analyze(model_key, retain_missing=retain_missing)
         except Exception as exc:
             print(f"[{model_key}] Analyze failed: {exc}")
 
@@ -2093,6 +2436,15 @@ def main():
     parser.add_argument("--fetch", action="store_true", help="Fetch results")
     parser.add_argument("--analyze", action="store_true", help="Analyze results")
     parser.add_argument(
+        "--retain-missing",
+        action="store_true",
+        help=(
+            "With --analyze/--analyze-all, retain incomplete or unparseable "
+            "responses as disclosed missing observations and score only the "
+            "parseable denominator. Does not retry or impute responses."
+        ),
+    )
+    parser.add_argument(
         "--analyze-all",
         action="store_true",
         help="Prune stale artifacts and analyze every model with within_ladder/input.jsonl",
@@ -2196,6 +2548,8 @@ def main():
         parser.error("--model-volume-path must be absolute")
     if args.force_resubmit and not (args.submit or args.run_batch):
         parser.error("--force-resubmit requires --submit or --run-batch")
+    if args.retain_missing and not (args.analyze or args.analyze_all):
+        parser.error("--retain-missing requires --analyze or --analyze-all")
 
     smoke_limit_defaulted = args.smoke and args.max_variation_sets is None
     args.max_variation_sets = _resolve_smoke_max_variation_sets(
@@ -2247,10 +2601,11 @@ def main():
             out_path = model_output_path(model_key, "input.jsonl")
             print(f"  Generated {n_requests} requests to {out_path}")
             print_pre_submit_batch_cost_estimate(model_key, input_path=out_path)
+            print_pre_submit_live_cost_estimate(model_key, input_path=out_path)
         return
 
     if args.analyze_all:
-        analyze_all()
+        analyze_all(retain_missing=args.retain_missing)
         return
 
     if not args.model:
@@ -2293,6 +2648,7 @@ def main():
         print(f"Generated {n_requests} requests to {out_path}")
         print(f"  = {n_ladders} ladders × 21 pairs × 2 directions = {n_ladders * 42}")
         print_pre_submit_batch_cost_estimate(args.model, input_path=out_path)
+        print_pre_submit_live_cost_estimate(args.model, input_path=out_path)
 
     elif args.run_batch:
         run_batch_pipeline(
@@ -2317,7 +2673,7 @@ def main():
             print(f"[{args.model}] Batch not complete yet.")
 
     elif args.analyze:
-        analyze(args.model)
+        analyze(args.model, retain_missing=args.retain_missing)
 
     else:
         parser.print_help()
