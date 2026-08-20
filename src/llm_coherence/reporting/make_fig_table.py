@@ -29,6 +29,21 @@ import matplotlib.colors as mcolors
 from matplotlib.lines import Line2D
 import numpy as np
 
+# Publication typography.  The methodology pipeline and valence-ladder
+# schematics use the same Helvetica/Arial sans-serif stack.  Declaring it here
+# prevents Matplotlib from silently falling back to its default DejaVu Sans and
+# keeps text editable/searchable in vector exports.
+matplotlib.rcParams.update({
+    "font.family": "sans-serif",
+    "font.sans-serif": ["Helvetica", "Arial", "Liberation Sans", "DejaVu Sans"],
+    "font.weight": "regular",
+    "axes.titleweight": "regular",
+    "axes.labelweight": "regular",
+    "pdf.fonttype": 42,
+    "ps.fonttype": 42,
+    "svg.fonttype": "none",
+})
+
 from llm_coherence.config import (
     MODEL_CONFIGS,
     ModelConfig,
@@ -92,7 +107,32 @@ FAMILY_COLORS = {
 
 # Per-model tints where a family default would collide or need emphasis.
 MODEL_COLOR_OVERRIDES = {
+    # A stable color identifies the base model; marker shape or hatching—not
+    # color—identifies reasoning mode.  This keeps matched off/on variants
+    # visually paired while distinguishing model sizes and subfamilies.
+    "gpt-54": "#1B365D",
+    "gpt-54-thinking": "#1B365D",
+    "gpt-54-mini": "#0072B2",
+    "gpt-54-mini-thinking": "#0072B2",
+    "gpt-54-nano": "#56B4E9",
+    "gpt-54-nano-thinking": "#56B4E9",
+    "gpt-56-sol": "#D98E04",
+    "gpt-56-sol-thinking": "#D98E04",
+    "gpt-56-luna": "#51458A",
+    "gpt-56-luna-thinking": "#51458A",
+    "gpt-56-terra": "#167C75",
+    "gpt-56-terra-thinking": "#167C75",
+    "opus-46": "#9467BD",
+    "opus-46-thinking": "#9467BD",
+    "nemotron-3-super": "#2CA02C",
+    "nemotron-3-super-thinking": "#2CA02C",
+    "glm-45-hybrid": "#D55E00",
+    "glm-45-hybrid-thinking": "#D55E00",
     "glm-45-base-logprobs": "#FFB347",
+    "qwen-37-flash": "#8C564B",
+    "qwen-37-flash-thinking": "#8C564B",
+    "qwen-37-flash-openrouter": "#8C564B",
+    "qwen-37-flash-openrouter-thinking": "#8C564B",
     "kimi-k2": "#000000",
     "kimi-k2-openrouter": "#000000",
     "kimi-k2-thinking": "#000000",
@@ -148,6 +188,7 @@ PAPER_MODEL_BASE_NAMES: dict[str, str] = {
     "llama-31-8b-instruct": "Llama-3.1-8B-Instruct",
     "kimi-k2": "Kimi-K2",
     "kimi-k3": "Kimi-K3",
+    "qwen-37-flash": "Qwen3.7 Flash",
     "qwen-37-max": "Qwen3.7 Max",
 }
 
@@ -319,6 +360,16 @@ def discover_all_model_keys(results_dir: pathlib.Path) -> list[str]:
     return sorted(keys, key=_model_sort_key)
 
 
+def discover_reporting_model_keys(
+    results_dir: pathlib.Path,
+    within_results_dir: pathlib.Path,
+) -> list[str]:
+    """Models found in either reporting root."""
+    keys = set(discover_all_model_keys(results_dir))
+    keys.update(discover_within_ladder_models(within_results_dir))
+    return sorted(keys, key=_model_sort_key)
+
+
 def find_coherence_json(results_dir: pathlib.Path, model_key: str) -> pathlib.Path | None:
     """Find the coherence analysis JSON for a model under model-scoped results."""
     model_dir = resolve_model_results_dir(model_key, results_dir) / "ladder_vs_comparison_statements"
@@ -360,6 +411,31 @@ def mean_ci_95(arr):
         return (float(arr[0]) if n == 1 else 0.0), 0.0
     se = float(arr.std(ddof=1) / math.sqrt(n))
     return float(arr.mean()), 1.96 * se
+
+
+def micro_accuracy_ci95(entries: list[dict], point_estimate: float) -> float:
+    """Symmetric 95% cluster-bootstrap half-width for a micro-average."""
+    usable = [
+        entry for entry in entries
+        if int(entry.get("n", 0)) > 0
+        and math.isfinite(float(entry.get("accuracy", float("nan"))))
+    ]
+    if not usable or not math.isfinite(point_estimate):
+        return float("nan")
+    if len(usable) == 1:
+        return 0.0
+
+    totals = np.asarray([int(entry["n"]) for entry in usable], dtype=float)
+    correct = np.asarray(
+        [float(entry["accuracy"]) * int(entry["n"]) for entry in usable],
+        dtype=float,
+    )
+    rng = np.random.default_rng(0)
+    sampled = rng.integers(0, len(usable), size=(4000, len(usable)))
+    bootstrap_totals = totals[sampled].sum(axis=1)
+    bootstrap_accuracy = correct[sampled].sum(axis=1) / bootstrap_totals
+    lower, upper = np.quantile(bootstrap_accuracy, [0.025, 0.975])
+    return float(max(point_estimate - lower, upper - point_estimate))
 
 
 def style_axes(ax):
@@ -681,6 +757,20 @@ def collect_combined_headline_rows(
             ),
             "perfect_ladders": wl.get("perfect_ladders") if wl_has else None,
             "wl_n_ladders": wl.get("n_ladders") if wl_has else None,
+            "wl_n_trials": wl.get("n_trials") if wl_has else None,
+            "wl_n_trials_expected": wl.get("n_trials_expected") if wl_has else None,
+            "wl_n_trials_missing": wl.get("n_trials_missing") if wl_has else None,
+            "wl_complete_parseable_coverage": (
+                wl.get("complete_parseable_coverage") if wl_has else None
+            ),
+            "wl_accuracy_lower_bound_pct": (
+                wl.get("accuracy_lower_bound_pct", float("nan"))
+                if wl_has else float("nan")
+            ),
+            "wl_accuracy_upper_bound_pct": (
+                wl.get("accuracy_upper_bound_pct", float("nan"))
+                if wl_has else float("nan")
+            ),
             "mono_pct": coh["mono_pct"] if coh_has else float("nan"),
             "iso_r2": coh["iso_r2"] if coh_has else float("nan"),
             "jt_pct": coh["jt_pct"] if coh_has else float("nan"),
@@ -725,7 +815,9 @@ def write_combined_headline_table(
         "Strict mono is strict preference monotonicity "
         "on ladder--comparison statement blocks. "
         "$R^2$ (bi) is the mean bidirectional isotonic fit; J--T (\\%) is the fraction of "
-        "blocks with a significant Jonckheere--Terpstra trend ($\\alpha = 0.05$)."
+        "blocks with a significant Jonckheere--Terpstra trend ($\\alpha = 0.05$). "
+        "A dagger marks accuracy computed on an incomplete parseable-response denominator; "
+        "the CSV reports scored, expected, missing, and bound columns."
     )
 
     acc_header = _latex_stacked_col_header(r"Acc.\ (\%)", r"(tier$\times$tier)")
@@ -745,8 +837,11 @@ def write_combined_headline_table(
         "    \\midrule",
     ]
     for r in rows:
+        model_name = r["table_name"]
+        if r.get("wl_complete_parseable_coverage") is False:
+            model_name += r"\textsuperscript{\dagger}"
         tex_lines.append(
-            f"    {r['table_name']} & "
+            f"    {model_name} & "
             f"{_format_wl_table_cell(r['wl_accuracy_pct'])} & "
             f"{_format_wl_table_cell(r['mono_pct'])} & "
             f"{_format_combined_r2(r['iso_r2'])} & "
@@ -765,7 +860,11 @@ def write_combined_headline_table(
 
     fieldnames = [
         "model_key", "model", "reasoning",
-        "tier_x_tier_acc_pct", "strict_mono_pct", "iso_r2_bidirectional", "jt_sig_pct",
+        "tier_x_tier_acc_pct", "tier_x_tier_n_scored",
+        "tier_x_tier_n_expected", "tier_x_tier_n_missing",
+        "tier_x_tier_complete_coverage",
+        "tier_x_tier_acc_lower_bound_pct", "tier_x_tier_acc_upper_bound_pct",
+        "strict_mono_pct", "iso_r2_bidirectional", "jt_sig_pct",
     ]
     with open(csv_path, "w", newline="", encoding="utf-8") as fh:
         writer = csv.DictWriter(fh, fieldnames=fieldnames)
@@ -780,6 +879,24 @@ def write_combined_headline_table(
                     if not math.isnan(r.get("wl_accuracy_pct", float("nan")))
                     else ""
                 ),
+                "tier_x_tier_n_scored": r.get("wl_n_trials") or "",
+                "tier_x_tier_n_expected": r.get("wl_n_trials_expected") or "",
+                "tier_x_tier_n_missing": (
+                    r.get("wl_n_trials_missing")
+                    if r.get("wl_n_trials_missing") is not None
+                    else ""
+                ),
+                "tier_x_tier_complete_coverage": (
+                    r.get("wl_complete_parseable_coverage")
+                    if r.get("wl_complete_parseable_coverage") is not None
+                    else ""
+                ),
+                "tier_x_tier_acc_lower_bound_pct": _format_wl_table_cell(
+                    r.get("wl_accuracy_lower_bound_pct", float("nan"))
+                ).replace("---", ""),
+                "tier_x_tier_acc_upper_bound_pct": _format_wl_table_cell(
+                    r.get("wl_accuracy_upper_bound_pct", float("nan"))
+                ).replace("---", ""),
                 "strict_mono_pct": (
                     f"{r['mono_pct']:.1f}"
                     if not math.isnan(r.get("mono_pct", float("nan")))
@@ -1423,6 +1540,7 @@ def _empty_within_ladder_row(model_key: str) -> dict:
         "reasoning": infer_reasoning(model_key),
         "table_name": _paper_table_model_name(model_key, make_display_label(model_key)),
         "overall_accuracy_pct": nan,
+        "accuracy_ci95_pct": nan,
         "mean_per_ladder_pct": nan,
         "median_per_ladder_pct": nan,
         "min_per_ladder_pct": nan,
@@ -1430,6 +1548,11 @@ def _empty_within_ladder_row(model_key: str) -> dict:
         "perfect_ladders": None,
         "n_ladders": None,
         "n_trials": None,
+        "n_trials_expected": None,
+        "n_trials_missing": None,
+        "complete_parseable_coverage": None,
+        "accuracy_lower_bound_pct": nan,
+        "accuracy_upper_bound_pct": nan,
         "parse_errors": None,
         "positive_mean_pct": nan,
         "positive_n": 0,
@@ -1482,6 +1605,22 @@ def summarize_within_ladder_model(model_key: str, summary: dict) -> dict:
     pos_mean, pos_n = _valence_means(entries, "positive")
     neg_mean, neg_n = _valence_means(entries, "negative")
     perfect = sum(1 for e in entries if e.get("accuracy") == 1.0)
+    overall_accuracy = float(summary.get("overall_accuracy", float("nan")))
+    acc_ci95 = micro_accuracy_ci95(entries, overall_accuracy)
+    n_trials = int(summary.get("n_total_pairs", 0))
+    n_trials_expected = int(
+        summary.get(
+            "n_total_pairs_expected",
+            summary.get("n_requests_expected", n_trials),
+        )
+    )
+    n_trials_missing = int(
+        summary.get(
+            "n_requests_missing_from_scoring",
+            max(0, n_trials_expected - n_trials),
+        )
+    )
+    accuracy_bounds = summary.get("overall_accuracy_bounds", {})
 
     by_distance = summary.get("by_distance", {})
     dist_acc = {}
@@ -1500,14 +1639,26 @@ def summarize_within_ladder_model(model_key: str, summary: dict) -> dict:
         "file_key": model_key,
         "reasoning": infer_reasoning(model_key),
         "table_name": _paper_table_model_name(model_key, make_display_label(model_key)),
-        "overall_accuracy_pct": float(summary.get("overall_accuracy", float("nan"))) * 100.0,
+        "overall_accuracy_pct": overall_accuracy * 100.0,
+        "accuracy_ci95_pct": acc_ci95 * 100.0,
         "mean_per_ladder_pct": float(np.mean(accs)) * 100.0 if len(accs) else float("nan"),
         "median_per_ladder_pct": float(np.median(accs)) * 100.0 if len(accs) else float("nan"),
         "min_per_ladder_pct": float(np.min(accs)) * 100.0 if len(accs) else float("nan"),
         "max_per_ladder_pct": float(np.max(accs)) * 100.0 if len(accs) else float("nan"),
         "perfect_ladders": perfect,
         "n_ladders": int(summary.get("n_ladders", len(entries))),
-        "n_trials": int(summary.get("n_total_pairs", 0)),
+        "n_trials": n_trials,
+        "n_trials_expected": n_trials_expected,
+        "n_trials_missing": n_trials_missing,
+        "complete_parseable_coverage": bool(
+            summary.get("complete_parseable_coverage", n_trials_missing == 0)
+        ),
+        "accuracy_lower_bound_pct": float(
+            accuracy_bounds.get("lower_missing_incorrect", overall_accuracy)
+        ) * 100.0,
+        "accuracy_upper_bound_pct": float(
+            accuracy_bounds.get("upper_missing_correct", overall_accuracy)
+        ) * 100.0,
         "parse_errors": int(summary.get("parse_errors", 0)),
         "positive_mean_pct": pos_mean * 100.0 if pos_mean is not None else float("nan"),
         "positive_n": pos_n,
@@ -1606,7 +1757,9 @@ def write_within_ladder_accuracy_table(
         "Within-ladder pairwise accuracy by model (Instance~1). Accuracy (\\%) is the "
         "micro-average over all tier-pair trials (42 per ladder: 21 pairs $\\times$ 2 "
         "orientations). ``100\\% acc.\\ ladders'' counts ladders with perfect pairwise "
-        "accuracy (e.g.\\ 79/100 = 79 of 100 ladders)."
+        "accuracy (e.g.\\ 79/100 = 79 of 100 ladders). A dagger marks accuracy "
+        "computed on an incomplete parseable-response denominator; the CSV reports "
+        "scored, expected, missing, and accuracy-bound columns."
     )
 
     tex_lines = [
@@ -1617,6 +1770,9 @@ def write_within_ladder_accuracy_table(
         "    \\midrule",
     ]
     for r in rows:
+        model_name = r["table_name"]
+        if r.get("complete_parseable_coverage") is False:
+            model_name += r"\textsuperscript{\dagger}"
         if r.get("n_ladders"):
             perfect = f"{r['perfect_ladders']}/{r['n_ladders']}"
             n_cell = str(r["n_ladders"])
@@ -1624,7 +1780,7 @@ def write_within_ladder_accuracy_table(
             perfect = "---"
             n_cell = "---"
         tex_lines.append(
-            f"    {r['table_name']} & "
+            f"    {model_name} & "
             f"{_format_wl_table_cell(r['overall_accuracy_pct'])} & "
             f"{perfect} & {n_cell} \\\\"
         )
@@ -1643,9 +1799,12 @@ def write_within_ladder_accuracy_table(
     tex_path.write_text("\n".join(tex_lines), encoding="utf-8")
 
     fieldnames = [
-        "model_key", "model", "reasoning", "overall_accuracy_pct", "mean_per_ladder_pct",
+        "model_key", "model", "reasoning", "overall_accuracy_pct", "accuracy_ci95_pct",
+        "mean_per_ladder_pct",
         "median_per_ladder_pct", "min_per_ladder_pct", "max_per_ladder_pct",
-        "perfect_ladders", "n_ladders", "n_trials", "parse_errors",
+        "perfect_ladders", "n_ladders", "n_trials", "n_trials_expected",
+        "n_trials_missing", "complete_parseable_coverage",
+        "accuracy_lower_bound_pct", "accuracy_upper_bound_pct", "parse_errors",
         "positive_mean_pct", "positive_n", "negative_mean_pct", "negative_n",
         "dist1_pct", "dist2_pct", "dist3_pct", "dist4_pct", "dist5_pct", "dist6_pct",
     ]
@@ -1702,7 +1861,9 @@ def build_within_ladder_category_matrix(
         vals = [matrix.get((cat, mk), float("nan")) for mk in model_order]
         return float(np.nanmean(vals)) if vals else float("nan")
 
-    cat_list = sorted(categories, key=lambda c: (row_mean(c), c))
+    # Match the alphabetical category ordering used in the main monotonicity
+    # heatmaps so readers can compare the two panels without remapping columns.
+    cat_list = sorted(categories)
     model_cols = [(mk, model_labels.get(mk, mk)) for mk in model_order]
     return cat_list, model_cols, matrix
 
@@ -1730,69 +1891,229 @@ def write_within_ladder_category_matrix_csv(
     return csv_path
 
 
-def fig7c_within_ladder_category_heatmap(
+def _within_ladder_group_sort_key(group: dict) -> tuple[int, str]:
+    """Keep off/on variants adjacent in the same order as reasoning figures."""
+    return _reasoning_pair_order_key(group["label"])
+
+
+def fig7c_within_ladder_accuracy(
+    rows: list[dict],
+) -> plt.Figure | None:
+    """Paired dot plot of direct within-ladder tier-pair accuracy by model."""
+    valid_rows = [
+        row for row in rows
+        if row.get("n_ladders")
+        and not math.isnan(row.get("overall_accuracy_pct", float("nan")))
+    ]
+    if not valid_rows:
+        return None
+
+    grouped: dict[str, dict] = {}
+    for row in valid_rows:
+        file_key = row["file_key"]
+        base = _strip_variant_suffixes(file_key)
+        group = grouped.setdefault(
+            base,
+            {
+                "base": base,
+                "label": base_model_label(file_key),
+                "family": infer_family(file_key),
+                "off": None,
+                "on": None,
+                "partial_coverage": False,
+            },
+        )
+        group[infer_reasoning(file_key)] = row
+        if row.get("complete_parseable_coverage") is False:
+            group["partial_coverage"] = True
+
+    groups = sorted(grouped.values(), key=_within_ladder_group_sort_key)
+    y = np.arange(len(groups))[::-1]
+    fig_h = max(5.0, 0.43 * len(groups) + 1.25)
+    fig, ax = plt.subplots(figsize=(10.0, fig_h), dpi=300)
+
+    all_values: list[float] = []
+    for yi, group in zip(y, groups):
+        off = group["off"]
+        on = group["on"]
+        available = [row for row in (off, on) if row is not None]
+        all_values.extend(row["overall_accuracy_pct"] for row in available)
+
+        color_key = available[0]["file_key"]
+        color = get_color(group["family"], "off", color_key)
+        if off is not None and on is not None:
+            ax.plot(
+                [off["overall_accuracy_pct"], on["overall_accuracy_pct"]],
+                [yi, yi],
+                color=color,
+                linewidth=1.6,
+                alpha=0.55,
+                zorder=1,
+            )
+
+        for mode, row, marker, dy in (
+            ("off", off, "o", -0.13),
+            ("on", on, "^", 0.13),
+        ):
+            if row is None:
+                continue
+            value = row["overall_accuracy_pct"]
+            err = row.get("accuracy_ci95_pct", float("nan"))
+            model_color = get_color(group["family"], mode, row["file_key"])
+            ax.errorbar(
+                value,
+                yi,
+                xerr=None if math.isnan(err) else err,
+                fmt=marker,
+                markersize=6.2 if mode == "on" else 5.8,
+                color=model_color,
+                markeredgecolor="#333333" if mode == "on" else "white",
+                markeredgewidth=0.55,
+                capsize=2,
+                linewidth=0.9,
+                zorder=3,
+            )
+            ax.text(
+                value + 0.12,
+                yi + dy,
+                f"{value:.1f}",
+                va="center",
+                ha="left",
+                fontsize=7.2,
+                color="#333333",
+            )
+
+    xmin = max(0.0, math.floor((min(all_values) - 1.0) * 2.0) / 2.0)
+    ax.set_xlim(xmin, 100.7)
+    ax.set_ylim(-0.65, len(groups) - 0.35)
+    ax.set_yticks(y)
+    ax.set_yticklabels(
+        [
+            group["label"] + ("\u2020" if group["partial_coverage"] else "")
+            for group in groups
+        ],
+        fontsize=8.4,
+    )
+    for tick in ax.get_yticklabels():
+        tick.set_color("#111111")
+
+    ax.axvline(95.0, color="#777777", linestyle=":", linewidth=1.0, zorder=0)
+    ax.text(
+        95.08,
+        0.985,
+        "95% audit threshold",
+        transform=ax.get_xaxis_transform(),
+        va="top",
+        ha="left",
+        fontsize=7.2,
+        color="#666666",
+    )
+    ax.set_xlabel("Within-ladder tier-pair accuracy (%)", fontsize=9)
+    ax.grid(axis="x", linestyle="--", linewidth=0.45, alpha=0.24)
+    style_axes(ax)
+    ax.legend(
+        handles=[
+            Line2D([0], [0], marker="o", linestyle="none", markerfacecolor="#777777",
+                   markeredgecolor="white", markersize=6, label="reasoning off"),
+            Line2D([0], [0], marker="^", linestyle="none", markerfacecolor="#777777",
+                   markeredgecolor="#333333", markersize=6.5, label="reasoning on"),
+        ],
+        loc="lower left",
+        frameon=True,
+        framealpha=0.95,
+        edgecolor="#dddddd",
+        fontsize=7.5,
+        ncol=2,
+    )
+    if any(group["partial_coverage"] for group in groups):
+        fig.text(
+            0.5,
+            0.015,
+            "\u2020 Accuracy uses the parseable-response denominator; see CSV coverage columns.",
+            ha="center",
+            va="bottom",
+            fontsize=7,
+            color="#666666",
+        )
+    fig.subplots_adjust(left=0.24, right=0.97, bottom=0.13, top=0.98)
+    return fig
+
+
+def fig7d_within_ladder_category_heatmap(
     categories: list[str],
     model_cols: list[tuple[str, str]],
     matrix: dict[tuple[str, str], float],
 ) -> plt.Figure:
-    """Heatmap: within-ladder pairwise accuracy by category (rows) and model (columns)."""
+    """Heatmap: within-ladder tier-pair accuracy by model (rows) and category."""
     n_cats = len(categories)
     n_models = len(model_cols)
     if n_cats == 0 or n_models == 0:
         return plt.figure()
 
-    M = np.full((n_cats, n_models), np.nan)
-    for i, cat in enumerate(categories):
-        for j, (mk, _label) in enumerate(model_cols):
+    model_cols = sorted(
+        model_cols,
+        key=lambda item: _reasoning_pair_order_key(base_model_label(item[0]))
+        + (0 if infer_reasoning(item[0]) == "off" else 1,),
+    )
+
+    M = np.full((n_models, n_cats), np.nan)
+    for i, (mk, _label) in enumerate(model_cols):
+        for j, cat in enumerate(categories):
             val = matrix.get((cat, mk))
             if val is not None and not (isinstance(val, float) and math.isnan(val)):
                 M[i, j] = val
 
-    col_means = np.array([
+    category_means = np.array([
         float(np.nanmean(M[:, j])) if np.any(~np.isnan(M[:, j])) else np.nan
-        for j in range(n_models)
+        for j in range(n_cats)
     ])
-    M_display = np.vstack([M, col_means.reshape(1, -1)])
-    n_display_rows = n_cats + 1
+    M_display = np.vstack([M, category_means.reshape(1, -1)])
+    n_display_rows = n_models + 1
 
-    row_labels = [_category_short(c) for c in categories] + ["Column mean"]
-    col_labels = [
-        paper_model_panel_title(mk, infer_reasoning(mk)) for mk, _ in model_cols
-    ]
+    row_labels = [
+        f"{base_model_label(mk)} · {'on' if infer_reasoning(mk) == 'on' else 'off'}"
+        for mk, _ in model_cols
+    ] + ["Column mean"]
+    col_labels = [_category_short(c) for c in categories]
 
-    fig_w = max(10.0, 0.55 * n_models + 2.5)
+    fig_w = max(10.8, 0.72 * n_cats + 2.8)
     fig_h = max(4.5, 0.38 * n_display_rows + 1.8)
     fig, ax = plt.subplots(figsize=(fig_w, fig_h), dpi=300)
 
     valid_vals = M[~np.isnan(M)]
     if valid_vals.size:
-        vmin = float(np.min(valid_vals))
-        vmax = float(np.max(valid_vals))
-        if vmax - vmin < 1e-6:
-            vmin -= 0.5
-            vmax += 0.5
+        vmin = min(80.0, math.floor(float(np.min(valid_vals)) / 5.0) * 5.0)
+        vmax = 100.0
     else:
-        vmin, vmax = 0.0, 100.0
+        vmin, vmax = 80.0, 100.0
 
     cmap = plt.get_cmap(CATEGORY_HEATMAP_CMAP).copy()
     cmap.set_bad(color="#E0E0E0")
-    norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
+    norm = mcolors.TwoSlopeNorm(vmin=vmin, vcenter=95.0, vmax=vmax)
     im = ax.imshow(
         np.ma.masked_invalid(M_display),
         aspect="auto",
         cmap=cmap,
         norm=norm,
     )
-    ax.set_xticks(range(n_models))
-    ax.set_xticklabels(col_labels, rotation=45, ha="right", fontsize=7)
+    ax.set_xticks(range(n_cats))
+    ax.set_xticklabels(col_labels, rotation=42, ha="right", fontsize=7.5)
     ax.set_yticks(range(n_display_rows))
-    ax.set_yticklabels(row_labels, fontsize=8)
+    ax.set_yticklabels(row_labels, fontsize=7.4)
     ax.get_yticklabels()[-1].set_fontweight("bold")
-    ax.set_xlabel("Model", fontsize=9)
-    ax.set_ylabel("Category", fontsize=9)
+    ax.set_xlabel("Value category", fontsize=9)
+    ax.set_ylabel("Model configuration", fontsize=9)
 
-    ax.axhline(n_cats - 0.5, color="white", linewidth=2.0)
-    ax.axhline(n_cats - 0.5, color="0.25", linewidth=0.8)
+    ax.axhline(n_models - 0.5, color="white", linewidth=2.0)
+    ax.axhline(n_models - 0.5, color="0.25", linewidth=0.8)
+
+    # Fine separators keep adjacent off/on rows visually paired while making
+    # transitions between base models easy to scan.
+    for i in range(1, n_models):
+        prev_base = _strip_variant_suffixes(model_cols[i - 1][0])
+        this_base = _strip_variant_suffixes(model_cols[i][0])
+        if prev_base != this_base:
+            ax.axhline(i - 0.5, color="white", linewidth=0.7, alpha=0.85)
 
     for i in range(M_display.shape[0]):
         for j in range(M_display.shape[1]):
@@ -1806,15 +2127,15 @@ def fig7c_within_ladder_category_heatmap(
             rgba = cmap(norm(val))
             luminance = 0.299 * rgba[0] + 0.587 * rgba[1] + 0.114 * rgba[2]
             txt_color = "white" if luminance < 0.55 else "black"
-            weight = "bold" if i == n_cats else "normal"
+            weight = "bold" if i == n_models else "normal"
             ax.text(
                 j, i, f"{val:.0f}", ha="center", va="center",
                 fontsize=7, color=txt_color, fontweight=weight,
             )
 
     cbar = fig.colorbar(im, ax=ax, fraction=0.025, pad=0.02)
-    cbar.set_label("Within-ladder accuracy (%)", fontsize=8)
-    fig.subplots_adjust(left=0.14, right=0.96, bottom=0.28)
+    cbar.set_label("Within-ladder accuracy (%)\n(95 = audit threshold)", fontsize=8)
+    fig.subplots_adjust(left=0.22, right=0.95, bottom=0.24, top=0.99)
     return fig
 
 
@@ -2034,6 +2355,30 @@ def _annotate_macro_avg(ax, avg: float, label: str, *, color: str = "#333333"):
     )
 
 
+def _annotate_macro_avg_vertical(
+    ax,
+    avg: float,
+    label: str,
+    *,
+    color: str = "#333333",
+):
+    """Vertical macro-average line for horizontal bar charts."""
+    ax.axvline(avg, color=color, lw=1.2, ls=":", alpha=0.85, zorder=10)
+    ax.text(
+        0.98,
+        0.02,
+        label,
+        transform=ax.transAxes,
+        va="bottom",
+        ha="right",
+        fontsize=7.5,
+        color=color,
+        bbox=dict(boxstyle="round,pad=0.25", fc="white", ec="#cccccc", alpha=0.92),
+        zorder=11,
+        clip_on=True,
+    )
+
+
 def _model_bar_chart(
     all_data: dict,
     models: list,
@@ -2047,7 +2392,7 @@ def _model_bar_chart(
     show_legend: bool = True,
     legend_loc: str = "upper center",
 ) -> plt.Figure:
-    """Shared bar chart for per-model headline metrics with macro-average line."""
+    """Horizontal per-model headline chart with readable long labels."""
     rows = []
     for file_key, label, family, reasoning in models:
         if file_key not in all_data:
@@ -2069,41 +2414,53 @@ def _model_bar_chart(
     colors = [r["color"] for r in rows]
     hatches = [r["hatch"] for r in rows]
 
-    fig_w, fig_h = _bar_figure_size(len(bar_labels), n_panels=1)
-    if subtitle:
-        fig_h += 0.35
-    fig, ax = plt.subplots(figsize=(fig_w, fig_h), dpi=300)
+    # A wide canvas suits the AAAI two-column ``figure*`` format and leaves
+    # enough horizontal room for both long model labels and the metric scale.
+    fig_h = max(5.8, 0.28 * len(bar_labels) + 1.2)
+    fig, ax = plt.subplots(figsize=(10.5, fig_h), dpi=300)
 
-    xs = np.arange(len(bar_labels))
-    bars = ax.bar(xs, means, yerr=errs, color=colors, edgecolor="white", capsize=3, width=0.72)
+    ys = np.arange(len(bar_labels))
+    bars = ax.barh(
+        ys,
+        means,
+        xerr=errs,
+        color=colors,
+        edgecolor="white",
+        capsize=3,
+        height=0.72,
+    )
     for bar, h in zip(bars, hatches):
         if h:
             bar.set_hatch(h)
             bar.set_edgecolor("white")
 
-    _set_rotated_bar_labels(ax, bar_labels, fontsize=9)
-    ax.set_xlabel("Model", fontsize=9, labelpad=2)
-    ax.set_ylabel(ylabel, fontsize=10)
-    ax.set_ylim(*ylim)
-    ax.set_xlim(-0.6, len(bar_labels) - 0.4)
-    ax.margins(x=0.02)
+    ax.set_yticks(ys)
+    ax.set_yticklabels(bar_labels, fontsize=8.2)
+    ax.set_xlabel(ylabel, fontsize=9)
+    ax.set_xlim(*ylim)
+    ax.set_ylim(-0.6, len(bar_labels) - 0.4)
+    ax.margins(y=0.02)
 
     macro_avg = float(np.mean(means))
-    _annotate_macro_avg(ax, macro_avg, f"Avg {macro_fmt.format(macro_avg)}")
+    _annotate_macro_avg_vertical(ax, macro_avg, f"Avg {macro_fmt.format(macro_avg)}")
 
     if show_legend:
         from matplotlib.patches import Patch
-        used_families = list(dict.fromkeys(
-            fam for fk, lbl, fam, _ in models if fk in all_data
-        ))
-        legend_handles = [Patch(facecolor=FAMILY_COLORS[f], label=f) for f in used_families]
-        legend_handles.append(
-            Patch(facecolor="gray", hatch="//", edgecolor="white", label="reasoning on")
-        )
+        # The labels already identify each model.  A compact mode key is less
+        # cluttered—and remains correct when individual models use overrides.
+        legend_handles = [
+            Patch(facecolor="#888888", edgecolor="white", label="reasoning off"),
+            Patch(
+                facecolor="#888888",
+                hatch="//",
+                edgecolor="white",
+                label="reasoning on",
+            ),
+        ]
         if legend_loc == "upper center":
             fig.legend(
                 handles=legend_handles, loc="upper center",
-                ncol=min(len(legend_handles), 7),
+                ncol=2,
                 frameon=True, fontsize=8, framealpha=0.92, edgecolor="#dddddd",
                 bbox_to_anchor=(0.5, 0.985),
             )
@@ -2113,24 +2470,18 @@ def _model_bar_chart(
                 ncol=2, framealpha=0.92, edgecolor="#dddddd",
             )
 
-    top = 0.80 if (suptitle and show_legend and legend_loc == "upper center") else (
-        0.90 if suptitle else 0.95
-    )
+    top = 0.90 if (suptitle or show_legend) else 0.97
     if suptitle:
-        fig.suptitle(suptitle, fontsize=11, y=0.995)
-    if subtitle:
-        fig.text(0.5, 0.03, subtitle, ha="center", fontsize=8, color="#444444")
+        ax.set_title(suptitle, fontsize=10, pad=10)
+    # Long methodological explanations belong in the LaTeX caption, not in
+    # the plotting canvas.  ``subtitle`` remains accepted for API stability.
 
     style_axes(ax)
-    margins = _bar_chart_margins(bar_labels, n_panels=1)
-    if subtitle:
-        margins["bottom"] = max(margins["bottom"], 0.16)
-    margins["bottom"] = max(margins["bottom"], 0.18)
     fig.subplots_adjust(
         top=top,
-        bottom=margins["bottom"],
-        left=margins["left"],
-        right=margins["right"],
+        bottom=0.10,
+        left=0.31,
+        right=0.97,
     )
     return fig
 
@@ -2278,10 +2629,7 @@ def load_all_per_set(results_dir, models):
 def fig1_headline_mono(all_data: dict, models: list, n_ladders: int) -> plt.Figure:
     fig = _model_bar_chart(
         all_data, models, get_mono,
-        ylabel=(
-            f"Strict preference monotonicity (%)\n"
-            f"(comparison blocks with no step violations; {n_ladders} ladders)"
-        ),
+        ylabel="Strict monotonicity (%)",
         ylim=(0, 100),
         macro_fmt="{:.1f}%",
         macro_scale=100.0,
@@ -2291,7 +2639,7 @@ def fig1_headline_mono(all_data: dict, models: list, n_ladders: int) -> plt.Figu
             "A block is monotonic only if win-probability is strictly ordered at every adjacent tier."
         ),
     )
-    fig.axes[0].axhline(50, color="gray", lw=0.6, ls="--", alpha=0.35)
+    fig.axes[0].axvline(50, color="gray", lw=0.6, ls="--", alpha=0.35)
     return fig
 
 
@@ -2301,10 +2649,7 @@ def fig1_headline_mono(all_data: dict, models: list, n_ladders: int) -> plt.Figu
 def fig2_iso_r2(all_data: dict, models: list, n_ladders: int) -> plt.Figure:
     return _model_bar_chart(
         all_data, models, get_r2,
-        ylabel=(
-            r"Isotonic $R^2$ (bidirectional)"
-            f"\n(max $R^2$ of increasing/decreasing fit; {n_ladders} ladders)"
-        ),
+        ylabel=r"Isotonic $R^2$ (bidirectional)",
         ylim=(0.5, 1.0),
         macro_fmt="{:.2f}",
         macro_scale=1.0,
@@ -2322,10 +2667,7 @@ def fig2_iso_r2(all_data: dict, models: list, n_ladders: int) -> plt.Figure:
 def fig2b_jt_significance(all_data: dict, models: list, n_ladders: int) -> plt.Figure:
     return _model_bar_chart(
         all_data, models, get_jt,
-        ylabel=(
-            "JT significant rate (%)\n"
-            f"(ordered trend at $\\alpha=0.05$; {n_ladders} ladders)"
-        ),
+        ylabel="J--T significant rate (%)",
         ylim=(55, 95),
         macro_fmt="{:.1f}%",
         macro_scale=100.0,
@@ -2338,13 +2680,19 @@ def fig2b_jt_significance(all_data: dict, models: list, n_ladders: int) -> plt.F
     )
 
 
-def write_fig1b_metrics_triptych_tex(out_path: pathlib.Path) -> pathlib.Path:
+def write_fig1b_metrics_triptych_tex(
+    out_path: pathlib.Path,
+    *,
+    n_models: int,
+    macro: dict,
+) -> pathlib.Path:
     """LaTeX figure snippet for fig1b (caption only; image has no embedded title)."""
     caption = (
-        "(Table~\\ref{tab:coherence_metrics} metrics compared across 16 models). "
-        "\\textbf{Top:} strict monotonicity (avg \\textbf{58.1\\%}). "
-        "\\textbf{Middle:} isotonic $R^2$ (avg \\textbf{0.93}). "
-        "\\textbf{Bottom:} JT significance (avg \\textbf{78.5\\%}). "
+        f"Table~\\ref{{tab:coherence_metrics}} metrics compared across {n_models} "
+        "model configurations. "
+        f"\\textbf{{Left:}} strict monotonicity (avg \\textbf{{{macro['mono_pct']:.1f}\\%}}). "
+        f"\\textbf{{Center:}} isotonic $R^2$ (avg \\textbf{{{macro['iso_r2']:.3f}}}). "
+        f"\\textbf{{Right:}} J--T significance (avg \\textbf{{{macro['jt_pct']:.1f}\\%}}). "
         "Hatched bars = reasoning on."
     )
     tex_lines = [
@@ -2366,83 +2714,78 @@ def write_fig1b_metrics_triptych_tex(out_path: pathlib.Path) -> pathlib.Path:
 # Fig 1b: Three-metric comparison (strict mono vs iso R² vs JT)
 # ============================================================
 def fig1b_metrics_triptych(all_data: dict, models: list, n_ladders: int) -> plt.Figure:
-    """Stacked headline metrics (strict mono, iso R², JT) top to bottom."""
+    """Three horizontal metric panels with one shared model-label axis."""
     active = [(fk, lbl, fam, r) for fk, lbl, fam, r in models if fk in all_data]
     if not active:
         return plt.figure()
 
+    # Keep reasoning-off/on variants adjacent in every panel.  Reordering each
+    # panel by its own metric made cross-metric comparison needlessly hard.
+    active.sort(key=lambda row: _model_sort_key(row[0]))
     n_models = len(active)
-    fig_w, fig_h = _bar_figure_size(
-        n_models, n_panels=3, labels_on_all_panels=True,
+    fig_h = max(6.4, 0.34 * n_models + 1.25)
+    fig, axes = plt.subplots(
+        1,
+        3,
+        figsize=(12.2, fig_h),
+        dpi=300,
+        sharey=True,
+        gridspec_kw={"wspace": 0.13},
     )
-    fig, axes = plt.subplots(3, 1, figsize=(fig_w, fig_h), dpi=300)
     specs = [
-        (get_mono, 100.0, (0, 100), "Strict mono (%)", "{:.1f}%", "mono",
+        (get_mono, 100.0, (0, 100), "Strict mono. (%)", "{:.1f}%",
          "No adjacent-tier violations"),
-        (get_r2, 1.0, (0.5, 1.0), r"Iso $R^2$ (bi)", "{:.2f}", "r2",
+        (get_r2, 1.0, (0.5, 1.0), r"Iso $R^2$ (bi)", "{:.2f}",
          r"Best monotonic fit ($\uparrow$ or $\downarrow$)"),
-        (get_jt, 100.0, (55, 95), "JT sig. (%)", "{:.1f}%", "jt",
+        (get_jt, 100.0, (55, 95), "J--T sig. (%)", "{:.1f}%",
          "Ordered trend in raw trials"),
     ]
 
-    bar_labels: list[str] = []
-
-    for ax_idx, (ax, (fn, scale, ylim, ylabel, fmt, panel_key, short_desc)) in enumerate(
+    ys = np.arange(n_models)
+    bar_labels = [_compact_bar_label(fk) for fk, _, _, _ in active]
+    for ax_idx, (ax, (fn, scale, xlim, xlabel, fmt, panel_title)) in enumerate(
         zip(axes, specs)
     ):
-        panel_rows = []
-        for fk, label, family, reasoning in active:
-            vals = [fn(rec) for rec in all_data[fk]]
-            panel_rows.append({
-                "fk": fk,
-                "label": label,
-                "family": family,
-                "reasoning": reasoning,
-                "mean": float(np.mean(vals)) * scale,
-                "bar_label": _compact_bar_label(fk),
-                "color": get_color(family, reasoning, fk),
-                "hatch": REASON_HATCH[reasoning],
-            })
-        order = _ascending_indices([r["mean"] for r in panel_rows])
-        panel_rows = [panel_rows[i] for i in order]
-        means = [r["mean"] for r in panel_rows]
-        colors = [r["color"] for r in panel_rows]
-        hatches = [r["hatch"] for r in panel_rows]
-        bar_labels = [r["bar_label"] for r in panel_rows]
-        panel_xs = np.arange(len(panel_rows))
+        means = []
+        colors = []
+        hatches = []
+        for fk, _label, family, reasoning in active:
+            means.append(float(np.mean([fn(rec) for rec in all_data[fk]])) * scale)
+            colors.append(get_color(family, reasoning, fk))
+            hatches.append(REASON_HATCH[reasoning])
 
-        bars = ax.bar(panel_xs, means, color=colors, edgecolor="white", width=0.72)
-        for bar, h in zip(bars, hatches):
-            if h:
-                bar.set_hatch(h)
+        bars = ax.barh(ys, means, color=colors, edgecolor="white", height=0.72)
+        for bar, hatch in zip(bars, hatches):
+            if hatch:
+                bar.set_hatch(hatch)
                 bar.set_edgecolor("white")
 
-        ax.set_ylabel(ylabel, fontsize=10)
-        y_lo, y_hi = ylim
-        pad = (y_hi - y_lo) * 0.10
-        ax.set_ylim(y_lo, y_hi + pad)
-        ax.set_xlim(-0.6, len(panel_rows) - 0.4)
-        macro = float(np.mean(means))
-        _annotate_macro_avg(ax, macro, f"Avg {fmt.format(macro)}")
-        ax.set_title(short_desc, fontsize=10, pad=14, loc="left", x=0.0, clip_on=False)
-        label_fs = 8.5 if ax_idx < len(axes) - 1 else 9.0
-        _set_rotated_bar_labels(ax, bar_labels, fontsize=label_fs, rotation=50)
-        ax.tick_params(axis="x", pad=8)
-        if ax_idx == len(axes) - 1:
-            ax.set_xlabel("Model", fontsize=9, labelpad=2)
+        ax.set_xlim(*xlim)
+        ax.set_ylim(-0.6, n_models - 0.4)
+        ax.set_xlabel(xlabel, fontsize=8.5)
+        ax.set_title(panel_title, fontsize=9.2, pad=9)
+        _annotate_macro_avg_vertical(
+            ax,
+            float(np.mean(means)),
+            f"Avg {fmt.format(float(np.mean(means)))}",
+        )
+        ax.set_yticks(ys)
+        if ax_idx == 0:
+            ax.set_yticklabels(bar_labels, fontsize=7.8)
+            ax.tick_params(axis="y", labelleft=True, pad=4)
+        else:
+            ax.tick_params(axis="y", labelleft=False)
+        ax.grid(axis="x", linestyle="--", linewidth=0.4, alpha=0.22)
         style_axes(ax)
 
     from matplotlib.patches import Patch
-    used_families = list(dict.fromkeys(fam for _, _, fam, _ in active))
-    legend_handles = [Patch(facecolor=FAMILY_COLORS[f], label=f) for f in used_families]
-    legend_handles.append(
-        Patch(facecolor="gray", hatch="//", edgecolor="white", label="reasoning on")
-    )
-
     fig.legend(
-        handles=legend_handles,
+        handles=[
+            Patch(facecolor="#888888", edgecolor="white", label="reasoning off"),
+            Patch(facecolor="#888888", hatch="//", edgecolor="white", label="reasoning on"),
+        ],
         loc="upper center",
-        ncol=min(len(legend_handles), 7),
+        ncol=2,
         frameon=True,
         fontsize=8,
         framealpha=0.95,
@@ -2450,14 +2793,188 @@ def fig1b_metrics_triptych(all_data: dict, models: list, n_ladders: int) -> plt.
         bbox_to_anchor=(0.5, 0.995),
         borderaxespad=0.0,
     )
-    margins = _bar_chart_margins(bar_labels, n_panels=3, labels_on_all_panels=True)
-    margins["top"] = min(margins["top"], 0.88)
+    fig.subplots_adjust(top=0.91, bottom=0.10, left=0.28, right=0.99, wspace=0.13)
+    return fig
+
+
+# ============================================================
+# Within-ladder gap: direct accuracy vs strict monotonicity
+# ============================================================
+def fig_within_ladder_gap(rows: list[dict]) -> plt.Figure | None:
+    """Grouped bars split into stacked reasoning-off/on panels."""
+    plotted_by_mode: dict[str, list[dict]] = {"off": [], "on": []}
+    for row in rows:
+        model_key = row["file_key"]
+        base_label = base_model_label(model_key).replace(" (baseline)", "")
+        mode_label = "on" if infer_reasoning(model_key) == "on" else "off"
+        label = f"{base_label} ({mode_label})"
+        mono = row.get("mono_pct")
+        if mono is None or not math.isfinite(float(mono)):
+            print(
+                f"WARNING: skipping {label} in fig_within_ladder_gap: "
+                "strict monotonicity is unavailable."
+            )
+            continue
+
+        accuracy = row.get("wl_accuracy_pct")
+        if accuracy is None or not math.isfinite(float(accuracy)):
+            print(
+                f"WARNING: skipping {label} in fig_within_ladder_gap: "
+                "direct tier-pair accuracy is unavailable."
+            )
+            continue
+
+        plotted_by_mode[mode_label].append({
+            "label": (
+                base_label + "\u2020"
+                if row.get("wl_complete_parseable_coverage") is False
+                else base_label
+            ),
+            "partial_coverage": row.get("wl_complete_parseable_coverage") is False,
+            "mono_pct": float(mono),
+            "accuracy_pct": float(accuracy),
+            "gap_pct": float(accuracy) - float(mono),
+        })
+
+    modes = [mode for mode in ("off", "on") if plotted_by_mode[mode]]
+    if not modes:
+        return None
+
+    for mode in modes:
+        plotted_by_mode[mode].sort(
+            key=lambda row: (-row["mono_pct"], row["label"])
+        )
+
+    total_rows = sum(len(plotted_by_mode[mode]) for mode in modes)
+    fig_h = max(3.2, 0.17 * total_rows + 1.35)
+    fig, axes = plt.subplots(
+        len(modes),
+        1,
+        figsize=(3.3, fig_h),
+        dpi=300,
+        sharex=True,
+        gridspec_kw={
+            "height_ratios": [len(plotted_by_mode[mode]) for mode in modes],
+            "hspace": 0.22,
+        },
+    )
+    if len(modes) == 1:
+        axes = [axes]
+
+    mono_color = "#D55E00"
+    accuracy_color = "#0072B2"
+    for ax, mode in zip(axes, modes):
+        mode_rows = plotted_by_mode[mode]
+        y = np.arange(len(mode_rows))
+        mono = np.asarray([row["mono_pct"] for row in mode_rows], dtype=float)
+        accuracy = np.asarray([row["accuracy_pct"] for row in mode_rows], dtype=float)
+
+        bar_height = 0.28
+        ax.barh(
+            y - 0.16,
+            accuracy,
+            height=bar_height,
+            color=accuracy_color,
+            edgecolor="none",
+            zorder=2,
+        )
+        ax.barh(
+            y + 0.16,
+            mono,
+            height=bar_height,
+            color=mono_color,
+            edgecolor="none",
+            zorder=2,
+        )
+        for yi, row in zip(y, mode_rows):
+            if row["label"].rstrip("\u2020") == "Opus-4.6":
+                ax.axhspan(
+                    yi - 0.48,
+                    yi + 0.48,
+                    color="#7A3E9D",
+                    alpha=0.08,
+                    zorder=0,
+                )
+            ax.text(
+                row["accuracy_pct"] - 0.5,
+                yi - 0.16,
+                f"{row['accuracy_pct']:.1f}",
+                ha="right",
+                va="center",
+                fontsize=4.3,
+                color="white",
+                fontweight="bold",
+                zorder=4,
+            )
+            ax.text(
+                min(row["mono_pct"] + 0.6, 99.0),
+                yi + 0.16,
+                f"{row['mono_pct']:.1f}",
+                ha="left",
+                va="center",
+                fontsize=4.3,
+                color="#444444",
+                zorder=4,
+            )
+
+        ax.set_xlim(0, 102)
+        ax.set_ylim(len(mode_rows) - 0.45, -0.55)
+        ax.set_yticks(y)
+        ax.set_yticklabels(
+            [row["label"] for row in mode_rows],
+            fontsize=4.9,
+            color="#111111",
+        )
+        for tick, row in zip(ax.get_yticklabels(), mode_rows):
+            if row["label"].rstrip("\u2020") == "Opus-4.6":
+                tick.set_color("#6F2C7F")
+                tick.set_fontweight("bold")
+        ax.tick_params(axis="y", length=0, pad=3)
+        ax.tick_params(axis="x", labelsize=5.2)
+        ax.set_xticks(np.arange(0, 101, 20))
+        ax.grid(axis="x", linestyle="--", linewidth=0.35, alpha=0.25, zorder=0)
+        ax.set_title(f"Reasoning {mode}", fontsize=6.5, loc="left", pad=2)
+        style_axes(ax)
+
+    axes[-1].set_xlabel("Percentage (%)", fontsize=6.5, labelpad=2)
+    fig.legend(
+        handles=[
+            Line2D([], [], color=mono_color, linewidth=4,
+                   label="Strict ladder\u2013statement monotonicity"),
+            Line2D([], [], color=accuracy_color, linewidth=4,
+                   label="Direct tier\u2013pair accuracy"),
+        ],
+        loc="upper center",
+        ncol=1,
+        frameon=False,
+        fontsize=4.8,
+        borderaxespad=0.0,
+        handletextpad=0.5,
+        labelspacing=0.25,
+    )
+    plotted_rows = [
+        row for mode in modes for row in plotted_by_mode[mode]
+    ]
+    notes = []
+    if any(row["label"].rstrip("\u2020") == "Opus-4.6" for row in plotted_rows):
+        notes.append("Purple shading highlights Opus-4.6.")
+    if any(row["partial_coverage"] for row in plotted_rows):
+        notes.append("\u2020 Accuracy uses parseable responses; see CSV coverage columns.")
+    if notes:
+        fig.text(
+            0.5,
+            0.012,
+            "  ".join(notes),
+            ha="center",
+            va="bottom",
+            fontsize=4.2,
+            color="#666666",
+        )
     fig.subplots_adjust(
-        top=margins["top"],
-        bottom=margins["bottom"],
-        left=margins["left"],
-        right=margins["right"],
-        hspace=margins["hspace"],
+        left=0.45,
+        right=0.98,
+        bottom=0.10 if notes else 0.08,
+        top=0.89,
     )
     return fig
 
@@ -2491,6 +3008,25 @@ def _find_reasoning_pairs(models: list, all_data: dict) -> list[tuple[str, str, 
     return pairs
 
 
+_REASONING_PAIR_DISPLAY_ORDER = {
+    "GPT-5.4-Nano": 0,
+    "GPT-5.4-Mini": 1,
+    "GPT-5.4": 2,
+    "GPT-5.6 Terra": 3,
+    "GPT-5.6 Luna": 4,
+    "GPT-5.6 Sol": 5,
+    "Opus-4.6": 6,
+    "Nemotron-3-Super": 7,
+    "GLM-4.5-Hybrid": 8,
+    "Qwen3.7 Flash": 9,
+}
+
+
+def _reasoning_pair_order_key(label: str) -> tuple[int, str]:
+    """Paper order that keeps matched variants and model families together."""
+    return (_REASONING_PAIR_DISPLAY_ORDER.get(label, 10_000), label)
+
+
 def fig3_reasoning_lift(all_data: dict, models: list) -> plt.Figure:
     pairs = _find_reasoning_pairs(models, all_data)
     if not pairs:
@@ -2508,13 +3044,13 @@ def fig3_reasoning_lift(all_data: dict, models: list) -> plt.Figure:
             "off_err": e_off * 100,
             "on_mean": m_on * 100,
             "on_err": e_on * 100,
-            "color_off": FAMILY_COLORS.get(family, "#999999"),
-            "color_on": get_color(family, "on"),
+            "color_off": get_color(family, "off", off_fk),
+            "color_on": get_color(family, "on", on_fk),
         })
-    order = _ascending_indices([r["off_mean"] for r in pair_rows])
-    pair_rows = [pair_rows[i] for i in order]
+    pair_rows.sort(key=lambda r: _reasoning_pair_order_key(r["off_label"]))
 
-    fig, ax = plt.subplots(figsize=(7, 4), dpi=300)
+    fig_w = max(7.5, 0.86 * len(pair_rows) + 2.8)
+    fig, ax = plt.subplots(figsize=(fig_w, 4.4), dpi=300)
     width = 0.35
     xs = np.arange(len(pair_rows))
 
@@ -2538,12 +3074,14 @@ def fig3_reasoning_lift(all_data: dict, models: list) -> plt.Figure:
 
     pair_labels = [r["off_label"] for r in pair_rows]
     ax.set_xticks(xs)
-    ax.set_xticklabels(pair_labels, rotation=25, ha="right", fontsize=9)
+    rotation = 32 if len(pair_rows) >= 8 else 25
+    ax.set_xticklabels(pair_labels, rotation=rotation, ha="right", fontsize=8.5)
+    ax.tick_params(axis="x", pad=6)
     ax.set_ylabel("Monotonicity rate (%)")
     ax.set_ylim(0, 100)
     ax.legend(loc="upper left", frameon=False, fontsize=9)
     style_axes(ax)
-    plt.tight_layout()
+    fig.tight_layout(pad=0.8)
     return fig
 
 
@@ -2661,8 +3199,6 @@ def fig4b_centroid_scatter(all_data: dict, models: list) -> plt.Figure:
 # Fig 5: Incoherence
 # ============================================================
 def fig5_incoherence(all_data: dict, models: list, n_ladders: int) -> plt.Figure:
-    fig, (axL, axR) = plt.subplots(1, 2, figsize=(12, 5), dpi=300,
-                                   gridspec_kw={"width_ratios": [1.6, 1]})
     rows = []
     for file_key, label, family, reasoning in models:
         if file_key not in all_data:
@@ -2680,7 +3216,19 @@ def fig5_incoherence(all_data: dict, models: list, n_ladders: int) -> plt.Figure
     data_lists = [r["rates"] for r in rows]
     colors = [r["color"] for r in rows]
 
-    bp = axL.boxplot(data_lists, patch_artist=True, widths=0.6,
+    fig_h = max(6.2, 0.35 * len(labels) + 1.4)
+    fig, (axL, axR) = plt.subplots(
+        1,
+        2,
+        figsize=(11.2, fig_h),
+        dpi=300,
+        sharey=True,
+        gridspec_kw={"width_ratios": [1.6, 1], "wspace": 0.08},
+    )
+    positions = np.arange(1, len(labels) + 1)
+
+    bp = axL.boxplot(data_lists, positions=positions, orientation="horizontal",
+                     patch_artist=True, widths=0.6,
                      medianprops=dict(color="black"),
                      whiskerprops=dict(color="gray"),
                      capprops=dict(color="gray"),
@@ -2691,22 +3239,25 @@ def fig5_incoherence(all_data: dict, models: list, n_ladders: int) -> plt.Figure
         patch.set_alpha(0.7)
         patch.set_edgecolor("white")
 
-    axL.set_xticks(range(1, len(labels) + 1))
-    axL.set_xticklabels(labels, rotation=35, ha="right", fontsize=8)
-    axL.set_ylim(0, 1)
-    axL.set_ylabel("Per-ladder monotonicity rate")
-    axL.axhline(0.5, color="red", lw=0.7, ls="--", alpha=0.4)
+    axL.set_yticks(positions)
+    axL.set_yticklabels(labels, fontsize=7.8)
+    axL.set_xlim(0, 1)
+    axL.set_xlabel("Per-ladder monotonicity rate", fontsize=9)
+    axL.axvline(0.5, color="red", lw=0.7, ls="--", alpha=0.4)
+    axL.grid(axis="x", linestyle="--", linewidth=0.4, alpha=0.22)
+    axL.invert_yaxis()
     style_axes(axL)
 
     n_below = [sum(1 for v in dl if v < 0.5) for dl in data_lists]
-    axR.bar(range(len(labels)), n_below, color=colors, edgecolor="white")
-    axR.set_xticks(range(len(labels)))
-    axR.set_xticklabels(labels, rotation=35, ha="right", fontsize=8)
-    axR.set_ylabel(f"Ladders with mono < 0.5 (of {n_ladders})")
-    for i, n in enumerate(n_below):
-        axR.text(i, n + 1, str(n), ha="center", fontsize=8)
+    axR.barh(positions, n_below, color=colors, edgecolor="white", height=0.65)
+    axR.set_xlabel(f"Ladders below 0.5 (of {n_ladders})", fontsize=9)
+    axR.tick_params(axis="y", labelleft=False)
+    axR.set_xlim(0, max(n_below, default=0) + 10)
+    axR.grid(axis="x", linestyle="--", linewidth=0.4, alpha=0.22)
+    for yi, n in zip(positions, n_below):
+        axR.text(n + 0.8, yi, str(n), va="center", ha="left", fontsize=7.5)
     style_axes(axR)
-    plt.tight_layout()
+    fig.subplots_adjust(left=0.31, right=0.98, bottom=0.09, top=0.98, wspace=0.08)
     return fig
 
 
@@ -2728,19 +3279,20 @@ def fig6_heatmap(all_data: dict, models: list) -> plt.Figure:
     M = M[order]
     sorted_ids = [set_ids[i] for i in order]
 
-    fig, ax = plt.subplots(figsize=(8, 14), dpi=300)
+    fig, ax = plt.subplots(figsize=(10.2, 14), dpi=300)
     im = ax.imshow(M, aspect="auto", cmap="RdYlGn", vmin=0, vmax=1)
     ax.set_xticks(range(len(active)))
-    ax.set_xticklabels(
-        [paper_model_panel_title(fk, r) for fk, _, _, r in active],
-        rotation=40, ha="right", fontsize=8,
-    )
+    model_labels = [
+        f"{base_model_label(fk)}\n{'on' if r == 'on' else 'off'}"
+        for fk, _, _, r in active
+    ]
+    ax.set_xticklabels(model_labels, rotation=48, ha="right", fontsize=6.7)
     ax.set_yticks(range(0, len(sorted_ids), 5))
     ax.set_yticklabels([sorted_ids[i][:28] for i in range(0, len(sorted_ids), 5)], fontsize=5)
     ax.set_ylabel("Valence ladders (sorted by cross-model mean)")
     cbar = fig.colorbar(im, ax=ax, fraction=0.03, pad=0.02)
     cbar.set_label("Monotonicity rate")
-    plt.tight_layout()
+    fig.subplots_adjust(left=0.20, right=0.92, bottom=0.18, top=0.99)
     return fig
 
 
@@ -2818,7 +3370,9 @@ def _draw_category_heatmap(
 
     cbar = fig.colorbar(im, ax=ax, fraction=0.025, pad=0.02)
     cbar.set_label("Strict monotonicity (%)", fontsize=8)
-    fig.subplots_adjust(left=0.12, right=0.96)
+    # Reserve explicit room for the longest model/category labels.  This also
+    # keeps the colorbar clear when the PDF is reduced to paper width.
+    fig.subplots_adjust(left=0.23, right=0.94, bottom=0.28, top=0.98)
     return fig
 
 
@@ -2844,11 +3398,30 @@ def fig7b_category_breakdown_on(all_data: dict, models: list) -> plt.Figure:
 # Fig 8: Ladder shape curves
 # ============================================================
 def _find_raw_results(results_dir: pathlib.Path, model_key: str) -> list[pathlib.Path]:
-    """Collect raw results.json files under the model-scoped layout."""
-    run_dir = resolve_model_results_dir(model_key, results_dir) / "ladder_vs_comparison_statements"
-    if not run_dir.is_dir():
-        return []
-    return sorted(run_dir.glob("phase6b_variations_prune_*/results.json"))
+    """Collect unique raw ``results.json`` files across current/legacy layouts."""
+    model_dir = resolve_model_results_dir(model_key, results_dir)
+    roots = [model_dir / "ladder_vs_comparison_statements", model_dir]
+    patterns = (
+        "phase6b_ladder_*/results.json",
+        "phase6b_variations_prune_*/results.json",
+    )
+    found: list[pathlib.Path] = []
+    for root in roots:
+        if not root.is_dir():
+            continue
+        for pattern in patterns:
+            found.extend(root.glob(pattern))
+
+    # Reporting views may expose the same ladder under both naming schemes.
+    # Resolve symlinks so each ladder contributes only once.
+    unique: dict[pathlib.Path, pathlib.Path] = {}
+    for path in sorted(found):
+        try:
+            identity = path.resolve()
+        except OSError:
+            identity = path
+        unique.setdefault(identity, path)
+    return list(unique.values())
 
 
 def fig8_ladder_shapes(all_data: dict, models: list, results_dir: pathlib.Path) -> plt.Figure:
@@ -2885,7 +3458,6 @@ def fig8_ladder_shapes(all_data: dict, models: list, results_dir: pathlib.Path) 
 
             tier_wins = {}
             tier_total = {}
-            valence = prefs[0].get("outcome_a", {}).get("valence", "positive")
             for p in prefs:
                 oa, ob = p.get("outcome_a", {}), p.get("outcome_b", {})
                 tier_a, tier_b = oa.get("tier"), ob.get("tier")
@@ -2905,12 +3477,17 @@ def fig8_ladder_shapes(all_data: dict, models: list, results_dir: pathlib.Path) 
                 continue
             tiers_sorted = sorted(tier_total.keys())
             probs = np.array([tier_wins[t] / tier_total[t] for t in tiers_sorted])
-            if valence == "negative":
-                probs = probs[::-1]
+            # All generated ladders are already preference-ordered from T1
+            # (least preferable) to T7 (most preferable), including ladders
+            # whose underlying property is negatively valenced.
             tier_probs_all.append(probs)
 
         if not tier_probs_all:
-            ax.set_title(f"{paper_model_panel_title(file_key, reasoning)} (no data)", fontsize=9)
+            ax.set_title(
+                f"{paper_model_panel_title(file_key, reasoning)} (no data)",
+                fontsize=8,
+                pad=5,
+            )
             continue
 
         mat = np.array(tier_probs_all)
@@ -2922,7 +3499,12 @@ def fig8_ladder_shapes(all_data: dict, models: list, results_dir: pathlib.Path) 
         ax.set_xticks(x)
         ax.set_xticklabels([f"T{i}" for i in x], fontsize=7)
         ax.set_ylim(0, 1)
-        ax.set_title(paper_model_panel_title(file_key, reasoning), fontsize=9)
+        title_fs = 8 if n >= 20 else 9
+        ax.set_title(
+            paper_model_panel_title(file_key, reasoning),
+            fontsize=title_fs,
+            pad=5,
+        )
         style_axes(ax)
         if idx % ncols == 0:
             ax.set_ylabel("P(prefer tier)")
@@ -2930,7 +3512,7 @@ def fig8_ladder_shapes(all_data: dict, models: list, results_dir: pathlib.Path) 
     for idx in range(n, nrows * ncols):
         axes_flat[idx].set_visible(False)
 
-    plt.tight_layout()
+    fig.tight_layout(pad=0.7, h_pad=0.9, w_pad=0.7)
     return fig
 
 
@@ -2944,6 +3526,27 @@ def _float_csv(val, default=float("nan")):
         return default
 
 
+def _find_pred_util_file(
+    results_dir: pathlib.Path,
+    model_key: str,
+    filename: str,
+) -> pathlib.Path | None:
+    """Find predictive-utility output across current and legacy layouts."""
+    model_dir = resolve_model_results_dir(model_key, results_dir)
+    candidates = [
+        model_dir / "ladder_vs_comparison_statements" / "pred_utility_test" / filename,
+        model_dir / "pred_utility_test" / filename,
+    ]
+    for path in candidates:
+        if path.is_file():
+            return path
+    if model_dir.is_dir():
+        matches = sorted(model_dir.rglob(filename))
+        if matches:
+            return matches[0]
+    return None
+
+
 def load_pred_util_per_model(results_dir: pathlib.Path) -> dict[str, dict]:
     """Load per-model predictive-utility summaries keyed by model_key."""
     out: dict[str, dict] = {}
@@ -2954,13 +3557,8 @@ def load_pred_util_per_model(results_dir: pathlib.Path) -> dict[str, dict]:
         if not d.is_dir() or d.name.startswith("smoke"):
             continue
         model_key = model_key_from_results_folder(d.name, known)
-        path = (
-            resolve_model_results_dir(model_key, results_dir)
-            / "ladder_vs_comparison_statements"
-            / "pred_utility_test"
-            / "per_model_pred_util.csv"
-        )
-        if not path.exists():
+        path = _find_pred_util_file(results_dir, model_key, "per_model_pred_util.csv")
+        if path is None:
             continue
         with open(path, newline="", encoding="utf-8") as fh:
             rows = list(csv.DictReader(fh))
@@ -2971,13 +3569,8 @@ def load_pred_util_per_model(results_dir: pathlib.Path) -> dict[str, dict]:
 
 def load_pred_util_per_set(results_dir: pathlib.Path, model_key: str) -> list[dict]:
     """Per-ladder predictive-utility rows for one model."""
-    path = (
-        resolve_model_results_dir(model_key, results_dir)
-        / "ladder_vs_comparison_statements"
-        / "pred_utility_test"
-        / "per_set_pred_util.csv"
-    )
-    if not path.exists():
+    path = _find_pred_util_file(results_dir, model_key, "per_set_pred_util.csv")
+    if path is None:
         return []
     with open(path, newline="", encoding="utf-8") as fh:
         return list(csv.DictReader(fh))
@@ -3048,7 +3641,9 @@ def fig9_pred_util_coherence_scatter(
     if not points:
         return None
 
-    fig, ax = plt.subplots(figsize=(5.8, 5.2), dpi=300)
+    legend_cols = 2 if len(points) > 12 else 1
+    fig_w = 10.2 if legend_cols == 2 else 6.6
+    fig, ax = plt.subplots(figsize=(fig_w, 5.4), dpi=300)
     for pt in points:
         marker = "^" if pt["reasoning"] == "on" else "o"
         ax.scatter(
@@ -3093,10 +3688,16 @@ def fig9_pred_util_coherence_scatter(
     ax.legend(
         handles=_reasoning_marker_legend_handles() + _model_legend_handles(points),
         loc="center left", bbox_to_anchor=(1.02, 0.5),
+        ncol=legend_cols, columnspacing=0.8, handletextpad=0.45,
         frameon=True, fontsize=7, framealpha=0.95, edgecolor="#dddddd",
         title="Model ($\\triangle$ = reasoning on)", title_fontsize=8,
     )
-    fig.subplots_adjust(right=0.68)
+    fig.subplots_adjust(
+        left=0.10,
+        right=0.56 if legend_cols == 2 else 0.68,
+        bottom=0.14,
+        top=0.97,
+    )
     return fig
 
 
@@ -3116,13 +3717,13 @@ def fig10_pred_util_reasoning_lift(pred_util: dict[str, dict]) -> plt.Figure | N
             "off_key": off_key,
             "off_auc": off_auc,
             "on_auc": on_auc,
-            "color_off": FAMILY_COLORS.get(family, "#999999"),
-            "color_on": get_color(family, "on"),
+            "color_off": get_color(family, "off", off_key),
+            "color_on": get_color(family, "on", on_key),
         })
-    order = _ascending_indices([r["off_auc"] for r in pair_rows])
-    pair_rows = [pair_rows[i] for i in order]
+    pair_rows.sort(key=lambda r: _reasoning_pair_order_key(base_model_label(r["off_key"])))
 
-    fig, ax = plt.subplots(figsize=(7, 4), dpi=300)
+    fig_w = max(7.5, 0.86 * len(pair_rows) + 2.8)
+    fig, ax = plt.subplots(figsize=(fig_w, 4.4), dpi=300)
     width = 0.35
     xs = np.arange(len(pair_rows))
 
@@ -3148,12 +3749,229 @@ def fig10_pred_util_reasoning_lift(pred_util: dict[str, dict]) -> plt.Figure | N
 
     pair_labels = [base_model_label(r["off_key"]) for r in pair_rows]
     ax.set_xticks(xs)
-    ax.set_xticklabels(pair_labels, rotation=25, ha="right", fontsize=9)
+    rotation = 32 if len(pair_rows) >= 8 else 25
+    ax.set_xticklabels(pair_labels, rotation=rotation, ha="right", fontsize=8.5)
+    ax.tick_params(axis="x", pad=6)
     ax.set_ylabel("Mean held-out test AUC")
     ax.set_ylim(0.82, 1.0)
     ax.legend(loc="upper left", frameon=False, fontsize=9)
     style_axes(ax)
-    plt.tight_layout()
+    fig.tight_layout(pad=0.8)
+    return fig
+
+
+# ============================================================
+# Consolidated reasoning comparison: strict mono + predictive AUC
+# ============================================================
+def fig3_reasoning_summary(
+    all_data: dict,
+    models: list,
+    pred_util: dict[str, dict],
+) -> plt.Figure | None:
+    """Compact paired comparison grouped by base model and model family.
+
+    This figure is designed to replace the separate strict-monotonicity and
+    predictive-AUC reasoning-lift figures in the paper. Horizontal layouts
+    keep long model labels readable at two-column publication width.
+    """
+    coherence_pairs = _find_reasoning_pairs(models, all_data)
+    pred_pairs = {
+        _strip_variant_suffixes(off_key): (off_key, on_key)
+        for off_key, on_key, _family in _find_pred_util_reasoning_pairs(pred_util)
+    }
+
+    rows: list[dict] = []
+    for off_fk, on_fk, label, family in coherence_pairs:
+        base = _strip_variant_suffixes(off_fk)
+        if base not in pred_pairs:
+            continue
+        pred_off, pred_on = pred_pairs[base]
+        mono_off, mono_off_err = mean_ci_95([get_mono(r) for r in all_data[off_fk]])
+        mono_on, mono_on_err = mean_ci_95([get_mono(r) for r in all_data[on_fk]])
+        auc_off = _float_csv(pred_util[pred_off].get("mean_test_auc"))
+        auc_on = _float_csv(pred_util[pred_on].get("mean_test_auc"))
+        if math.isnan(auc_off) or math.isnan(auc_on):
+            continue
+        rows.append({
+            "label": label,
+            "family": family,
+            "off_fk": off_fk,
+            "on_fk": on_fk,
+            "mono_off": mono_off * 100.0,
+            "mono_on": mono_on * 100.0,
+            "mono_off_err": mono_off_err * 100.0,
+            "mono_on_err": mono_on_err * 100.0,
+            "auc_off": auc_off,
+            "auc_on": auc_on,
+        })
+    if not rows:
+        return None
+
+    rows.sort(key=lambda r: _reasoning_pair_order_key(r["label"]))
+    y = np.arange(len(rows))[::-1]
+    fig_h = max(4.6, 0.48 * len(rows) + 1.35)
+    fig, axes = plt.subplots(
+        1,
+        2,
+        figsize=(11.0, fig_h),
+        dpi=300,
+        sharey=True,
+        gridspec_kw={"wspace": 0.10},
+    )
+
+    def draw_panel(
+        ax,
+        off_field: str,
+        on_field: str,
+        *,
+        title: str,
+        xlim: tuple[float, float],
+        delta_scale: float,
+        delta_suffix: str,
+        off_err_field: str | None = None,
+        on_err_field: str | None = None,
+    ) -> None:
+        for yi, row in zip(y, rows):
+            off = row[off_field]
+            on = row[on_field]
+            off_color = get_color(row["family"], "off", row["off_fk"])
+            on_color = get_color(row["family"], "on", row["on_fk"])
+            ax.plot([off, on], [yi, yi], color=off_color, lw=1.5, alpha=0.55, zorder=1)
+
+            off_err = row[off_err_field] if off_err_field else None
+            on_err = row[on_err_field] if on_err_field else None
+            ax.errorbar(
+                off,
+                yi,
+                xerr=off_err,
+                fmt="o",
+                markersize=5.5,
+                color=off_color,
+                markeredgecolor="white",
+                markeredgewidth=0.6,
+                capsize=2,
+                lw=0.9,
+                zorder=3,
+            )
+            ax.errorbar(
+                on,
+                yi,
+                xerr=on_err,
+                fmt="^",
+                markersize=6.0,
+                color=on_color,
+                markeredgecolor="#333333",
+                markeredgewidth=0.5,
+                capsize=2,
+                lw=0.9,
+                zorder=4,
+            )
+            delta = (on - off) * delta_scale
+            annotation_x = max(off, on) + 0.018 * (xlim[1] - xlim[0])
+            ax.text(
+                annotation_x,
+                yi,
+                f"{delta:+.1f}{delta_suffix}",
+                va="center",
+                ha="left",
+                fontsize=7.3,
+                color="#333333",
+            )
+
+        for idx in range(len(rows) - 1):
+            if rows[idx]["family"] != rows[idx + 1]["family"]:
+                separator_y = (y[idx] + y[idx + 1]) / 2.0
+                ax.axhline(separator_y, color="#d9d9d9", lw=0.8, zorder=0)
+
+        ax.set_title(title, fontsize=10, pad=8)
+        ax.set_xlim(*xlim)
+        ax.grid(axis="x", linestyle="--", linewidth=0.45, alpha=0.28)
+        ax.tick_params(axis="both", labelsize=8)
+        style_axes(ax)
+
+    draw_panel(
+        axes[0],
+        "mono_off",
+        "mono_on",
+        title="Strict monotonicity",
+        xlim=(0.0, 110.0),
+        delta_scale=1.0,
+        delta_suffix=" pp",
+        off_err_field="mono_off_err",
+        on_err_field="mono_on_err",
+    )
+    axes[0].set_xlabel("Strict monotonicity rate (%)", fontsize=9)
+    axes[0].set_xticks(np.arange(0, 101, 20))
+    axes[0].set_yticks(y)
+    axes[0].set_yticklabels([row["label"] for row in rows], fontsize=8.5)
+    axes[0].tick_params(axis="y", pad=7)
+    for tick in axes[0].get_yticklabels():
+        tick.set_color("#111111")
+
+    draw_panel(
+        axes[1],
+        "auc_off",
+        "auc_on",
+        title="Predictive utility",
+        xlim=(0.76, 1.025),
+        delta_scale=100.0,
+        delta_suffix=" pp",
+    )
+    axes[1].set_xlabel("Mean held-out test AUC", fontsize=9)
+    axes[1].tick_params(axis="y", left=False, labelleft=False)
+
+    mode_legend_handles = [
+        Line2D(
+            [0], [0], marker="o", color="none", markerfacecolor="#666666",
+            markeredgecolor="white", markersize=6, label="reasoning off",
+        ),
+        Line2D(
+            [0], [0], marker="^", color="none", markerfacecolor="#999999",
+            markeredgecolor="#333333", markersize=7, label="reasoning on",
+        ),
+    ]
+    fig.legend(
+        handles=mode_legend_handles,
+        loc="upper center",
+        bbox_to_anchor=(0.59, 0.995),
+        ncol=2,
+        frameon=False,
+        fontsize=8.5,
+        handletextpad=0.45,
+        columnspacing=1.2,
+    )
+
+    # Model-color key. Each matched base model receives one stable hue so the
+    # color means the same thing in both panels and both reasoning modes.
+    color_legend_handles: list[Line2D] = []
+    seen_color_labels: set[str] = set()
+    for row in rows:
+        color_label = row["label"]
+        if color_label in seen_color_labels:
+            continue
+        seen_color_labels.add(color_label)
+        color_legend_handles.append(
+            Line2D(
+                [0], [0],
+                marker="s",
+                color="none",
+                markerfacecolor=get_color(row["family"], "off", row["off_fk"]),
+                markeredgecolor="none",
+                markersize=5.5,
+                label=color_label,
+            )
+        )
+    fig.legend(
+        handles=color_legend_handles,
+        loc="upper center",
+        bbox_to_anchor=(0.59, 0.947),
+        ncol=5,
+        frameon=False,
+        fontsize=7.3,
+        handletextpad=0.35,
+        columnspacing=0.9,
+    )
+    fig.subplots_adjust(left=0.23, right=0.985, bottom=0.13, top=0.79, wspace=0.10)
     return fig
 
 
@@ -3323,6 +4141,12 @@ def main():
         help="Model-run root containing model-scoped subdirs (default: outputs/).",
     )
     ap.add_argument(
+        "--within-results-dir",
+        default=None,
+        help="Optional separate model-run root containing within_ladder/summary.json "
+             "artifacts. If omitted, --results-dir is used.",
+    )
+    ap.add_argument(
         "--output-dir",
         default=str(FIGURES_OUTPUT_DIR.relative_to(REPO_ROOT)),
         help="Directory for output figures "
@@ -3337,6 +4161,11 @@ def main():
     args = ap.parse_args()
 
     results_dir = resolve_repo_path(args.results_dir)
+    within_results_dir = (
+        resolve_repo_path(args.within_results_dir)
+        if args.within_results_dir
+        else results_dir
+    )
     out_dir = resolve_repo_path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     tables_dir = resolve_repo_path(args.tables_dir)
@@ -3345,14 +4174,18 @@ def main():
     if args.model:
         model_keys = args.model
     else:
-        model_keys = discover_all_model_keys(results_dir)
+        model_keys = discover_reporting_model_keys(results_dir, within_results_dir)
         if not model_keys:
-            print(f"ERROR: no model outputs found under {results_dir}")
+            print(
+                "ERROR: no model outputs found under "
+                f"{results_dir} or {within_results_dir}"
+            )
             return
 
     models = build_model_tuples(model_keys)
 
     print(f"Results dir:  {results_dir}")
+    print(f"Within dir:   {within_results_dir}")
     print(f"Figures dir:  {out_dir}")
     print(f"Tables dir:   {tables_dir}")
     print(f"Models:       {', '.join(k for k, *_ in models)}")
@@ -3370,7 +4203,10 @@ def main():
     print("\nLoading coherence data for available models...")
     all_data = load_all_per_set(results_dir, models)
 
-    targets: list[tuple[str, plt.Figure | None]] = []
+    # Store figure factories, not live Figure objects.  Several paper figures
+    # are large; lazy construction lets us render and close one at a time
+    # instead of retaining every canvas in memory until the end.
+    targets = []
     active_models: list = []
     metric_rows: list[dict] = []
 
@@ -3386,45 +4222,62 @@ def main():
         tex_path, csv_path = write_coherence_metrics_table(metric_rows, macro, table_base)
         print(f"\nWrote {tex_path.name} and {csv_path.name} to {tables_dir}")
 
-        fig1b_tex = write_fig1b_metrics_triptych_tex(out_dir / "fig1b_metrics_triptych.tex")
+        fig1b_tex = write_fig1b_metrics_triptych_tex(
+            out_dir / "fig1b_metrics_triptych.tex",
+            n_models=len(active_models),
+            macro=macro,
+        )
         print(f"Wrote {fig1b_tex.name} to {out_dir}")
 
         targets.extend([
-            ("fig1_headline_monotonicity", fig1_headline_mono(all_data, models, n_ladders)),
-            ("fig2_iso_r2_by_variant", fig2_iso_r2(all_data, models, n_ladders)),
-            ("fig2b_jt_significance", fig2b_jt_significance(all_data, models, n_ladders)),
-            ("fig1b_metrics_triptych", fig1b_metrics_triptych(all_data, models, n_ladders)),
-            ("fig3_reasoning_lift", fig3_reasoning_lift(all_data, models)),
-            ("fig4_set_scatter", fig4_set_scatter(all_data, models)),
-            ("fig4b_centroid_scatter", fig4b_centroid_scatter(all_data, models)),
-            ("fig5_incoherence", fig5_incoherence(all_data, models, n_ladders)),
-            ("fig6_coherence_heatmap", fig6_heatmap(all_data, models)),
-            ("fig7_category_breakdown_off", fig7_category_breakdown_off(all_data, models)),
-            ("fig7b_category_breakdown_on", fig7b_category_breakdown_on(all_data, models)),
-            ("fig8_ladder_shapes", fig8_ladder_shapes(all_data, models, results_dir)),
+            ("fig1_headline_monotonicity", lambda: fig1_headline_mono(all_data, models, n_ladders)),
+            ("fig2_iso_r2_by_variant", lambda: fig2_iso_r2(all_data, models, n_ladders)),
+            ("fig2b_jt_significance", lambda: fig2b_jt_significance(all_data, models, n_ladders)),
+            ("fig1b_metrics_triptych", lambda: fig1b_metrics_triptych(all_data, models, n_ladders)),
+            ("fig3_reasoning_lift", lambda: fig3_reasoning_lift(all_data, models)),
+            ("fig4_set_scatter", lambda: fig4_set_scatter(all_data, models)),
+            ("fig4b_centroid_scatter", lambda: fig4b_centroid_scatter(all_data, models)),
+            ("fig5_incoherence", lambda: fig5_incoherence(all_data, models, n_ladders)),
+            ("fig6_coherence_heatmap", lambda: fig6_heatmap(all_data, models)),
+            ("fig7_category_breakdown_off", lambda: fig7_category_breakdown_off(all_data, models)),
+            ("fig7b_category_breakdown_on", lambda: fig7b_category_breakdown_on(all_data, models)),
+            ("fig8_ladder_shapes", lambda: fig8_ladder_shapes(all_data, models, results_dir)),
         ])
     else:
         print("Skipping coherence metrics and fig1–fig8 (no coherence JSONs found).")
 
-    wl_keys = discover_models(results_dir)
-    if wl_keys:
-        n_with_data = len(discover_within_ladder_models(results_dir))
+    wl_keys = [fk for fk, *_ in models]
+    n_with_data = sum(
+        1 for file_key in wl_keys
+        if within_ladder_summary_path(within_results_dir, file_key).is_file()
+    )
+    wl_summary_rows: list[dict] = []
+    if wl_keys and n_with_data:
         print(
             f"\nWithin-ladder tables for {len(wl_keys)} paper model(s) "
             f"({n_with_data} with summary.json)..."
         )
-        _, _, wl_matrix = write_within_ladder_tables(results_dir, tables_dir, model_keys=wl_keys)
+        _, _, wl_matrix = write_within_ladder_tables(
+            within_results_dir, tables_dir, model_keys=wl_keys
+        )
+        wl_summary_rows = collect_within_ladder_summary_rows(within_results_dir, wl_keys)
+        targets.append((
+            "fig7c_within_ladder_accuracy",
+            lambda: fig7c_within_ladder_accuracy(wl_summary_rows),
+        ))
         if wl_matrix:
             categories, model_cols, matrix = wl_matrix
-            targets.append((
-                "fig7c_within_ladder_category_heatmap",
-                fig7c_within_ladder_category_heatmap(categories, model_cols, matrix),
-            ))
+            if categories and model_cols and np.asarray(matrix).size:
+                targets.append((
+                    "fig7d_within_ladder_category_heatmap",
+                    lambda: fig7d_within_ladder_category_heatmap(
+                        categories, model_cols, matrix
+                    ),
+                ))
     else:
-        print("\nSkipping within-ladder tables (no coherence model slate found).")
+        print("\nSkipping within-ladder tables (no within_ladder/summary.json files found).")
 
-    if all_data and wl_keys:
-        wl_summary_rows = collect_within_ladder_summary_rows(results_dir, wl_keys)
+    if all_data and wl_summary_rows:
         combined_rows, combined_macro = collect_combined_headline_rows(
             wl_keys, metric_rows, wl_summary_rows
         )
@@ -3432,6 +4285,10 @@ def main():
             combined_rows, combined_macro, tables_dir / "table_headline_combined"
         )
         print(f"\nWrote {comb_tex.name} and {comb_csv.name} to {tables_dir}")
+        targets.append((
+            "fig_within_ladder_gap",
+            lambda rows=combined_rows: fig_within_ladder_gap(rows),
+        ))
 
     pred_util = load_pred_util_per_model(results_dir)
     if pred_util:
@@ -3446,34 +4303,38 @@ def main():
             f"Model-level r: {pu_macro['model_r_mono_auc']:.2f}"
         )
         print(f"Wrote {pu_tex.name} and {pu_csv.name} to {tables_dir}")
-        fig9 = fig9_pred_util_coherence_scatter(results_dir, pred_util)
-        if fig9 is not None:
-            targets.append(("fig9_pred_util_vs_coherence", fig9))
-        fig10 = fig10_pred_util_reasoning_lift(pred_util)
-        if fig10 is not None:
-            targets.append(("fig10_pred_util_reasoning_lift", fig10))
-        fig11 = fig11_pred_util_per_ladder_scatter(results_dir, models)
-        if fig11 is not None:
-            targets.append(("fig11_pred_util_per_ladder_scatter", fig11))
-        fig12 = fig12_pred_util_reasoning_split(results_dir, models)
-        if fig12 is not None:
-            targets.append(("fig12_pred_util_reasoning_split", fig12))
+        targets.append((
+            "fig9_pred_util_vs_coherence",
+            lambda: fig9_pred_util_coherence_scatter(results_dir, pred_util),
+        ))
+        targets.append((
+            "fig10_pred_util_reasoning_lift",
+            lambda: fig10_pred_util_reasoning_lift(pred_util),
+        ))
+        if all_data:
+            targets.append((
+                "fig3_reasoning_summary",
+                lambda: fig3_reasoning_summary(all_data, models, pred_util),
+            ))
+        targets.append((
+            "fig11_pred_util_per_ladder_scatter",
+            lambda: fig11_pred_util_per_ladder_scatter(results_dir, models),
+        ))
+        targets.append((
+            "fig12_pred_util_reasoning_split",
+            lambda: fig12_pred_util_reasoning_split(results_dir, models),
+        ))
     else:
         print("\nSkipping fig9–fig12 (no pred_utility_test/ outputs found).")
 
     print(f"\nGenerating {len(targets)} figures...")
-    for name, fig in targets:
+    for name, make_figure in targets:
+        fig = make_figure()
         if fig is None:
             continue
         for ext in ("pdf", "png"):
             path = out_dir / f"{name}.{ext}"
-            if name == "fig1b_metrics_triptych":
-                fig.savefig(path, dpi=300, bbox_inches="tight", pad_inches=0.05)
-            elif name in ("fig1_headline_monotonicity",
-                        "fig2_iso_r2_by_variant", "fig2b_jt_significance"):
-                fig.savefig(path, dpi=300)
-            else:
-                fig.savefig(path, bbox_inches="tight")
+            fig.savefig(path, dpi=300, bbox_inches="tight", pad_inches=0.08)
             print(f"  {path.name} ({path.stat().st_size // 1024}KB)")
         plt.close(fig)
 
