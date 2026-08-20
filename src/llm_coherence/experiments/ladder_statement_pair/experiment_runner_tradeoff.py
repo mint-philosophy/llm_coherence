@@ -16,6 +16,7 @@ import os
 import socket
 import subprocess
 import sys
+from collections import Counter
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Any, Optional
@@ -346,6 +347,48 @@ def counts_from_responses(
     return count_prefer_a, count_prefer_b
 
 
+def _live_call_timeout(agent: Any) -> float:
+    """Use the model-configured timeout instead of the historical 10s cap."""
+    try:
+        return float(getattr(agent, "base_timeout"))
+    except (AttributeError, TypeError, ValueError):
+        return 10.0
+
+
+def _missing_trial_records(
+    direction: str,
+    parsed: List[str],
+    raw: List[str | None],
+    outcomes: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Retain every non-parseable trial with its provider outcome metadata."""
+    missing: List[Dict[str, Any]] = []
+    for trial_index, parsed_value in enumerate(parsed):
+        if parsed_value in ("A", "B"):
+            continue
+        outcome = outcomes[trial_index] if trial_index < len(outcomes) else {}
+        status = outcome.get("status")
+        if status in (None, "unknown", "completed"):
+            reason = "unparseable"
+        else:
+            reason = str(status)
+        raw_response = outcome.get("raw_response")
+        if raw_response is None and trial_index < len(raw):
+            raw_response = raw[trial_index]
+        record = {
+            "direction": direction,
+            "trial_index": trial_index,
+            "reason": reason,
+            "finish_reason": outcome.get("finish_reason"),
+            "raw_response": raw_response,
+            "error": outcome.get("error"),
+            "attempts": outcome.get("attempts", 1),
+            "transport_retries": outcome.get("transport_retries", 0),
+        }
+        missing.append(record)
+    return missing
+
+
 async def run_single_comparison(
     agent,
     comparison: Dict[str, Any],
@@ -382,7 +425,10 @@ async def run_single_comparison(
         ]
         raw_original = await generate_responses(
             agent, prompts_original,
-            system_message=system_message, K=1, timeout=10, verbose=verbose,
+            system_message=system_message,
+            K=1,
+            timeout=_live_call_timeout(agent),
+            verbose=verbose,
         )
         dist_orig = (raw_original.get(0) or [None])[0]
         if not isinstance(dist_orig, dict):
@@ -397,7 +443,10 @@ async def run_single_comparison(
             ]
             raw_flipped = await generate_responses(
                 agent, prompts_flipped,
-                system_message=system_message, K=1, timeout=10, verbose=verbose,
+                system_message=system_message,
+                K=1,
+                timeout=_live_call_timeout(agent),
+                verbose=verbose,
             )
             dist_flip = (raw_flipped.get(0) or [None])[0]
             if not isinstance(dist_flip, dict):
@@ -434,9 +483,10 @@ async def run_single_comparison(
         prompts_original,
         system_message=system_message,
         K=1,
-        timeout=10,
+        timeout=_live_call_timeout(agent),
         verbose=verbose,
     )
+    outcomes_original = list(getattr(agent, "last_completion_outcomes", []) or [])
     # Collapse to single list: raw_original[i] is list of 1 response for prompt i
     list_original = [
         (raw_original.get(i) or [None])[0] for i in range(len(prompts_original))
@@ -456,9 +506,10 @@ async def run_single_comparison(
             prompts_flipped,
             system_message=system_message,
             K=1,
-            timeout=10,
+            timeout=_live_call_timeout(agent),
             verbose=verbose,
         )
+        outcomes_flipped = list(getattr(agent, "last_completion_outcomes", []) or [])
         list_flipped = [
             (raw_flipped.get(i) or [None])[0] for i in range(len(prompts_flipped))
         ]
@@ -469,19 +520,38 @@ async def run_single_comparison(
         )[0]
     else:
         parsed_flipped = []
+        outcomes_flipped = []
 
     count_prefer_a, count_prefer_b = counts_from_responses(parsed_original, parsed_flipped)
     total = count_prefer_a + count_prefer_b
-    prob_a = (count_prefer_a / total) if total else 0.0
-    prob_b = (count_prefer_b / total) if total else 0.0
+    expected = num_trials * (2 if include_flipped else 1)
+    missing_records = _missing_trial_records(
+        "AB", parsed_original, list_original, outcomes_original
+    ) + _missing_trial_records(
+        "BA", parsed_flipped, list_flipped if include_flipped else [], outcomes_flipped
+    )
+    missing_count = expected - total
+    missing_by_reason = Counter(item["reason"] for item in missing_records)
+    prob_a = (count_prefer_a / total) if total else None
+    prob_b = (count_prefer_b / total) if total else None
 
     result = {
         "outcome_a": outcome_a,
         "outcome_b": outcome_b,
         "count_prefer_a": count_prefer_a,
         "count_prefer_b": count_prefer_b,
-        "prob_prefer_a": round(prob_a, 4),
-        "prob_prefer_b": round(prob_b, 4),
+        "prob_prefer_a": round(prob_a, 4) if prob_a is not None else None,
+        "prob_prefer_b": round(prob_b, 4) if prob_b is not None else None,
+        "expected_trials": expected,
+        "parseable_trials": total,
+        "missing_trials": missing_count,
+        "missing_by_reason": dict(sorted(missing_by_reason.items())),
+        "missing_responses": missing_records,
+        "probability_denominator": "parseable_trials",
+        "prob_prefer_a_bounds": {
+            "lower_missing_prefer_b": round(count_prefer_a / expected, 4),
+            "upper_missing_prefer_a": round((count_prefer_a + missing_count) / expected, 4),
+        },
     }
     if with_reasoning:
         result["raw_responses_original"] = list_original
@@ -563,7 +633,10 @@ async def run_experiment(
         enable_cache=enable_cache,
         k_samples=k_samples,
         quantization=quantization,
-        base_timeout=60,
+        # Experiment policy: retry network transport failures only. Provider
+        # errors, empty/capped outputs, and parse failures remain observed
+        # outcomes and are never selectively regenerated.
+        retry_transport_only=True,
     )
 
     for idx in range(total_comparisons):
@@ -609,9 +682,11 @@ async def run_experiment(
     expected_per_comp = num_trials * (2 if include_flipped else 1)
     total_api_calls = total_comparisons * expected_per_comp
     unparseable_count = 0
+    missing_by_reason: Counter[str] = Counter()
     for pref in preferences:
         actual = pref["count_prefer_a"] + pref["count_prefer_b"]
         unparseable_count += expected_per_comp - actual
+        missing_by_reason.update(pref.get("missing_by_reason") or {})
 
     elapsed_seconds = (
         datetime.fromisoformat(end_time) - datetime.fromisoformat(start_time)
@@ -652,6 +727,16 @@ async def run_experiment(
             "total_api_calls": total_api_calls,
             "unparseable_count": unparseable_count,
             "unparseable_rate": unparseable_count / total_api_calls if total_api_calls else 0.0,
+            "missing_response_count": unparseable_count,
+            "missing_response_counts": dict(sorted(missing_by_reason.items())),
+            "run_status": "complete" if unparseable_count == 0 else "complete_with_missing",
+            "response_policy": {
+                "token_caps": "retain_as_missing_never_retry",
+                "unparseable_outputs": "retain_as_missing_never_retry",
+                "empty_outputs": "retain_as_missing_never_retry",
+                "retries": "transport_failures_only",
+                "fixed_max_tokens": max_tokens,
+            },
             "elapsed_seconds": round(elapsed_seconds, 1),
             "usage_stats": usage_summary,
             "model_name_full": _lookup_model_name_full(model_key),

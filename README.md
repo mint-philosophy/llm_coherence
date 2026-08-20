@@ -406,4 +406,3 @@ If you use this repository or its experiment artifacts, please cite:
   url           = {https://arxiv.org/abs/2606.21102}
 }
 ```
-

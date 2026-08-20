@@ -20,7 +20,12 @@ from pathlib import Path
 from typing import Any, Callable
 
 # Standard (live API) USD per 1M tokens — keep in sync with preflight_check.py.
+# OpenAI source checked 2026-08-10:
+# https://developers.openai.com/api/docs/models/compare
 OPENAI_STANDARD_PRICE_PER_MTOK: dict[str, dict[str, float]] = {
+    "gpt-5.6-sol": {"input": 5.00, "output": 30.00},
+    "gpt-5.6-terra": {"input": 2.00, "output": 12.00},
+    "gpt-5.6-luna": {"input": 0.20, "output": 1.20},
     "gpt-5.4-2026-03-05": {"input": 2.50, "output": 15.00},
     "gpt-5.4-mini-2026-03-17": {"input": 0.75, "output": 4.50},
     "gpt-5.4-nano-2026-03-17": {"input": 0.20, "output": 1.25},
@@ -42,6 +47,7 @@ ANTHROPIC_BATCH_PRICE_PER_MTOK: dict[str, dict[str, float]] = {
 }
 
 OPENAI_MODEL_ALIASES: dict[str, str] = {
+    "gpt-5.6": "gpt-5.6-sol",
     "gpt-5.4": "gpt-5.4-2026-03-05",
     "gpt-5.4-mini": "gpt-5.4-mini-2026-03-17",
     "gpt-5.4-nano": "gpt-5.4-nano-2026-03-17",
@@ -264,6 +270,8 @@ def usage_to_dict(usage: Any) -> dict[str, Any]:
             if val is not None:
                 d[key] = val
         details = getattr(usage, "completion_tokens_details", None)
+        if details is None:
+            details = getattr(usage, "output_tokens_details", None)
         if details is not None:
             if isinstance(details, dict):
                 d["completion_tokens_details"] = details
@@ -272,6 +280,8 @@ def usage_to_dict(usage: Any) -> dict[str, Any]:
                 if rt is not None:
                     d.setdefault("completion_tokens_details", {})["reasoning_tokens"] = rt
         prompt_details = getattr(usage, "prompt_tokens_details", None)
+        if prompt_details is None:
+            prompt_details = getattr(usage, "input_tokens_details", None)
         if prompt_details is not None:
             if isinstance(prompt_details, dict):
                 d["prompt_tokens_details"] = prompt_details
@@ -297,6 +307,10 @@ def usage_to_dict(usage: Any) -> dict[str, Any]:
         d["prompt_tokens"] = d["input_tokens"]
     if "output_tokens" in d and "completion_tokens" not in d:
         d["completion_tokens"] = d["output_tokens"]
+    if "output_tokens_details" in d and "completion_tokens_details" not in d:
+        d["completion_tokens_details"] = d["output_tokens_details"]
+    if "input_tokens_details" in d and "prompt_tokens_details" not in d:
+        d["prompt_tokens_details"] = d["input_tokens_details"]
     if "total_tokens" not in d and d.get("prompt_tokens") is not None:
         d["total_tokens"] = int(d.get("prompt_tokens") or 0) + int(d.get("completion_tokens") or 0)
     return d
@@ -328,14 +342,14 @@ def actual_cost_usd_from_usage(
     model_id: str | None = None,
     batch: bool = False,
 ) -> float | None:
-    """Best available USD for one request (reported, else computed from usage)."""
+    """Provider-billed USD for one request, or ``None`` when only an estimate exists."""
     fields = usage_cost_breakdown(
         usage,
         provider=provider,
         model_id=model_id,
         batch=batch,
     )
-    return fields.get("cost")
+    return fields.get("cost") if fields.get("cost_source") == "provider_reported" else None
 
 
 def usage_cost_breakdown(
@@ -447,9 +461,10 @@ LEGACY_COST_SUMMARY_NAME = "cost_summary.json"
 
 def get_model_pricing(model_key: str) -> dict[str, float] | None:
     try:
+        from llm_coherence.config import canonical_model_key
         from llm_coherence.runtime.preflight_check import MODEL_COST_ESTIMATES
 
-        return MODEL_COST_ESTIMATES.get(model_key)
+        return MODEL_COST_ESTIMATES.get(canonical_model_key(model_key))
     except Exception:
         return None
 
@@ -505,12 +520,16 @@ def cost_counts_from_entries(entries: list[dict]) -> dict[str, Any]:
     actual_total = sum(
         float(e["cost"])
         for e in entries
-        if e.get("cost") is not None and isinstance(e.get("cost"), (int, float))
+        if e.get("cost_source") == "provider_reported"
+        and e.get("cost") is not None
+        and isinstance(e.get("cost"), (int, float))
     )
     actual_n = sum(
         1
         for e in entries
-        if e.get("cost") is not None and isinstance(e.get("cost"), (int, float))
+        if e.get("cost_source") == "provider_reported"
+        and e.get("cost") is not None
+        and isinstance(e.get("cost"), (int, float))
     )
     provider_reported_n = sum(
         1
@@ -556,7 +575,7 @@ def resolve_cost_source_label(provider_reported_n: int, computed_n: int) -> str 
     if provider_reported_n and not computed_n:
         return "provider_reported"
     if computed_n and not provider_reported_n:
-        return "computed_from_usage"
+        return "estimated_from_usage"
     if provider_reported_n and computed_n:
         return "mixed"
     return None
@@ -643,6 +662,10 @@ def summarize_usage_log(entries: list[dict]) -> dict[str, Any]:
 
 
 def actual_cost_from_usage_summary(usage_stats: dict | None) -> float | None:
+    if not usage_stats or usage_stats.get("computed_from_usage_cost_count", 0):
+        return None
+    if usage_stats.get("provider_reported_cost_count", 0) == 0:
+        return None
     cost_stats = usage_stats.get("cost_usd") if usage_stats else None
     if cost_stats and cost_stats.get("n"):
         total = cost_stats.get("total")
@@ -683,7 +706,11 @@ def records_from_per_request_entries(
         rec["completion_tokens"] += int(entry.get("completion_tokens") or 0)
         rec["reasoning_tokens"] += int(entry.get("reasoning_tokens") or 0)
         cost = entry.get("cost")
-        if cost is not None and isinstance(cost, (int, float)):
+        if (
+            entry.get("cost_source") == "provider_reported"
+            and cost is not None
+            and isinstance(cost, (int, float))
+        ):
             rec["actual_cost_usd"] += float(cost)
             rec["actual_cost_count"] += 1
 

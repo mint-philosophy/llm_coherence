@@ -124,11 +124,17 @@ _BRAND_TOKENS = {
 }
 
 _VARIANT_SUFFIX_RE = re.compile(
-    r"-(?:thinking|with-reasoning|justification(?:-v\d+)?|logprobs)$"
+    r"-(?:thinking(?:-(?:minimal|low|medium|high|max|xhigh))?|"
+    r"with-reasoning|justification(?:-v\d+)?|logprobs)$"
 )
 
 # Canonical publication base names (before ``(reasoning on/off)`` suffix).
 PAPER_MODEL_BASE_NAMES: dict[str, str] = {
+    "gpt-56-sol": "GPT-5.6 Sol",
+    # Retained only to label any artifacts produced before the explicit Sol key.
+    "gpt-56": "GPT-5.6 Sol",
+    "gpt-56-terra": "GPT-5.6 Terra",
+    "gpt-56-luna": "GPT-5.6 Luna",
     "gpt-54-nano": "GPT-5.4-Nano",
     "gpt-54-mini": "GPT-5.4-Mini",
     "gpt-54": "GPT-5.4",
@@ -142,6 +148,7 @@ PAPER_MODEL_BASE_NAMES: dict[str, str] = {
     "llama-31-8b-instruct": "Llama-3.1-8B-Instruct",
     "kimi-k2": "Kimi-K2",
     "kimi-k3": "Kimi-K3",
+    "qwen-37-max": "Qwen3.7 Max",
 }
 
 
@@ -804,6 +811,14 @@ def write_combined_headline_table(
 
 PAPER_MODEL_CONFIG_GROUPS: list[list[str]] = [
     [
+        "gpt-56-sol",
+        "gpt-56-sol-thinking",
+        "gpt-56-terra",
+        "gpt-56-terra-thinking",
+        "gpt-56-luna",
+        "gpt-56-luna-thinking",
+    ],
+    [
         "gpt-54-nano",
         "gpt-54-nano-thinking",
         "gpt-54-mini",
@@ -858,7 +873,7 @@ def _paper_config_model_name(model_key: str) -> str:
 def _paper_config_provider(model_key: str) -> str:
     if model_key == "glm-45-base-logprobs":
         return "HF Jobs (vLLM)"
-    if model_key.startswith("gpt-54"):
+    if model_key.startswith("gpt-"):
         return "OpenAI"
     return "OpenRouter"
 
@@ -872,6 +887,8 @@ def _paper_config_reasoning_mechanism(model_key: str, cfg: ModelConfig) -> str:
         return f"reasoning_effort={effort}"
     reasoning = extra.get("reasoning")
     if isinstance(reasoning, dict):
+        if reasoning.get("effort") not in (None, ""):
+            return f"reasoning.effort={reasoning['effort']}"
         if reasoning.get("enabled") is True:
             return "reasoning.enabled=true"
         if reasoning.get("enabled") is False:
@@ -1043,7 +1060,7 @@ def cost_table_model_label(model_key: str) -> str:
 def _cost_table_provider(model_key: str) -> str:
     if model_key == "glm-45-base-logprobs":
         return r"HF Jobs ($8{\times}$H200)"
-    if model_key.startswith("gpt-54"):
+    if model_key.startswith("gpt-"):
         return "OpenAI Batch"
     return "OpenRouter"
 

@@ -33,6 +33,12 @@ MODEL_SPECS: dict[str, ModelSpec] = {
     "gpt-54": ModelSpec("openai/gpt-5.4-2026-03-05", "openai"),
     "gpt-54-thinking": ModelSpec("openai/gpt-5.4-2026-03-05", "openai"),
     "gpt-55-openai": ModelSpec("openai/gpt-5.5", "openai"),
+    "gpt-56-sol": ModelSpec("openai/gpt-5.6-sol", "openai"),
+    "gpt-56-sol-thinking": ModelSpec("openai/gpt-5.6-sol", "openai"),
+    "gpt-56-terra": ModelSpec("openai/gpt-5.6-terra", "openai"),
+    "gpt-56-terra-thinking": ModelSpec("openai/gpt-5.6-terra", "openai"),
+    "gpt-56-luna": ModelSpec("openai/gpt-5.6-luna", "openai"),
+    "gpt-56-luna-thinking": ModelSpec("openai/gpt-5.6-luna", "openai"),
     "opus-46": ModelSpec("claude-opus-4-6", "anthropic"),
     "opus-46-thinking": ModelSpec("claude-opus-4-6", "anthropic"),
     "nemotron-3-super": ModelSpec("openrouter/nvidia/nemotron-3-super-120b-a12b", "openrouter"),
@@ -81,15 +87,96 @@ MODEL_SPECS: dict[str, ModelSpec] = {
         "openrouter/moonshotai/kimi-k3",
         "openrouter",
     ),
+    "qwen-37-max-openrouter": ModelSpec(
+        "openrouter/qwen/qwen3.7-max-20260520",
+        "openrouter",
+    ),
+    "qwen-37-max-openrouter-thinking": ModelSpec(
+        "openrouter/qwen/qwen3.7-max-20260520",
+        "openrouter",
+    ),
 }
 
 
+_TOKEN_CAP_FINISH_REASONS = {
+    "length",
+    "max_tokens",
+    "max_output_tokens",
+    "max_completion_tokens",
+}
+
+
+def is_token_capped_finish_reason(reason: Any) -> bool:
+    """Return whether a provider finish reason denotes the fixed token cap."""
+    if reason is None:
+        return False
+    return str(reason).strip().lower() in _TOKEN_CAP_FINISH_REASONS
+
+
+def is_retryable_transport_exception(exc: BaseException) -> bool:
+    """Classify retryable live-call failures without retrying model outcomes.
+
+    LiteLLM may wrap ``httpx`` transport exceptions, so inspect the exception
+    chain as well as the outer SDK exception. Provider HTTP errors, rate limits,
+    bad requests, empty responses, and parse failures are deliberately absent.
+    """
+    transport_names = {
+        "APIConnectionError",
+        "APITimeoutError",
+        "ConnectError",
+        "ConnectTimeout",
+        "ConnectionError",
+        "NetworkError",
+        "PoolTimeout",
+        "ReadError",
+        "ReadTimeout",
+        "RemoteProtocolError",
+        "Timeout",
+        "TimeoutError",
+        "TransportError",
+        "WriteError",
+        "WriteTimeout",
+    }
+    seen: set[int] = set()
+    current: BaseException | None = exc
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if isinstance(current, (asyncio.TimeoutError, TimeoutError)):
+            return True
+        try:
+            import httpx
+
+            if isinstance(current, httpx.TransportError):
+                return True
+        except ImportError:
+            pass
+        module = type(current).__module__.lower()
+        if (
+            type(current).__name__ in transport_names
+            and any(name in module for name in ("httpx", "httpcore", "litellm", "openai"))
+        ):
+            return True
+        current = current.__cause__ or current.__context__
+    return False
+
+
+def _completion_finish_reason(completion_res: Any) -> str | None:
+    try:
+        choice = completion_res.choices[0]
+    except (IndexError, AttributeError, TypeError):
+        return None
+    reason = getattr(choice, "finish_reason", None)
+    if reason is None:
+        reason = getattr(choice, "native_finish_reason", None)
+    return str(reason) if reason is not None else None
+
+
 def model_name_for_key(model_key: str) -> str | None:
-    resolved = canonical_model_key(model_key)
-    spec = MODEL_SPECS.get(resolved)
+    resolved_key = canonical_model_key(model_key)
+    spec = MODEL_SPECS.get(resolved_key)
     if spec is not None:
         return spec.model_name
-    cfg = MODEL_CONFIGS.get(resolved)
+    cfg = MODEL_CONFIGS.get(resolved_key)
     return cfg.model_name_full if cfg is not None else None
 
 
@@ -110,6 +197,7 @@ class LiteLLMAgent:
         use_jitter: bool = True,
         extra_body: dict[str, Any] | None = None,
         enable_cache: bool = False,
+        retry_transport_only: bool = False,
     ):
         try:
             import litellm
@@ -121,6 +209,11 @@ class LiteLLMAgent:
             ) from exc
 
         litellm.drop_params = True
+        # LiteLLM prints its provider-help URL directly to stdout whenever an
+        # internal best-effort provider lookup misses (for example while
+        # calculating response cost).  Suppress that diagnostic banner while
+        # preserving the exception itself and our normal error accounting.
+        litellm.suppress_debug_info = True
         self._acompletion = acompletion
         self._litellm_bad_request_error = litellm.BadRequestError
 
@@ -136,9 +229,19 @@ class LiteLLMAgent:
         self.use_jitter = use_jitter
         self.extra_body = extra_body or {}
         self.enable_cache = enable_cache
+        self.retry_transport_only = retry_transport_only
         self.usage_log: list[dict[str, Any]] = []
         self.reasoning_log: list[dict[str, Any]] = []
-        self.retry_counts: dict[str, int] = {"timeouts": 0, "errors": 0}
+        self.last_completion_outcomes: list[dict[str, Any]] = []
+        self.retry_counts: dict[str, int] = {
+            "timeouts": 0,
+            "errors": 0,
+            "transport_retries": 0,
+            "transport_failures": 0,
+            "non_transport_errors": 0,
+            "token_capped": 0,
+            "empty_responses": 0,
+        }
 
     def _messages_for_call(self, message: list[dict[str, Any]]) -> list[dict[str, Any]]:
         call_messages = message
@@ -261,83 +364,135 @@ class LiteLLMAgent:
         **kwargs: Any,
     ) -> list[str | None]:
         semaphore = asyncio.Semaphore(self.concurrency_limit)
-        counts = {"timeouts": 0, "errors": 0}
+        counts = {
+            "timeouts": 0,
+            "errors": 0,
+            "transport_retries": 0,
+            "transport_failures": 0,
+            "non_transport_errors": 0,
+            "token_capped": 0,
+            "empty_responses": 0,
+        }
         results: dict[int, str | None] = {}
+        outcomes: dict[int, dict[str, Any]] = {}
 
         async def process_message(message_idx: int) -> None:
             message = messages[message_idx]
             current_timeout = float(kwargs.get("timeout", kwargs.get("base_timeout", self.base_timeout)))
             retry_delay = self.base_delay
             response: str | None = None
+            outcome: dict[str, Any] = {
+                "message_idx": message_idx,
+                "status": "unknown",
+                "finish_reason": None,
+                "raw_response": None,
+                "error": None,
+                "attempts": 0,
+                "transport_retries": 0,
+            }
 
             for attempt in range(self.max_retries):
-                async with semaphore:
-                    try:
+                outcome["attempts"] = attempt + 1
+                completion_res = None
+                try:
+                    async with semaphore:
                         completion_res = await self._acompletion(
                             **self._completion_kwargs(message, current_timeout)
                         )
-                    except asyncio.TimeoutError:
+                except Exception as exc:
+                    counts["errors"] += 1
+                    transport = is_retryable_transport_exception(exc)
+                    if isinstance(exc, (asyncio.TimeoutError, TimeoutError)):
                         counts["timeouts"] += 1
-                        if verbose:
-                            print(
-                                f"[Timeout] Attempt {attempt + 1}/{self.max_retries} "
-                                f"for message index {message_idx} after {current_timeout:.1f}s."
-                            )
-                        if attempt == self.max_retries - 1:
-                            response = None
-                        else:
+                    if transport:
+                        can_retry = attempt < self.max_retries - 1
+                    elif self.retry_transport_only or isinstance(
+                        exc, self._litellm_bad_request_error
+                    ):
+                        can_retry = False
+                    else:
+                        # Preserve legacy behavior for callers that have not
+                        # opted into the experiment's transport-only policy.
+                        can_retry = attempt < self.max_retries - 1
+
+                    if verbose:
+                        label = "Transport" if transport else "Non-transport"
+                        suffix = "retrying" if can_retry else "not retrying"
+                        print(
+                            f"[{label} error] Attempt {attempt + 1}/{self.max_retries} "
+                            f"for message index {message_idx}: {exc} ({suffix})."
+                        )
+                    if can_retry:
+                        if transport:
+                            counts["transport_retries"] += 1
+                            outcome["transport_retries"] += 1
+                        if isinstance(exc, (asyncio.TimeoutError, TimeoutError)):
                             current_timeout *= 2.0
-                        continue
-                    except self._litellm_bad_request_error as exc:
-                        counts["errors"] += 1
-                        if verbose:
-                            print(
-                                f"[Error] Bad request for message index {message_idx}: {exc}. "
-                                "Not retrying."
-                            )
-                        response = None
-                        break
-                    except Exception as exc:
-                        counts["errors"] += 1
-                        if verbose:
-                            print(
-                                f"[Error] Attempt {attempt + 1}/{self.max_retries} "
-                                f"for message index {message_idx}: {exc}"
-                            )
-                        if attempt == self.max_retries - 1:
-                            response = None
                         else:
-                            sleep_for = retry_delay + (random.uniform(0, 1) if self.use_jitter else 0)
+                            sleep_for = retry_delay + (
+                                random.uniform(0, 1) if self.use_jitter else 0
+                            )
                             await asyncio.sleep(sleep_for)
                             retry_delay = min(retry_delay * 2.0, self.max_delay)
                         continue
+
+                    if transport:
+                        counts["transport_failures"] += 1
+                        outcome["status"] = "transport_failure"
+                    else:
+                        counts["non_transport_errors"] += 1
+                        outcome["status"] = "provider_error"
+                    outcome["error"] = str(exc)
+                    response = None
+                    break
 
                 try:
                     content = completion_res.choices[0].message.content
                 except (IndexError, AttributeError):
                     content = None
 
+                finish_reason = _completion_finish_reason(completion_res)
+                outcome["finish_reason"] = finish_reason
+                outcome["raw_response"] = content
+                # Every provider response is billable and must be retained in
+                # usage/reasoning accounting, including capped/empty outcomes.
+                self._log_usage(completion_res)
+                self._log_reasoning(completion_res, message_idx, attempt, content or "")
+
+                if is_token_capped_finish_reason(finish_reason):
+                    counts["token_capped"] += 1
+                    outcome["status"] = "token_capped"
+                    if self.retry_transport_only:
+                        response = None
+                    elif content:
+                        response = content.strip()
+                    break
+
                 if content is None or content == "":
                     counts["errors"] += 1
+                    counts["empty_responses"] += 1
                     if verbose:
                         print(
                             f"[Empty content] Attempt {attempt + 1}/{self.max_retries} "
-                            f"for message index {message_idx}."
+                            f"for message index {message_idx}; "
+                            + ("not retrying." if self.retry_transport_only else "retrying if possible.")
                         )
-                    if attempt == self.max_retries - 1:
+                    if self.retry_transport_only or attempt == self.max_retries - 1:
                         response = None
+                        outcome["status"] = "empty_response"
                     else:
                         sleep_for = retry_delay + (random.uniform(0, 1) if self.use_jitter else 0)
                         await asyncio.sleep(sleep_for)
                         retry_delay = min(retry_delay * 2.0, self.max_delay)
-                    continue
+                        continue
+                    break
 
                 response = content.strip()
-                self._log_usage(completion_res)
-                self._log_reasoning(completion_res, message_idx, attempt, content)
+                outcome["status"] = "completed"
                 break
 
             results[message_idx] = response
+            outcomes[message_idx] = outcome
 
         tasks = [process_message(i) for i in range(len(messages))]
         if verbose:
@@ -355,8 +510,9 @@ class LiteLLMAgent:
             print(f"Number of timeouts: {counts['timeouts']}")
             print(f"Number of generic errors: {counts['errors']}")
 
-        self.retry_counts["timeouts"] += counts["timeouts"]
-        self.retry_counts["errors"] += counts["errors"]
+        for key, value in counts.items():
+            self.retry_counts[key] = self.retry_counts.get(key, 0) + value
+        self.last_completion_outcomes = [outcomes[i] for i in range(len(messages))]
         return [results[i] for i in range(len(messages))]
 
 
@@ -495,11 +651,12 @@ def create_agent(
     trust_remote_code: bool = True,
     extra_body: dict[str, Any] | None = None,
     enable_cache: bool = False,
+    retry_transport_only: bool = False,
     **kwargs: Any,
 ) -> LiteLLMAgent:
     """Create a LiteLLM-backed API agent from an llm_coherence model key."""
-    resolved = canonical_model_key(model_key)
-    spec = MODEL_SPECS.get(resolved)
+    resolved_key = canonical_model_key(model_key)
+    spec = MODEL_SPECS.get(resolved_key)
     if spec is None:
         raise ValueError(f"Unknown model key: {model_key}")
     if spec.model_type == "vllm_base_model_logprobs":
@@ -518,7 +675,7 @@ def create_agent(
 
     ensure_api_key_env(spec.model_type)
 
-    cfg = MODEL_CONFIGS.get(resolved)
+    cfg = MODEL_CONFIGS.get(resolved_key)
     resolved_extra_body = extra_body if extra_body is not None else (cfg.extra_body if cfg else None)
     resolved_enable_cache = enable_cache or (cfg.enable_cache if cfg else False)
 
@@ -531,4 +688,5 @@ def create_agent(
         base_timeout=float(kwargs.get("base_timeout", cfg.base_timeout if cfg else 5.0)),
         extra_body=resolved_extra_body,
         enable_cache=resolved_enable_cache,
+        retry_transport_only=retry_transport_only,
     )

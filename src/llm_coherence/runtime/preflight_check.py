@@ -4,8 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from llm_coherence.config import MODEL_CONFIGS, canonical_model_key
 
-# Approximate cost per 1M tokens in USD.
+
+# Approximate standard cost per 1M tokens in USD. OpenAI rates checked
+# 2026-08-10 against https://developers.openai.com/api/docs/models/compare.
 MODEL_COST_ESTIMATES = {
     "claude-opus-openrouter": {"input": 5.0, "output": 25.0},
     "claude-opus": {"input": 5.0, "output": 25.0},
@@ -14,6 +17,12 @@ MODEL_COST_ESTIMATES = {
     "deepseek-r1": {"input": 0.55, "output": 2.19},
     "gpt-55": {"input": 5.0, "output": 30.0},
     "gpt-55-openai": {"input": 5.0, "output": 30.0},
+    "gpt-56-sol": {"input": 5.0, "output": 30.0},
+    "gpt-56-sol-thinking": {"input": 5.0, "output": 30.0},
+    "gpt-56-terra": {"input": 2.0, "output": 12.0},
+    "gpt-56-terra-thinking": {"input": 2.0, "output": 12.0},
+    "gpt-56-luna": {"input": 0.2, "output": 1.2},
+    "gpt-56-luna-thinking": {"input": 0.2, "output": 1.2},
     "gpt-54-nano": {"input": 0.20, "output": 1.25},
     "gpt-54-nano-thinking": {"input": 0.20, "output": 1.25},
     "gpt-54-mini": {"input": 0.75, "output": 4.50},
@@ -39,6 +48,8 @@ MODEL_COST_ESTIMATES = {
     "kimi-k3-openrouter-thinking-low": {"input": 3.0, "output": 15.0},
     "kimi-k3-openrouter-thinking-medium": {"input": 3.0, "output": 15.0},
     "kimi-k3-openrouter-thinking-high": {"input": 3.0, "output": 15.0},
+    "qwen-37-max-openrouter": {"input": 1.475, "output": 4.425},
+    "qwen-37-max-openrouter-thinking": {"input": 1.475, "output": 4.425},
 }
 
 EXPENSIVE_MODELS = {
@@ -50,6 +61,12 @@ EXPENSIVE_MODELS = {
     "gpt-54-thinking",
     "gpt-55",
     "gpt-55-openai",
+    "gpt-56-sol",
+    "gpt-56-sol-thinking",
+    "gpt-56-terra",
+    "gpt-56-terra-thinking",
+    "gpt-56-luna",
+    "gpt-56-luna-thinking",
     "gemini-25-pro-thinking",
 }
 
@@ -87,7 +104,24 @@ CALIBRATED_OUTPUT_TOKENS: dict[str, int] = {
 
 def is_thinking_run(model_key: str) -> bool:
     """Whether the model has native reasoning enabled."""
-    return model_key.endswith("-thinking")
+    model_key = canonical_model_key(model_key)
+    cfg = MODEL_CONFIGS.get(model_key)
+    if cfg is None:
+        return "-thinking" in model_key
+
+    extra = cfg.extra_body or {}
+    reasoning = extra.get("reasoning") or {}
+    if reasoning.get("enabled") is False or reasoning.get("effort") == "none":
+        return False
+    if reasoning.get("enabled") is True:
+        return True
+    if reasoning.get("effort") not in (None, "", "none"):
+        return True
+    if extra.get("thinking"):
+        return True
+    if extra.get("reasoning_effort") not in (None, "", "none"):
+        return True
+    return cfg.reasoning_artifact_type != "none" or "-thinking" in model_key
 
 
 def estimate_cost(
@@ -96,6 +130,7 @@ def estimate_cost(
     with_reasoning: bool,
 ) -> float | None:
     """Estimate total cost in USD. Returns None if the model is not priced."""
+    model_key = canonical_model_key(model_key)
     costs = MODEL_COST_ESTIMATES.get(model_key)
     if not costs:
         return None
@@ -172,4 +207,3 @@ def run_preflight_checks(
 
     for warning in warnings:
         print(f"[preflight] {warning}")
-
