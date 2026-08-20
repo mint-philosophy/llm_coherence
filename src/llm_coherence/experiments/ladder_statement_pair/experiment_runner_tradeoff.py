@@ -19,10 +19,14 @@ import sys
 from collections import Counter
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Callable, Optional
 
 from llm_coherence.paths import LADDER_VS_COMPARISON_RUNS_OUTPUT_DIR, REPO_ROOT
-from llm_coherence.runtime.agents import create_agent, model_name_for_key
+from llm_coherence.runtime.agents import (
+    AsyncRequestLimiter,
+    create_agent,
+    model_name_for_key,
+)
 from llm_coherence.runtime.preflight_check import MODEL_COST_ESTIMATES, estimate_cost
 from llm_coherence.runtime.templates import (
     comparison_prompt_template_default,
@@ -45,6 +49,10 @@ from llm_coherence.config import MODEL_CONFIGS
 
 
 RESULTS_SCHEMA_VERSION = "1.0"
+CHECKPOINT_SCHEMA_VERSION = "2.0"
+_TOKEN_CAP_REASONS = frozenset(
+    {"length", "max_tokens", "max_output_tokens", "max_completion_tokens"}
+)
 
 
 def _git_sha() -> str | None:
@@ -282,43 +290,67 @@ def save_results(output_path: Path, payload: Dict[str, Any]) -> None:
 
 
 def load_checkpoint(checkpoint_path: Path) -> Optional[Dict[str, Any]]:
-    """Load checkpoint if it exists and matches current run."""
+    """Load a checkpoint payload; callers validate its exact run binding."""
     if not checkpoint_path.exists():
         return None
     with open(checkpoint_path, "r") as f:
         return json.load(f)
 
 
+def _run_fingerprint(run_config: Dict[str, Any]) -> str:
+    """Stable identity for every scientific input and response-affecting setting."""
+    encoded = json.dumps(
+        run_config,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _agent_telemetry(agent: Any) -> Dict[str, Any]:
+    """Serializable telemetry that must survive a process restart."""
+    return {
+        "usage_log": list(getattr(agent, "usage_log", []) or []),
+        "reasoning_log": list(getattr(agent, "reasoning_log", []) or []),
+        "retry_counts": dict(getattr(agent, "retry_counts", {}) or {}),
+    }
+
+
+def _restore_agent_telemetry(agent: Any, telemetry: Dict[str, Any]) -> None:
+    """Restore checkpointed billable usage, reasoning, and retry accounting."""
+    if hasattr(agent, "usage_log"):
+        agent.usage_log = list(telemetry.get("usage_log") or [])
+    if hasattr(agent, "reasoning_log"):
+        agent.reasoning_log = list(telemetry.get("reasoning_log") or [])
+    if hasattr(agent, "retry_counts"):
+        restored = dict(getattr(agent, "retry_counts", {}) or {})
+        restored.update(telemetry.get("retry_counts") or {})
+        agent.retry_counts = restored
+
+
 def save_checkpoint(
     checkpoint_path: Path,
-    test_name: str,
-    model_key: str,
-    num_trials: int,
-    include_flipped: bool,
+    run_config: Dict[str, Any],
+    run_fingerprint: str,
     comparisons_done: List[int],
     preferences: List[Dict[str, Any]],
     start_time: str,
-    model_variant: str = "instruct",
-    reasoning_mode: str = "none",
-    temperature: float = 0.0,
-    k_samples: int = 1,
-    infrastructure: str = "openai_api",
+    *,
+    partial_comparison: Optional[Dict[str, Any]] = None,
+    telemetry: Optional[Dict[str, Any]] = None,
 ) -> None:
-    """Save progress so the run can be resumed."""
+    """Atomically save completed and per-trial in-flight progress."""
     checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
-        "test_name": test_name,
-        "model_key": model_key,
-        "num_trials": num_trials,
-        "include_flipped": include_flipped,
-        "model_variant": model_variant,
-        "reasoning_mode": reasoning_mode,
-        "temperature": temperature,
-        "k_samples": k_samples,
-        "infrastructure": infrastructure,
+        "schema_version": CHECKPOINT_SCHEMA_VERSION,
+        "run_config": run_config,
+        "run_fingerprint": run_fingerprint,
         "comparisons_done": comparisons_done,
         "preferences": preferences,
         "start_time": start_time,
+        "partial_comparison": partial_comparison,
+        "telemetry": telemetry or {},
     }
     tmp = checkpoint_path.with_suffix(".json.tmp")
     with open(tmp, "w") as f:
@@ -360,6 +392,8 @@ def _missing_trial_records(
     parsed: List[str],
     raw: List[str | None],
     outcomes: List[Dict[str, Any]],
+    *,
+    comparison_index: int = 0,
 ) -> List[Dict[str, Any]]:
     """Retain every non-parseable trial with its provider outcome metadata."""
     missing: List[Dict[str, Any]] = []
@@ -368,25 +402,159 @@ def _missing_trial_records(
             continue
         outcome = outcomes[trial_index] if trial_index < len(outcomes) else {}
         status = outcome.get("status")
-        if status in (None, "unknown", "completed"):
+        finish_reason = outcome.get("finish_reason")
+        if status == "token_capped" or finish_reason in _TOKEN_CAP_REASONS:
+            reason = "token_capped"
+        elif status in (None, "unknown", "completed"):
             reason = "unparseable"
         else:
             reason = str(status)
         raw_response = outcome.get("raw_response")
         if raw_response is None and trial_index < len(raw):
             raw_response = raw[trial_index]
-        record = {
-            "direction": direction,
-            "trial_index": trial_index,
-            "reason": reason,
-            "finish_reason": outcome.get("finish_reason"),
-            "raw_response": raw_response,
-            "error": outcome.get("error"),
-            "attempts": outcome.get("attempts", 1),
-            "transport_retries": outcome.get("transport_retries", 0),
-        }
+        custom_id = (
+            f"c{comparison_index:04d}-d{direction.lower()}-t{trial_index:03d}"
+        )
+        record = missing_result_record(
+            direction=direction,
+            trial_index=trial_index,
+            custom_id=custom_id,
+            reason=reason,
+            finish_reason=finish_reason,
+            response_status=str(status or "unknown"),
+            raw_response=raw_response,
+            error=outcome.get("error"),
+            attempts=outcome.get("attempts", 1),
+            transport_retries=outcome.get("transport_retries", 0),
+        )
         missing.append(record)
     return missing
+
+
+def missing_result_record(
+    *,
+    direction: str,
+    trial_index: int,
+    custom_id: str,
+    reason: str,
+    finish_reason: Any,
+    response_status: str,
+    raw_response: Any,
+    error: Any,
+    attempts: int,
+    transport_retries: int,
+) -> Dict[str, Any]:
+    """Build the shared current-schema missing-result record for live and Batch."""
+    return {
+        "schema_version": RESULTS_SCHEMA_VERSION,
+        "direction": direction,
+        "trial_index": trial_index,
+        "custom_id": custom_id,
+        "reason": reason,
+        "finish_reason": finish_reason,
+        "response_status": response_status,
+        "raw_response": raw_response,
+        "error": error,
+        "attempts": int(attempts),
+        "transport_retries": int(transport_retries),
+    }
+
+
+async def _run_live_direction(
+    *,
+    agent: Any,
+    prompt: Any,
+    direction: str,
+    num_trials: int,
+    comparison_index: int,
+    system_message: str,
+    verbose: bool,
+    trial_state: Dict[str, Any],
+    checkpoint_trial_state: Optional[Callable[[Dict[str, Any]], None]],
+) -> tuple[List[str | None], List[Dict[str, Any]]]:
+    """Run only unresolved transport trials and durably merge their outcomes."""
+    records = trial_state.setdefault("directions", {}).setdefault(
+        direction,
+        [None] * num_trials,
+    )
+    if len(records) != num_trials:
+        raise ValueError(
+            f"Checkpoint trial count mismatch for {direction}: "
+            f"{len(records)} != {num_trials}"
+        )
+
+    pending_indices = [
+        trial_index
+        for trial_index, record in enumerate(records)
+        if record is None
+        or (record.get("outcome") or {}).get("status") == "transport_failure"
+    ]
+    if pending_indices:
+        reasoning_before = len(getattr(agent, "reasoning_log", []) or [])
+        generated = await generate_responses(
+            agent,
+            [prompt] * len(pending_indices),
+            system_message=system_message,
+            K=1,
+            timeout=_live_call_timeout(agent),
+            verbose=verbose,
+        )
+        new_outcomes = list(getattr(agent, "last_completion_outcomes", []) or [])
+        new_responses = [
+            (generated.get(index) or [None])[0]
+            for index in range(len(pending_indices))
+        ]
+
+        reasoning_log = getattr(agent, "reasoning_log", []) or []
+        for entry in reasoning_log[reasoning_before:]:
+            message_index = entry.get("message_idx")
+            if isinstance(message_index, int) and 0 <= message_index < len(pending_indices):
+                trial_index = pending_indices[message_index]
+                entry["custom_id"] = (
+                    f"c{comparison_index:04d}-d{direction.lower()}-"
+                    f"t{trial_index:03d}"
+                )
+
+        for local_index, trial_index in enumerate(pending_indices):
+            prior = records[trial_index] or {}
+            prior_outcome = prior.get("outcome") or {}
+            outcome = (
+                dict(new_outcomes[local_index])
+                if local_index < len(new_outcomes)
+                else {
+                    "status": "transport_failure",
+                    "error": "completion outcome was not returned",
+                    "attempts": 1,
+                    "transport_retries": 0,
+                }
+            )
+            outcome["attempts"] = int(prior_outcome.get("attempts", 0)) + int(
+                outcome.get("attempts", 1)
+            )
+            outcome["transport_retries"] = int(
+                prior_outcome.get("transport_retries", 0)
+            ) + int(outcome.get("transport_retries", 0))
+            custom_id = (
+                f"c{comparison_index:04d}-d{direction.lower()}-t{trial_index:03d}"
+            )
+            records[trial_index] = {
+                "custom_id": custom_id,
+                "response": new_responses[local_index],
+                "outcome": outcome,
+            }
+
+        if checkpoint_trial_state is not None:
+            checkpoint_trial_state(trial_state)
+
+    responses = [
+        (record or {}).get("response")
+        for record in records
+    ]
+    outcomes = [
+        dict((record or {}).get("outcome") or {})
+        for record in records
+    ]
+    return responses, outcomes
 
 
 async def run_single_comparison(
@@ -397,6 +565,10 @@ async def run_single_comparison(
     system_message: str,
     with_reasoning: bool,
     verbose: bool,
+    *,
+    comparison_index: int = 0,
+    trial_state: Optional[Dict[str, Any]] = None,
+    checkpoint_trial_state: Optional[Callable[[Dict[str, Any]], None]] = None,
 ) -> Dict[str, Any]:
     """
     Run forced-choice elicitation for one comparison: num_trials (A,B) and
@@ -474,23 +646,31 @@ async def run_single_comparison(
             "prob_prefer_b": round(prob_b, 4),
         }
 
-    # Original order (A=outcome_a, B=outcome_b): one prompt repeated num_trials times
-    prompts_original = [
-        build_prompt(text_a, text_b, with_reasoning, cache_structure=use_cache_blocks)
-    ] * num_trials
-    raw_original = await generate_responses(
-        agent,
-        prompts_original,
+    active_trial_state = trial_state if trial_state is not None else {
+        "schema_version": CHECKPOINT_SCHEMA_VERSION,
+        "directions": {},
+    }
+    if active_trial_state.get("schema_version") != CHECKPOINT_SCHEMA_VERSION:
+        raise ValueError(
+            "Partial-comparison checkpoint schema mismatch; refusing to mix "
+            "unvalidated trial records."
+        )
+    list_original, outcomes_original = await _run_live_direction(
+        agent=agent,
+        prompt=build_prompt(
+            text_a,
+            text_b,
+            with_reasoning,
+            cache_structure=use_cache_blocks,
+        ),
+        direction="AB",
+        num_trials=num_trials,
+        comparison_index=comparison_index,
         system_message=system_message,
-        K=1,
-        timeout=_live_call_timeout(agent),
         verbose=verbose,
+        trial_state=active_trial_state,
+        checkpoint_trial_state=checkpoint_trial_state,
     )
-    outcomes_original = list(getattr(agent, "last_completion_outcomes", []) or [])
-    # Collapse to single list: raw_original[i] is list of 1 response for prompt i
-    list_original = [
-        (raw_original.get(i) or [None])[0] for i in range(len(prompts_original))
-    ]
     parsed_original = parse_responses_forced_choice(
         {0: list_original},
         with_reasoning=with_reasoning,
@@ -498,21 +678,22 @@ async def run_single_comparison(
     )[0]
 
     if include_flipped:
-        prompts_flipped = [
-            build_prompt(text_b, text_a, with_reasoning, cache_structure=use_cache_blocks)
-        ] * num_trials
-        raw_flipped = await generate_responses(
-            agent,
-            prompts_flipped,
+        list_flipped, outcomes_flipped = await _run_live_direction(
+            agent=agent,
+            prompt=build_prompt(
+                text_b,
+                text_a,
+                with_reasoning,
+                cache_structure=use_cache_blocks,
+            ),
+            direction="BA",
+            num_trials=num_trials,
+            comparison_index=comparison_index,
             system_message=system_message,
-            K=1,
-            timeout=_live_call_timeout(agent),
             verbose=verbose,
+            trial_state=active_trial_state,
+            checkpoint_trial_state=checkpoint_trial_state,
         )
-        outcomes_flipped = list(getattr(agent, "last_completion_outcomes", []) or [])
-        list_flipped = [
-            (raw_flipped.get(i) or [None])[0] for i in range(len(prompts_flipped))
-        ]
         parsed_flipped = parse_responses_forced_choice(
             {0: list_flipped},
             with_reasoning=with_reasoning,
@@ -526,9 +707,17 @@ async def run_single_comparison(
     total = count_prefer_a + count_prefer_b
     expected = num_trials * (2 if include_flipped else 1)
     missing_records = _missing_trial_records(
-        "AB", parsed_original, list_original, outcomes_original
+        "AB",
+        parsed_original,
+        list_original,
+        outcomes_original,
+        comparison_index=comparison_index,
     ) + _missing_trial_records(
-        "BA", parsed_flipped, list_flipped if include_flipped else [], outcomes_flipped
+        "BA",
+        parsed_flipped,
+        list_flipped if include_flipped else [],
+        outcomes_flipped,
+        comparison_index=comparison_index,
     )
     missing_count = expected - total
     missing_by_reason = Counter(item["reason"] for item in missing_records)
@@ -585,6 +774,8 @@ async def run_experiment(
     gpu_type: Optional[str] = None,
     gpu_count: Optional[int] = None,
     quantization: Optional[str] = None,
+    request_limiter: AsyncRequestLimiter | None = None,
+    max_retries: int = 5,
 ) -> Dict[str, Any]:
     base = _PARAMETRIC_ROOT
     data_dir = data_dir or base / "data"
@@ -593,6 +784,7 @@ async def run_experiment(
 
     comparisons = load_comparisons(data_dir, test_name, comparison_path)
     total_comparisons = len(comparisons)
+    comparison_path = comparison_file_path(data_dir, test_name, comparison_path)
 
     artifact_dir = artifact_dir_name_for_test(test_name)
     artifact_run = hashlib.sha1(f"{test_name}|{model_key}".encode("utf-8")).hexdigest()[:12]
@@ -602,15 +794,8 @@ async def run_experiment(
     start_time = datetime.utcnow().isoformat()
     preferences: List[Dict[str, Any]] = []
     comparisons_done: List[int] = []
-
-    if resume and checkpoint_path.exists():
-        ck = load_checkpoint(checkpoint_path)
-        if ck and ck.get("test_name") == test_name and ck.get("model_key") == model_key:
-            preferences = ck.get("preferences", [])
-            comparisons_done = ck.get("comparisons_done", [])
-            start_time = ck.get("start_time", start_time)
-            if verbose:
-                print(f"Resuming: {len(preferences)} comparisons already done.")
+    partial_comparison: Optional[Dict[str, Any]] = None
+    checkpoint_telemetry: Dict[str, Any] = {}
 
     if max_tokens is None:
         max_tokens = 10
@@ -625,12 +810,94 @@ async def run_experiment(
         if model_cfg.system_message is not None:
             system_message = model_cfg.system_message
 
+    effective_temperature = temperature if temperature is not None else 0.0
+    agent_concurrency_limit = model_cfg.concurrency_limit if model_cfg else 50
+    prompt_template_used = (
+        "comparison_prompt_template_reasoning_default"
+        if with_reasoning
+        else "comparison_prompt_template_default"
+    )
+    run_config = {
+        "test_name": test_name,
+        "model_key": model_key,
+        "model_name_full": _lookup_model_name_full(model_key),
+        "model_variant": model_variant,
+        "reasoning_mode": reasoning_mode,
+        "num_trials": num_trials,
+        "include_flipped": include_flipped,
+        "with_reasoning": with_reasoning,
+        "max_tokens": max_tokens,
+        "temperature": effective_temperature,
+        "k_samples": k_samples,
+        "infrastructure": infrastructure,
+        "gpu_type": gpu_type,
+        "gpu_count": gpu_count,
+        "quantization": quantization,
+        "max_retries": max_retries,
+        "system_message": system_message,
+        "extra_body": extra_body,
+        "enable_cache": enable_cache,
+        "base_timeout": model_cfg.base_timeout if model_cfg else None,
+        "agent_concurrency_limit": agent_concurrency_limit,
+        "retry_transport_only": True,
+        "prompt_template_used": prompt_template_used,
+        "comparison_file_sha256": _file_sha256(comparison_path),
+        "comparison_count": total_comparisons,
+        "request_concurrency_limit": (
+            request_limiter.max_concurrency if request_limiter else None
+        ),
+        "request_starts_per_second": (
+            request_limiter.requests_per_second if request_limiter else None
+        ),
+    }
+    run_fingerprint = _run_fingerprint(run_config)
+
+    if resume and checkpoint_path.exists():
+        ck = load_checkpoint(checkpoint_path)
+        if ck:
+            checkpoint_fingerprint = ck.get("run_fingerprint")
+            checkpoint_config = ck.get("run_config")
+            checkpoint_config_fingerprint = (
+                _run_fingerprint(checkpoint_config)
+                if isinstance(checkpoint_config, dict)
+                else None
+            )
+            if (
+                checkpoint_fingerprint != run_fingerprint
+                or checkpoint_config != run_config
+                or checkpoint_config_fingerprint != checkpoint_fingerprint
+            ):
+                raise ValueError(
+                    "Checkpoint run configuration/input fingerprint mismatch; "
+                    "refusing to mix experimental conditions. Start with "
+                    "--no-resume or use a matching checkpoint."
+                )
+            if ck.get("schema_version") != CHECKPOINT_SCHEMA_VERSION:
+                raise ValueError(
+                    "Checkpoint schema mismatch; refusing to resume an "
+                    "unvalidated legacy checkpoint."
+                )
+            preferences = list(ck.get("preferences") or [])
+            comparisons_done = list(ck.get("comparisons_done") or [])
+            start_time = ck.get("start_time", start_time)
+            partial_comparison = ck.get("partial_comparison")
+            checkpoint_telemetry = dict(ck.get("telemetry") or {})
+            if verbose:
+                partial_note = " with an in-flight comparison" if partial_comparison else ""
+                print(
+                    f"Resuming: {len(preferences)} comparisons already done"
+                    f"{partial_note}."
+                )
+
     agent = create_agent(
         model_key,
-        temperature=temperature if temperature is not None else 0.0,
+        temperature=effective_temperature,
         max_tokens=max_tokens,
         extra_body=extra_body,
         enable_cache=enable_cache,
+        concurrency_limit=agent_concurrency_limit,
+        max_retries=max_retries,
+        request_limiter=request_limiter,
         k_samples=k_samples,
         quantization=quantization,
         # Experiment policy: retry network transport failures only. Provider
@@ -638,10 +905,42 @@ async def run_experiment(
         # outcomes and are never selectively regenerated.
         retry_transport_only=True,
     )
+    _restore_agent_telemetry(agent, checkpoint_telemetry)
 
     for idx in range(total_comparisons):
         if idx in comparisons_done:
             continue
+        if partial_comparison is not None:
+            partial_index = partial_comparison.get("comparison_index")
+            if partial_index != idx:
+                raise ValueError(
+                    "Checkpoint partial-comparison index is inconsistent with "
+                    f"completed progress: expected {idx}, found {partial_index}."
+                )
+            trial_state = dict(partial_comparison.get("trial_state") or {})
+        else:
+            trial_state = {
+                "schema_version": CHECKPOINT_SCHEMA_VERSION,
+                "directions": {},
+            }
+
+        def checkpoint_trial_state(state: Dict[str, Any]) -> None:
+            nonlocal partial_comparison
+            partial_comparison = {
+                "comparison_index": idx,
+                "trial_state": state,
+            }
+            save_checkpoint(
+                checkpoint_path,
+                run_config,
+                run_fingerprint,
+                comparisons_done,
+                preferences,
+                start_time,
+                partial_comparison=partial_comparison,
+                telemetry=_agent_telemetry(agent),
+            )
+
         comp = comparisons[idx]
         if verbose:
             print(f"Comparison {idx + 1}/{total_comparisons} ...")
@@ -653,28 +952,39 @@ async def run_experiment(
             system_message=system_message,
             with_reasoning=with_reasoning,
             verbose=verbose,
+            comparison_index=idx,
+            trial_state=trial_state,
+            checkpoint_trial_state=checkpoint_trial_state,
         )
+        retryable_missing = int(
+            (pref.get("missing_by_reason") or {}).get("transport_failure", 0)
+        )
+        if retryable_missing:
+            checkpoint_trial_state(trial_state)
+            raise RuntimeError(
+                f"{retryable_missing} retryable infrastructure response(s) "
+                f"remained missing for comparison {idx + 1}/{total_comparisons}; "
+                "successful trials and telemetry were checkpointed, and resume "
+                "will retry only failed transport IDs"
+            )
         preferences.append(pref)
         comparisons_done.append(idx)
-
-        if (idx + 1) % checkpoint_interval == 0:
-            save_checkpoint(
-                checkpoint_path,
-                test_name,
-                model_key,
-                num_trials,
-                include_flipped,
-                comparisons_done,
-                preferences,
-                start_time,
-                model_variant=model_variant,
-                reasoning_mode=reasoning_mode,
-                temperature=temperature if temperature is not None else 0.0,
-                k_samples=k_samples,
-                infrastructure=infrastructure,
-            )
-            if verbose:
-                print(f"  Checkpoint saved ({len(preferences)} comparisons).")
+        partial_comparison = None
+        # Every completed comparison is durable. checkpoint_interval controls
+        # progress reporting only; a larger value must never expose paid trials
+        # to duplicate billing after restart.
+        save_checkpoint(
+            checkpoint_path,
+            run_config,
+            run_fingerprint,
+            comparisons_done,
+            preferences,
+            start_time,
+            partial_comparison=None,
+            telemetry=_agent_telemetry(agent),
+        )
+        if verbose and (idx + 1) % checkpoint_interval == 0:
+            print(f"  Checkpoint saved ({len(preferences)} comparisons).")
 
     end_time = datetime.utcnow().isoformat()
 
@@ -695,12 +1005,6 @@ async def run_experiment(
     agent_extra_body = getattr(agent, "extra_body", None) or None
     agent_retry_counts = getattr(agent, "retry_counts", None)
     usage_summary = _summarize_usage(getattr(agent, "usage_log", []) or [])
-    comparison_path = comparison_file_path(data_dir, test_name, comparison_path)
-    prompt_template_used = (
-        "comparison_prompt_template_reasoning_default"
-        if with_reasoning
-        else "comparison_prompt_template_default"
-    )
     payload = {
         "schema_version": RESULTS_SCHEMA_VERSION,
         "config": {
@@ -713,12 +1017,19 @@ async def run_experiment(
             "include_flipped": include_flipped,
             "with_reasoning": with_reasoning,
             "max_tokens": max_tokens,
-            "temperature": temperature if temperature is not None else 0.0,
+            "temperature": effective_temperature,
             "k_samples": k_samples,
             "infrastructure": infrastructure,
             "gpu_type": gpu_type,
             "gpu_count": gpu_count,
             "quantization": quantization,
+            "request_concurrency_limit": (
+                request_limiter.max_concurrency if request_limiter else None
+            ),
+            "request_starts_per_second": (
+                request_limiter.requests_per_second if request_limiter else None
+            ),
+            "max_retries": max_retries,
         },
         "metadata": {
             "start_time": start_time,
@@ -734,7 +1045,8 @@ async def run_experiment(
                 "token_caps": "retain_as_missing_never_retry",
                 "unparseable_outputs": "retain_as_missing_never_retry",
                 "empty_outputs": "retain_as_missing_never_retry",
-                "retries": "transport_failures_only",
+                "retries": "transport_and_transient_http_failures_only",
+                "max_attempts_per_request": max_retries,
                 "fixed_max_tokens": max_tokens,
             },
             "elapsed_seconds": round(elapsed_seconds, 1),
@@ -760,8 +1072,8 @@ async def run_experiment(
     # any reasoning content. After dumping, clear the agent's reasoning_log
     # so the next set starts fresh and traces don't pollute across sets.
     rlog = getattr(agent, "reasoning_log", None)
+    traces_path = results_path.parent / "reasoning_traces.jsonl"
     if rlog:
-        traces_path = results_path.parent / "reasoning_traces.jsonl"
         # Don't swallow disk errors silently — losing traces silently is what
         # caused 139 of 146 nemotron-thinking ladders to ship without text data.
         with open(traces_path, "w") as f:
@@ -770,6 +1082,11 @@ async def run_experiment(
         if verbose:
             print(f"  Reasoning traces saved to {traces_path} ({len(rlog)} entries)")
         rlog.clear()
+    elif not with_reasoning and traces_path.exists():
+        # A previous interrupted or misconfigured run may have left a generic
+        # telemetry sidecar with null reasoning values. Reasoning-off outputs
+        # must not advertise a reasoning artifact.
+        traces_path.unlink()
 
     if checkpoint_path.exists():
         checkpoint_path.unlink()

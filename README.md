@@ -114,60 +114,88 @@ api_keys/api_key_openrouter.txt
 
 Keys are loaded through `src/llm_coherence/runtime/api_keys.py` and are not included in this repository.
 
-## Quick Smoke Test
+## Verify the Installation
 
-For ordinary replication, run a bounded smoke test before launching full model runs. The example below starts from the tracked validated ladders, creates a small forced-choice slice, runs both model experiments (step 10a: within-ladder tier-pair preferences; step 10b: ladder-vs-comparison forced choice), and runs both analysis stages.
-
-```bash
-PYTHONPATH=src python scripts/03_forced_choice_inputs/09_generate_forced_choice_inputs.py \
-  --variations data/05_ladder_validation/phase6b_variations_pruned_final.json \
-  --comparison-sample data/06_forced_choice_inputs/comparison_sample.json \
-  --max-variations 2 \
-  --max-comparison-samples 10 \
-  --output-dir data/06_forced_choice_inputs/phase6b_variations_pruned_smoke_tiny10
-```
+The test suite is offline: it does not submit provider requests or require API keys.
 
 ```bash
-PYTHONPATH=src python scripts/04_model_runs/10a_run_within_ladder_experiment.py \
-  --model ministral-3b-2512-openrouter \
-  --smoke
+PYTHONPATH=src python -m compileall -q src tests
+PYTHONPATH=src python -m unittest discover -s tests -v
 ```
+
+## Cost Preview and Smoke Runs
+
+Use the tracked forced-choice inputs directly. First preview the selected Step 10b request count, token budget, and cost without constructing an API client:
 
 ```bash
 PYTHONPATH=src python scripts/04_model_runs/10b_run_7tier_experiment.py \
-  --model ministral-3b-2512-openrouter \
+  --model qwen-37-flash-openrouter \
   --trials 1 \
-  --data-dir data/06_forced_choice_inputs/phase6b_variations_pruned_smoke_tiny10 \
-  --max-variation-sets 2 \
+  --data-dir data/06_forced_choice_inputs/phase6b_variations_pruned \
+  --max-variation-sets 1 \
+  --smoke \
+  --estimate-cost-only
+```
+
+After reviewing the estimate, run one ladder with conservative process-wide limits:
+
+```bash
+PYTHONPATH=src python scripts/04_model_runs/10b_run_7tier_experiment.py \
+  --model qwen-37-flash-openrouter \
+  --trials 1 \
+  --data-dir data/06_forced_choice_inputs/phase6b_variations_pruned \
+  --max-variation-sets 1 \
   --max-concurrent 1 \
+  --request-concurrency 1 \
+  --requests-per-second 1 \
+  --max-retries 5 \
   --infrastructure openrouter \
   --smoke \
   --resume
 ```
 
+Step 10a has its own bounded live smoke:
+
+```bash
+PYTHONPATH=src python scripts/04_model_runs/10a_run_within_ladder_experiment.py \
+  --model qwen-37-flash-openrouter \
+  --run-live \
+  --concurrency 1 \
+  --smoke
+```
+
+`--max-concurrent` limits ladders, while `--request-concurrency` limits all in-flight HTTP attempts in the Step 10b process. `--requests-per-second` spaces request starts, and `--resume` continues from durable checkpoints. Token-capped and unparseable model outputs remain disclosed missing observations; only provider and transport failures are retried.
+
+Analyze the Step 10b smoke output with its explicit run directory:
+
 ```bash
 PYTHONPATH=src python scripts/05_analysis/11_analyze_7tier_coherence.py \
-  --model ministral-3b-2512-openrouter \
-  --data-dir data/06_forced_choice_inputs/phase6b_variations_pruned_smoke_tiny10 \
-  --results-dir outputs/ministral-3b-2512-openrouter/smoke_ministral-3b-2512-openrouter/ladder_vs_comparison_statements
+  --model qwen-37-flash-openrouter \
+  --data-dir data/06_forced_choice_inputs/phase6b_variations_pruned \
+  --results-dir outputs/qwen-37-flash/smoke_qwen37flashopenrouter/ladder_vs_comparison_statements
 ```
 
+Predictive utility and paper reporting require substantially more than a one-ladder smoke sample. Run them against a completed model-run root:
+
 ```bash
-# Optional on a tiny smoke slice (may produce no rows if too few comparison pairs).
+RUNS_ROOT=outputs/07_model_runs
+MODEL=qwen-37-flash-openrouter
+REPORTING_VIEW=outputs/reporting_views/paper_24_20260819
+WITHIN_VIEW=outputs/09_reporting/within_ladder_hf_20260818/outputs
+STAMP=YYYYMMDD
+
 PYTHONPATH=src python scripts/05_analysis/12_predictive_utility.py \
-  --model ministral-3b-2512-openrouter \
-  --results-dir outputs/ministral-3b-2512-openrouter/smoke_ministral-3b-2512-openrouter/ladder_vs_comparison_statements \
-  --out-dir outputs/ministral-3b-2512-openrouter/smoke_ministral-3b-2512-openrouter/ladder_vs_comparison_statements/pred_utility_test \
-  --n-perm 20
-```
+  --model "$MODEL" \
+  --results-dir "$RUNS_ROOT"
 
-```bash
 PYTHONPATH=src python scripts/06_reporting/13_make_fig_table.py \
-  --model ministral-3b-2512-openrouter \
-  --results-dir outputs
+  --results-dir "$REPORTING_VIEW" \
+  --within-results-dir "$WITHIN_VIEW" \
+  --output-dir "results/figures/$STAMP" \
+  --tables-dir "results/tables/$STAMP"
 ```
 
-For a full rerun, remove or increase the smoke bounds (`--max-variation-sets`, `--max-variations`, and `--max-comparison-samples`), omit `--smoke`, and set the desired trial count.
+The reporting command writes each figure as PDF and PNG, including `fig_within_ladder_gap`, without modifying prior stamped directories. For a full model rerun, omit `--smoke` and `--max-variation-sets`, set the desired trial count and run-wide limits, and retain `--resume`.
 
 ## Pipeline
 
@@ -357,16 +385,20 @@ Smoke runs for step 10b write under `outputs/<model_key>/smoke_<model_key>/ladde
 The tracked `results/model_run_index.json` snapshot inventories local payloads under `outputs/<model_key>/`. Refresh it with `validate_artifacts.py --write-indexes` after copying or generating model-run artifacts.
 
 ```bash
-# Update the dataset README on Hugging Face
-python scripts/00_repository/hf_upload/hf_dataset.py upload readme
+# Validate a release plan without writing a bundle.
+python scripts/00_repository/hf_upload/organize_release.py \
+  scripts/00_repository/hf_upload/release_20260817.json \
+  /path/to/fresh/artifact_bundle \
+  --dry-run
 
-# Upload outputs/ (resume incomplete models)
-python scripts/00_repository/hf_upload/hf_dataset.py upload outputs --skip-existing
-
-# Stage a local bundle with manifest (optional)
-python scripts/00_repository/hf_upload/hf_dataset.py prepare /path/to/artifact_bundle
+# Stage the same non-destructive bundle with checksums.
+python scripts/00_repository/hf_upload/organize_release.py \
+  scripts/00_repository/hf_upload/release_20260817.json \
+  /path/to/fresh/artifact_bundle \
+  --checksums
 ```
 
+The release helper stages files but does not upload them. Upload the reviewed bundle with your approved Hugging Face workflow.
 
 
 ## Public Summaries

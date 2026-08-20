@@ -18,6 +18,9 @@ Usage:
 """
 
 import asyncio
+import errno
+import fcntl
+import hashlib
 import json
 import os
 import re
@@ -26,6 +29,8 @@ import time
 import argparse
 import uuid
 from collections import Counter
+from contextlib import contextmanager
+from dataclasses import asdict
 from itertools import combinations
 from pathlib import Path
 
@@ -45,6 +50,9 @@ from llm_coherence.paths import (
 )
 from llm_coherence.runtime.agents import MODEL_SPECS
 from llm_coherence.runtime.api_keys import require_api_key
+from llm_coherence.runtime.preflight_check import (
+    live_reasoning_output_tokens_per_request,
+)
 from llm_coherence.runtime.forced_choice_logprobs import (
     ForcedChoiceScoringError,
     normalized_choice_probabilities,
@@ -83,7 +91,9 @@ _SMOKE_SCOPE: bool = False
 _ESTIMATED_UTF8_BYTES_PER_INPUT_TOKEN = 5
 _ESTIMATED_INPUT_FRAMING_TOKENS_PER_REQUEST = 8
 _ESTIMATED_REASONING_OFF_OUTPUT_TOKENS_PER_REQUEST = 5
-_ESTIMATED_OPENROUTER_REASONING_OUTPUT_TOKENS_PER_REQUEST = 250
+LIVE_CHECKPOINT_NAME = "live_checkpoint.jsonl"
+LIVE_LOCK_NAME = ".live_run.lock"
+_LIVE_CHECKPOINT_FINGERPRINT_KEY = "_run_fingerprint"
 
 
 def resolve_under_repo(rel: str | Path) -> Path:
@@ -291,11 +301,181 @@ def resolve_model_output_path(model_key) -> Path | None:
 
 WITHIN_LADDER_DOWNSTREAM_ARTIFACTS = (
     "output.jsonl",
+    LIVE_CHECKPOINT_NAME,
     PER_REQUEST_COST_LOG_NAME,
     COST_LOG_NAME,
     "summary.json",
     "batch_id.txt",
 )
+
+
+def _atomic_write_jsonl(path: Path | str, rows: list[dict]) -> None:
+    """Durably replace a JSONL artifact without exposing a partial file."""
+    destination = Path(path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = destination.with_name(
+        f".{destination.name}.{uuid.uuid4().hex}.tmp"
+    )
+    try:
+        with temporary.open("w", encoding="utf-8") as handle:
+            for row in rows:
+                handle.write(json.dumps(row, ensure_ascii=False) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, destination)
+        _fsync_parent_directory(destination)
+    finally:
+        _durable_unlink(temporary, missing_ok=True)
+
+
+def _fsync_parent_directory(path: Path | str) -> None:
+    """Make a completed directory-entry change durable on Unix filesystems."""
+    parent = Path(path).parent
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+    directory_fd = os.open(parent, flags)
+    try:
+        os.fsync(directory_fd)
+    finally:
+        os.close(directory_fd)
+
+
+def _durable_unlink(path: Path | str, *, missing_ok: bool = False) -> bool:
+    """Unlink a file and durably persist removal of its directory entry."""
+    target = Path(path)
+    try:
+        target.unlink()
+    except FileNotFoundError:
+        if missing_ok:
+            return False
+        raise
+    _fsync_parent_directory(target)
+    return True
+
+
+@contextmanager
+def _exclusive_live_run_lock(path: Path | str, model_key: str):
+    """Fail clearly when another process is already running this model."""
+    lock_path = Path(path)
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with lock_path.open("a+", encoding="utf-8") as lock_handle:
+        try:
+            fcntl.flock(lock_handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as exc:
+            if exc.errno not in (errno.EACCES, errno.EAGAIN):
+                raise
+            raise RuntimeError(
+                f"[{model_key}] Another --run-live process holds the model lock "
+                f"{lock_path}; refusing a concurrent duplicate run."
+            ) from exc
+        try:
+            yield
+        finally:
+            fcntl.flock(lock_handle.fileno(), fcntl.LOCK_UN)
+
+
+def _live_run_fingerprint(
+    *,
+    model_key: str,
+    api_model: str,
+    provider: str,
+    extra_body: dict,
+    requests: list[dict],
+    concurrency: int,
+) -> str:
+    """Hash canonical requests and every live-run setting relevant to outcomes."""
+    cfg = _model_runtime_config(model_key)
+    fingerprint_payload = {
+        "schema_version": 1,
+        "model_key": model_key,
+        "canonical_model_key": canonical_model_key(model_key),
+        "api_model": api_model,
+        "provider": provider,
+        "registry_extra_body": extra_body,
+        "runtime_model_config": asdict(cfg) if cfg is not None else None,
+        "live_run": {
+            "concurrency": concurrency,
+            "max_attempts": 3,
+            "minimum_timeout_seconds": 60.0,
+        },
+        "requests": requests,
+    }
+    canonical = json.dumps(
+        fingerprint_payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()
+
+
+def _append_live_checkpoint_row(handle, row: dict) -> None:
+    """Append one completed API outcome and force it to stable storage."""
+    handle.write(json.dumps(row, ensure_ascii=False) + "\n")
+    handle.flush()
+    os.fsync(handle.fileno())
+
+
+def _load_live_checkpoint_rows(path: Path | str) -> list[dict]:
+    """Load a live journal, repairing only a truncated final JSONL record.
+
+    Each checkpoint record is written synchronously after its API request
+    finishes.  A hard process or machine interruption can still leave the last
+    record truncated.  Earlier malformed records are treated as corruption and
+    rejected; only a malformed final record without a newline is discarded.
+    """
+    checkpoint = Path(path)
+    if not checkpoint.is_file():
+        return []
+
+    payload = checkpoint.read_bytes()
+    physical_lines = payload.splitlines(keepends=True)
+    rows: list[dict] = []
+    last_good_offset = 0
+    repaired_tail = False
+
+    for index, raw_line in enumerate(physical_lines):
+        stripped = raw_line.strip()
+        if not stripped:
+            last_good_offset += len(raw_line)
+            continue
+        try:
+            row = json.loads(stripped)
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            later_content = b"".join(physical_lines[index + 1 :]).strip()
+            newline_terminated = raw_line.endswith((b"\n", b"\r"))
+            if later_content or newline_terminated:
+                raise ValueError(
+                    f"Corrupt checkpoint record at line {index + 1}: "
+                    f"{checkpoint}"
+                ) from exc
+            with checkpoint.open("r+b") as handle:
+                handle.truncate(last_good_offset)
+                handle.flush()
+                os.fsync(handle.fileno())
+            print(
+                f"Checkpoint recovery: discarded truncated final record from "
+                f"{checkpoint}",
+                flush=True,
+            )
+            repaired_tail = True
+            break
+
+        if not isinstance(row, dict) or not isinstance(row.get("custom_id"), str):
+            raise ValueError(
+                f"Invalid checkpoint record at line {index + 1}: {checkpoint}"
+            )
+        rows.append(row)
+        last_good_offset += len(raw_line)
+
+    # A valid final record without a newline is safe, but normalize it before
+    # opening the journal in append mode so the next record cannot concatenate.
+    if payload and not repaired_tail and not payload.endswith(b"\n"):
+        with checkpoint.open("ab") as handle:
+            handle.write(b"\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+
+    return rows
 
 
 def load_jsonl_custom_ids(path: Path | str) -> set[str]:
@@ -395,6 +575,37 @@ def _prune_jsonl_rows(
     return kept, dropped
 
 
+def _prune_live_checkpoint_rows(
+    path: Path,
+    input_ids: set[str],
+    norm_to_canonical: dict[str, str],
+) -> tuple[list[dict], int]:
+    """Keep the latest checkpoint outcome for each current request ID."""
+    if not path.is_file():
+        return [], 0
+    rows = _load_live_checkpoint_rows(path)
+    kept_by_id: dict[str, dict] = {}
+    dropped = 0
+    renamed = False
+    duplicates = False
+    for row in rows:
+        custom_id = row["custom_id"]
+        canonical = canonical_custom_id(custom_id, input_ids, norm_to_canonical)
+        if canonical is None:
+            dropped += 1
+            continue
+        renamed = renamed or custom_id != canonical
+        duplicates = duplicates or canonical in kept_by_id
+        kept_by_id[canonical] = {**row, "custom_id": canonical}
+    kept = list(kept_by_id.values())
+    if dropped or renamed or duplicates:
+        if kept:
+            _atomic_write_jsonl(path, kept)
+        else:
+            _durable_unlink(path, missing_ok=True)
+    return kept, dropped
+
+
 def _prune_cost_log(
     model_key: str,
     input_ids: set[str],
@@ -440,6 +651,8 @@ def prune_artifacts_to_input(model_key: str) -> dict:
         "n_input_requests": len(input_ids),
         "output_dropped": 0,
         "output_kept": 0,
+        "checkpoint_dropped": 0,
+        "checkpoint_kept": 0,
         "cost_dropped": 0,
         "summary_removed": False,
     }
@@ -450,9 +663,15 @@ def prune_artifacts_to_input(model_key: str) -> dict:
     kept, dropped = _prune_jsonl_rows(output_path, input_ids, norm_to_canonical)
     stats["output_dropped"] = dropped
     stats["output_kept"] = len(kept)
+    checkpoint_path = Path(model_output_path(model_key, LIVE_CHECKPOINT_NAME))
+    checkpoint_kept, checkpoint_dropped = _prune_live_checkpoint_rows(
+        checkpoint_path, input_ids, norm_to_canonical
+    )
+    stats["checkpoint_dropped"] = checkpoint_dropped
+    stats["checkpoint_kept"] = len(checkpoint_kept)
     stats["cost_dropped"] = _prune_cost_log(model_key, input_ids, norm_to_canonical)
 
-    if dropped or stats["cost_dropped"]:
+    if dropped or checkpoint_dropped or stats["cost_dropped"]:
         summary_path = Path(model_output_path(model_key, "summary.json"))
         if summary_path.is_file():
             summary_path.unlink()
@@ -463,10 +682,15 @@ def prune_artifacts_to_input(model_key: str) -> dict:
 def sync_artifacts_to_input(model_key: str, *, verbose: bool = True) -> dict:
     """Ensure output/cost artifacts only contain rows from current input.jsonl."""
     stats = prune_artifacts_to_input(model_key)
-    if verbose and (stats["output_dropped"] or stats["cost_dropped"]):
+    if verbose and (
+        stats["output_dropped"]
+        or stats["checkpoint_dropped"]
+        or stats["cost_dropped"]
+    ):
         print(
             f"[{model_key}] Pruned stale artifacts: "
             f"dropped {stats['output_dropped']} output rows, "
+            f"{stats['checkpoint_dropped']} checkpoint rows, "
             f"{stats['cost_dropped']} cost entries "
             f"(keeping {stats['output_kept']}/{stats['n_input_requests']} input requests)"
         )
@@ -947,10 +1171,42 @@ def _is_complete_finish_reason(finish_reason: object) -> bool:
 
 
 def _is_retryable_transport_exception(exc: BaseException) -> bool:
-    """Return whether a live OpenRouter failure is strictly transport-level."""
+    """Return whether a live OpenRouter failure can be retried safely.
+
+    A retry is safe only when no model outcome was returned.  In addition to
+    network/timeout failures, this includes the transient HTTP statuses used by
+    OpenRouter for throttling and temporary provider unavailability.  It does
+    not include prompt errors, model refusals, token caps, or parse failures.
+    """
     import httpx
 
-    return isinstance(exc, httpx.TransportError)
+    if isinstance(exc, httpx.TransportError):
+        return True
+    if isinstance(exc, httpx.HTTPStatusError):
+        return exc.response.status_code in {408, 409, 425, 429, 500, 502, 503, 504}
+    return False
+
+
+def _live_retry_delay_seconds(exc: BaseException, attempt: int) -> float:
+    """Return an OpenRouter-aware retry delay for a zero-based attempt."""
+    import httpx
+
+    fallback = float(2**attempt)
+    if not isinstance(exc, httpx.HTTPStatusError):
+        return fallback
+
+    retry_after = exc.response.headers.get("Retry-After")
+    if retry_after:
+        try:
+            return max(fallback, float(retry_after))
+        except (TypeError, ValueError):
+            pass
+
+    # A short exponential backoff is too aggressive when OpenRouter omits a
+    # Retry-After header on a 429.  Give its rolling window time to clear.
+    if exc.response.status_code == 429:
+        return max(fallback, 10.0 * (attempt + 1))
+    return fallback
 
 
 def _is_transport_failure_row(row: dict) -> bool:
@@ -964,16 +1220,26 @@ def _is_transport_failure_row(row: dict) -> bool:
     if not row.get("error"):
         return False
 
-    error_type = row.get("error_type")
-    if error_type is not None:
-        return error_type == "transport"
-
     error = row.get("error")
     if isinstance(error, dict):
         message = json.dumps(error, sort_keys=True)
     else:
         message = str(error)
     message = message.lower()
+
+    error_type = row.get("error_type")
+    if error_type is not None:
+        if error_type == "transport":
+            return True
+        # Runs written before HTTP 429 was classified as retryable used the
+        # generic ``non_transport`` label.  Recognize only the explicit status
+        # signature so unrelated provider/model errors remain final outcomes.
+        return error_type == "non_transport" and (
+            "429 too many requests" in message
+            or "status/429" in message
+            or "rate_limit_exceeded" in message
+        )
+
     legacy_transport_markers = (
         "all connection attempts failed",
         "connection reset",
@@ -1343,9 +1609,10 @@ def estimate_pre_submit_live_cost(
 
     Input tokens use the same transparent UTF-8 heuristic as Batch planning.
     Reasoning-off output projects the forced-choice norm of five tokens per
-    request. Reasoning-on output projects 250 tokens per request, calibrated to
-    the current within-ladder smoke runs, while ``maximum_output_cost_usd``
-    prices every request at its configured output-token cap.
+    request. Reasoning-on output uses the model-specific live calibration in
+    :mod:`llm_coherence.runtime.preflight_check`, while
+    ``maximum_output_cost_usd`` prices every request at its configured
+    output-token cap.
     """
     _, provider, _ = MODELS[model_key]
     if provider != "openrouter":
@@ -1385,6 +1652,9 @@ def estimate_pre_submit_live_cost(
     input_text_bytes = 0
     projected_output_tokens = 0
     output_token_cap = 0
+    reasoning_output_projection = live_reasoning_output_tokens_per_request(
+        model_key
+    )
 
     for index, request in enumerate(request_rows, start=1):
         body = request.get("body")
@@ -1412,7 +1682,7 @@ def estimate_pre_submit_live_cost(
         if _reasoning_is_on(body, with_reasoning=False):
             reasoning_on_requests += 1
             projected_output_tokens += min(
-                _ESTIMATED_OPENROUTER_REASONING_OUTPUT_TOKENS_PER_REQUEST,
+                reasoning_output_projection,
                 max_output_tokens,
             )
         else:
@@ -1454,7 +1724,7 @@ def estimate_pre_submit_live_cost(
         "input_rate_per_mtok": pricing["input"],
         "output_rate_per_mtok": pricing["output"],
         "reasoning_output_projection_per_request": (
-            _ESTIMATED_OPENROUTER_REASONING_OUTPUT_TOKENS_PER_REQUEST
+            reasoning_output_projection
         ),
     }
 
@@ -1667,7 +1937,25 @@ def write_clean_and_cost_log(raw_rows, provider, model_key):
 
 
 def run_live(model_key, concurrency=5):
-    """Run within-ladder validation via live OpenRouter API calls."""
+    """Run one model exclusively through the complete live checkpoint lifecycle."""
+    _, provider, _ = MODELS[model_key]
+    if provider != "openrouter":
+        print(f"[{model_key}] --run-live only supports openrouter models")
+        return
+
+    input_path = model_output_path(model_key, "input.jsonl")
+    if not os.path.exists(input_path):
+        print(f"No input file: {input_path}. Run --generate first.")
+        return
+
+    checkpoint_path = Path(model_output_path(model_key, LIVE_CHECKPOINT_NAME))
+    lock_path = checkpoint_path.with_name(LIVE_LOCK_NAME)
+    with _exclusive_live_run_lock(lock_path, model_key):
+        return _run_live_locked(model_key, concurrency=concurrency)
+
+
+def _run_live_locked(model_key, concurrency=5):
+    """Execute live recovery, provider calls, finalization, and cleanup."""
     api_model, provider, extra_body = MODELS[model_key]
     if provider != "openrouter":
         print(f"[{model_key}] --run-live only supports openrouter models")
@@ -1675,6 +1963,7 @@ def run_live(model_key, concurrency=5):
 
     input_path = model_output_path(model_key, "input.jsonl")
     output_path = model_output_path(model_key, "output.jsonl")
+    checkpoint_path = Path(model_output_path(model_key, LIVE_CHECKPOINT_NAME))
 
     if not os.path.exists(input_path):
         print(f"No input file: {input_path}. Run --generate first.")
@@ -1682,11 +1971,37 @@ def run_live(model_key, concurrency=5):
 
     with open(input_path) as f:
         requests = [json.loads(line) for line in f]
+    run_fingerprint = _live_run_fingerprint(
+        model_key=model_key,
+        api_model=api_model,
+        provider=provider,
+        extra_body=extra_body,
+        requests=requests,
+        concurrency=concurrency,
+    )
+    checkpoint_rows = _load_live_checkpoint_rows(checkpoint_path)
+    for row in checkpoint_rows:
+        recorded_fingerprint = row.get(_LIVE_CHECKPOINT_FINGERPRINT_KEY)
+        if recorded_fingerprint != run_fingerprint:
+            recorded_description = (
+                recorded_fingerprint
+                if isinstance(recorded_fingerprint, str)
+                else "missing"
+            )
+            raise ValueError(
+                f"[{model_key}] Checkpoint fingerprint mismatch at "
+                f"{checkpoint_path}: recorded={recorded_description}, "
+                f"current={run_fingerprint}. Refusing stale journal reuse; "
+                "move or remove the checkpoint only after accounting for its "
+                "recorded outcomes."
+            )
     input_ids, norm_to_canonical = load_input_request_maps(model_key)
     sync_artifacts_to_input(model_key)
+    checkpoint_rows = _load_live_checkpoint_rows(checkpoint_path)
 
-    already_observed = set()
+    output_rows_by_id: dict[str, dict] = {}
     existing_outcomes: dict[str, dict] = {}
+    output_final_ids: set[str] = set()
     transport_retry_ids = set()
     if os.path.exists(output_path):
         with open(output_path) as f:
@@ -1696,6 +2011,7 @@ def run_live(model_key, concurrency=5):
                 if canonical is None:
                     continue
                 normalized = {**r, "custom_id": canonical}
+                output_rows_by_id[canonical] = normalized
                 if _is_transport_failure_row(normalized):
                     if canonical not in existing_outcomes:
                         transport_retry_ids.add(canonical)
@@ -1705,64 +2021,163 @@ def run_live(model_key, concurrency=5):
                 # protocol. This includes token-capped and unparseable responses,
                 # which analysis retains as disclosed missing observations.
                 existing_outcomes[canonical] = normalized
+                output_final_ids.add(canonical)
                 transport_retry_ids.discard(canonical)
 
-        already_observed = set(existing_outcomes)
+    checkpoint_cost_by_id: dict[str, dict] = {}
+    for raw in checkpoint_rows:
+        canonical = canonical_custom_id(
+            raw["custom_id"], input_ids, norm_to_canonical
+        )
+        if canonical is None:
+            raise ValueError(
+                f"Checkpoint contains a request absent from input.jsonl: "
+                f"{raw['custom_id']}"
+            )
+        normalized_raw = {**raw, "custom_id": canonical}
+        clean, cost_entry = extract_clean_row(
+            normalized_raw,
+            "openrouter",
+            model_id=api_model,
+            batch=False,
+        )
+        checkpoint_cost_by_id[canonical] = cost_entry
+
+        # A completed output row wins over a stale journal row. This handles a
+        # crash after output.jsonl was atomically replaced but before the
+        # checkpoint could be removed. Otherwise, the latest journal outcome
+        # is the most durable state available for resumption.
+        if canonical in output_final_ids:
+            continue
+        output_rows_by_id[canonical] = clean
+        if _is_transport_failure_row(clean):
+            existing_outcomes.pop(canonical, None)
+            transport_retry_ids.add(canonical)
+        else:
+            existing_outcomes[canonical] = clean
+            transport_retry_ids.discard(canonical)
+
+    already_observed = set(existing_outcomes)
+    if os.path.exists(output_path) or checkpoint_rows:
         print(
             f"[{model_key}] Resuming: {len(already_observed)}/{len(requests)} "
             "outcomes retained; "
             f"transport retries pending={len(transport_retry_ids)}"
         )
+    if checkpoint_rows:
+        print(
+            f"[{model_key}] Recovered {len(checkpoint_rows)} checkpoint "
+            f"record(s) from {checkpoint_path}"
+        )
 
     remaining = [r for r in requests if r["custom_id"] not in already_observed]
-    if not remaining:
+    if not remaining and not checkpoint_rows:
         print(f"[{model_key}] All {len(requests)} requests have retained outcomes.")
         return
 
-    print_pre_submit_live_cost_estimate(model_key, requests=remaining)
-    api_key = require_api_key("openrouter")
-
-    cfg = _model_runtime_config(model_key)
-    request_timeout = float(cfg.base_timeout) if cfg is not None else 60.0
-    # Thinking models often need longer than the default; keep a floor for OpenRouter.
-    request_timeout = max(request_timeout, 60.0)
-    print(
-        f"[{model_key}] Running {len(remaining)} requests via OpenRouter "
-        f"(concurrency={concurrency}, timeout={request_timeout:.0f}s)"
-    )
-
-    import httpx
-
-    sem = asyncio.Semaphore(concurrency)
-    raw_results = []
+    raw_results_by_id: dict[str, dict] = {}
     errors = 0
     done = len(already_observed)
-    # Keep detached-run logs useful without flooding them: report roughly every 5%.
-    progress_interval = max(1, (len(requests) + 19) // 20)
+    if remaining:
+        print_pre_submit_live_cost_estimate(model_key, requests=remaining)
+        api_key = require_api_key("openrouter")
 
-    async def call_one(req):
-        nonlocal errors, done
-        async with sem:
-            body = req["body"]
-            for attempt in range(3):
-                try:
-                    async with httpx.AsyncClient(timeout=request_timeout) as client:
-                        resp = await client.post(
-                            "https://openrouter.ai/api/v1/chat/completions",
-                            headers={
-                                "Authorization": f"Bearer {api_key}",
-                                "Content-Type": "application/json",
-                            },
-                            json=body,
-                        )
-                        resp.raise_for_status()
-                        data = resp.json()
-                        if isinstance(data, dict) and data.get("error") and not data.get("choices"):
-                            raise RuntimeError(f"OpenRouter error payload: {data.get('error')}")
-                        raw_results.append({
+        cfg = _model_runtime_config(model_key)
+        request_timeout = float(cfg.base_timeout) if cfg is not None else 60.0
+        # Thinking models often need longer than the default; keep a floor for OpenRouter.
+        request_timeout = max(request_timeout, 60.0)
+        print(
+            f"[{model_key}] Running {len(remaining)} requests via OpenRouter "
+            f"(concurrency={concurrency}, timeout={request_timeout:.0f}s)"
+        )
+        print(
+            f"[{model_key}] Checkpoint journal: {checkpoint_path} "
+            "(durable after every completed request)"
+        )
+
+        import httpx
+
+        sem = asyncio.Semaphore(concurrency)
+        # Keep detached-run logs useful without flooding them: report roughly every 5%.
+        progress_interval = max(1, (len(requests) + 19) // 20)
+
+        checkpoint_existed = checkpoint_path.exists()
+        with checkpoint_path.open("a", encoding="utf-8") as checkpoint_handle:
+            if not checkpoint_existed:
+                _fsync_parent_directory(checkpoint_path)
+
+            def checkpoint_raw(raw: dict) -> None:
+                raw = {
+                    **raw,
+                    _LIVE_CHECKPOINT_FINGERPRINT_KEY: run_fingerprint,
+                }
+                _append_live_checkpoint_row(checkpoint_handle, raw)
+                raw_results_by_id[raw["custom_id"]] = raw
+
+            async def call_one(req):
+                nonlocal errors, done
+                async with sem:
+                    body = req["body"]
+                    for attempt in range(3):
+                        try:
+                            async with httpx.AsyncClient(timeout=request_timeout) as client:
+                                resp = await client.post(
+                                    "https://openrouter.ai/api/v1/chat/completions",
+                                    headers={
+                                        "Authorization": f"Bearer {api_key}",
+                                        "Content-Type": "application/json",
+                                    },
+                                    json=body,
+                                )
+                                resp.raise_for_status()
+                                data = resp.json()
+                                if (
+                                    isinstance(data, dict)
+                                    and data.get("error")
+                                    and not data.get("choices")
+                                ):
+                                    raise RuntimeError(
+                                        f"OpenRouter error payload: {data.get('error')}"
+                                    )
+                        except Exception as exc:
+                            is_transport = _is_retryable_transport_exception(exc)
+                            if is_transport and attempt < 2:
+                                delay = _live_retry_delay_seconds(exc, attempt)
+                                print(
+                                    f"  [{model_key}] retryable request failure "
+                                    f"(attempt {attempt + 1}/3); waiting {delay:g}s",
+                                    flush=True,
+                                )
+                                await asyncio.sleep(delay)
+                                continue
+
+                            errors += 1
+                            raw = {
+                                "custom_id": req["custom_id"],
+                                "response": {
+                                    "body": {
+                                        "error": str(exc),
+                                        "error_type": (
+                                            "transport"
+                                            if is_transport
+                                            else "non_transport"
+                                        ),
+                                    }
+                                },
+                            }
+                            checkpoint_raw(raw)
+                            # A provider/API/model error is a retained terminal
+                            # outcome. A transport error remains pending for a
+                            # later identical retry.
+                            if not is_transport:
+                                done += 1
+                            return
+
+                        raw = {
                             "custom_id": req["custom_id"],
                             "response": {"body": data},
-                        })
+                        }
+                        checkpoint_raw(raw)
                         done += 1
                         if done % progress_interval == 0 or done == len(requests):
                             percent = 100.0 * done / len(requests)
@@ -1772,47 +2187,43 @@ def run_live(model_key, concurrency=5):
                                 flush=True,
                             )
                         return
-                except Exception as e:
-                    is_transport = _is_retryable_transport_exception(e)
-                    if is_transport and attempt < 2:
-                        await asyncio.sleep(2 ** attempt)
-                    else:
-                        errors += 1
-                        raw_results.append({
-                            "custom_id": req["custom_id"],
-                            "response": {
-                                "body": {
-                                    "error": str(e),
-                                    "error_type": (
-                                        "transport" if is_transport else "non_transport"
-                                    ),
-                                }
-                            },
-                        })
-                        # A provider/API/model error is a retained terminal outcome.
-                        # A transport error remains pending for a later identical retry.
-                        if not is_transport:
-                            done += 1
-                        return
 
-    async def run_all():
-        tasks = [call_one(r) for r in remaining]
-        await asyncio.gather(*tasks)
+            async def run_all():
+                tasks = [call_one(r) for r in remaining]
+                await asyncio.gather(*tasks)
 
-    asyncio.run(run_all())
+            # If this raises KeyboardInterrupt or another process-level failure,
+            # the context manager closes the already-fsynced checkpoint. The
+            # final output remains untouched and --run-live resumes from it.
+            asyncio.run(run_all())
+    else:
+        print(f"[{model_key}] Finalizing recovered checkpoint outcomes.")
 
-    all_clean = list(existing_outcomes.values())
     new_cost_entries = []
-    for raw in raw_results:
+    for raw in raw_results_by_id.values():
         clean, cost_entry = extract_clean_row(
             raw, "openrouter", model_id=api_model, batch=False
         )
-        all_clean.append(clean)
+        custom_id = clean["custom_id"]
+        output_rows_by_id[custom_id] = clean
+        if _is_transport_failure_row(clean):
+            existing_outcomes.pop(custom_id, None)
+            transport_retry_ids.add(custom_id)
+        else:
+            existing_outcomes[custom_id] = clean
+            transport_retry_ids.discard(custom_id)
         new_cost_entries.append(cost_entry)
 
-    with open(output_path, "w") as f:
-        for row in all_clean:
-            f.write(json.dumps(row) + "\n")
+    missing_output_ids = input_ids.difference(output_rows_by_id)
+    if missing_output_ids:
+        raise RuntimeError(
+            "Live run ended without a durable outcome for every request; "
+            f"missing={len(missing_output_ids)}. Re-run --run-live to resume "
+            f"from {checkpoint_path}."
+        )
+
+    ordered_clean = [output_rows_by_id[req["custom_id"]] for req in requests]
+    _atomic_write_jsonl(output_path, ordered_clean)
 
     prev_cost_entries = []
     cost_path = model_output_path(model_key, PER_REQUEST_COST_LOG_NAME)
@@ -1830,10 +2241,44 @@ def run_live(model_key, concurrency=5):
                 # but any reported billable usage must still remain auditable.
                 if (e.get("prompt_tokens") or 0) > 0 or (e.get("completion_tokens") or 0) > 0:
                     prev_cost_entries.append({**e, "custom_id": canonical})
-    all_cost_entries = prev_cost_entries + new_cost_entries
+    prev_cost_ids = {entry["custom_id"] for entry in prev_cost_entries}
+    recovered_cost_entries = []
+    for custom_id, cost_entry in checkpoint_cost_by_id.items():
+        # A newly completed retry supersedes the older checkpoint row. When a
+        # prior finalized output already has a cost entry, the checkpoint is
+        # merely stale state left by a crash during cleanup and must not double
+        # count billing.
+        if custom_id in raw_results_by_id:
+            continue
+        if custom_id in output_final_ids and custom_id in prev_cost_ids:
+            continue
+        recovered_cost_entries.append(cost_entry)
+
+    all_cost_entries = (
+        prev_cost_entries + recovered_cost_entries + new_cost_entries
+    )
     persist_per_request_cost_log(model_key, all_cost_entries)
 
-    print(f"[{model_key}] Done. {len(raw_results)} new, {errors} errors. Total: {done}/{len(requests)}")
+    pending_transport_ids = {
+        custom_id
+        for custom_id, row in output_rows_by_id.items()
+        if _is_transport_failure_row(row)
+    }
+    if pending_transport_ids:
+        print(
+            f"[{model_key}] Checkpoint retained with "
+            f"{len(pending_transport_ids)} retryable transport failure(s). "
+            "Re-run the identical --run-live command to repair them."
+        )
+    else:
+        _durable_unlink(checkpoint_path, missing_ok=True)
+        print(f"[{model_key}] Final artifacts committed; checkpoint cleared.")
+
+    total_retained = len(requests) - len(pending_transport_ids)
+    print(
+        f"[{model_key}] Done. {len(raw_results_by_id)} new, {errors} errors. "
+        f"Total: {total_retained}/{len(requests)}"
+    )
 
 
 def run_local(model_key):

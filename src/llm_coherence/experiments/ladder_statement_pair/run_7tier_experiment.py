@@ -55,11 +55,14 @@ import json
 import os
 import sys
 import uuid
+from collections import Counter
 from pathlib import Path
 from datetime import datetime, timezone
 
 from llm_coherence.experiments.ladder_statement_pair.experiment_runner_tradeoff import (
     artifact_dir_name_for_test,
+    build_prompt,
+    load_comparisons,
     run_experiment,
 )
 from llm_coherence.experiments.ladder_statement_pair.openai_batch_runner import (
@@ -88,9 +91,18 @@ from llm_coherence.paths import (
     LADDER_VS_COMPARISON_SUBDIR,
     REPO_ROOT,
 )
-from llm_coherence.runtime.agents import create_agent, model_name_for_key
+from llm_coherence.runtime.agents import (
+    AsyncRequestLimiter,
+    close_api_async_clients,
+    create_agent,
+    model_name_for_key,
+)
 from llm_coherence.runtime.budget_monitor import BudgetMonitor
-from llm_coherence.runtime.preflight_check import MODEL_COST_ESTIMATES
+from llm_coherence.runtime.preflight_check import (
+    MODEL_COST_ESTIMATES,
+    is_thinking_run,
+    live_reasoning_output_tokens_per_request,
+)
 from llm_coherence.runtime.usage_cost import (
     actual_cost_from_usage_summary,
     build_cost_summary_notes_from_metadata,
@@ -103,6 +115,17 @@ _PARAMETRIC_ROOT = REPO_ROOT
 
 COST_LOG_NAME = "phase6b_cost_log.json"
 COST_SUMMARY_NAME = "cost_summary.json"
+
+_ESTIMATED_UTF8_BYTES_PER_INPUT_TOKEN = 5
+_ESTIMATED_INPUT_FRAMING_TOKENS_PER_REQUEST = 8
+_ESTIMATED_REASONING_OFF_OUTPUT_TOKENS_PER_REQUEST = 5
+_ESTIMATED_COT_OUTPUT_TOKENS_PER_REQUEST = 250
+_PREFLIGHT_SMOKE_PROMPT = (
+    "Which do you prefer?\n"
+    "A. an apple\n"
+    "B. a banana\n\n"
+    'Reply with only the letter "A" or "B".'
+)
 
 
 def batch_job_progress(entry: dict) -> dict[str, int | float]:
@@ -248,6 +271,228 @@ def get_manifest_items(
     return all_items
 
 
+def scoped_manifest_items(
+    manifest: dict,
+    data_dir: Path,
+    variation_ids: list[str] | None = None,
+    *,
+    start_from: int = 0,
+    max_variation_sets: int | None = None,
+) -> list[dict]:
+    """Apply the CLI's deterministic manifest filters in one shared place."""
+    run_items = get_manifest_items(manifest, data_dir, variation_ids)
+    if start_from:
+        run_items = run_items[start_from:]
+    if max_variation_sets is not None:
+        run_items = run_items[:max_variation_sets]
+    return run_items
+
+
+def _utf8_text_bytes(value: object) -> int:
+    """Count UTF-8 bytes in nested request text fields."""
+    if isinstance(value, str):
+        return len(value.encode("utf-8"))
+    if isinstance(value, list):
+        return sum(_utf8_text_bytes(item) for item in value)
+    if isinstance(value, dict):
+        return sum(_utf8_text_bytes(item) for item in value.values())
+    return 0
+
+
+def estimate_phase6b_live_cost(
+    model_key: str,
+    *,
+    run_items: list[dict],
+    data_dir: Path,
+    num_trials: int,
+    with_reasoning: bool,
+    max_tokens: int,
+    system_message: str,
+    include_prelaunch_smoke: bool = True,
+) -> dict | None:
+    """Estimate one live Phase 6b scope without making an API request.
+
+    The estimator builds the same A/B and B/A prompt text as the live runner,
+    applies the transparent UTF-8 input-token heuristic used by the
+    within-ladder preflight, and reports both a calibrated projection and a
+    strict all-output-caps estimate.
+    """
+    model_key = canonical_model_key(model_key)
+    pricing = MODEL_COST_ESTIMATES.get(model_key)
+    if pricing is None:
+        return None
+
+    experiment_request_count = 0
+    input_text_bytes = 0
+    total_comparisons = 0
+
+    for item in run_items:
+        comparisons = load_comparisons(
+            data_dir,
+            item["test_name"],
+            item["comparison_path"],
+        )
+        total_comparisons += len(comparisons)
+        for comparison in comparisons:
+            text_a = comparison["outcome_a"]["text"]
+            text_b = comparison["outcome_b"]["text"]
+            for option_a, option_b in ((text_a, text_b), (text_b, text_a)):
+                prompt = build_prompt(
+                    option_a,
+                    option_b,
+                    with_reasoning=with_reasoning,
+                    cache_structure=False,
+                )
+                input_text_bytes += num_trials * _utf8_text_bytes(
+                    {
+                        "system": system_message,
+                        "user": prompt,
+                    }
+                )
+                experiment_request_count += num_trials
+
+    prelaunch_request_count = 1 if include_prelaunch_smoke and run_items else 0
+    if prelaunch_request_count:
+        try:
+            configured_system_message = get_model_config(model_key).system_message
+        except ValueError:
+            configured_system_message = None
+        input_text_bytes += _utf8_text_bytes(
+            {
+                "system": configured_system_message or "",
+                "user": _PREFLIGHT_SMOKE_PROMPT,
+            }
+        )
+
+    request_count = experiment_request_count + prelaunch_request_count
+    estimated_input_tokens = (
+        input_text_bytes + _ESTIMATED_UTF8_BYTES_PER_INPUT_TOKEN - 1
+    ) // _ESTIMATED_UTF8_BYTES_PER_INPUT_TOKEN
+    estimated_input_tokens += (
+        request_count * _ESTIMATED_INPUT_FRAMING_TOKENS_PER_REQUEST
+    )
+
+    reasoning_on = is_thinking_run(model_key) or with_reasoning
+    if reasoning_on:
+        if is_thinking_run(model_key):
+            projected_output_per_request = (
+                live_reasoning_output_tokens_per_request(
+                    model_key,
+                    experiment="phase6b",
+                )
+            )
+        else:
+            projected_output_per_request = (
+                _ESTIMATED_COT_OUTPUT_TOKENS_PER_REQUEST
+            )
+    else:
+        projected_output_per_request = (
+            _ESTIMATED_REASONING_OFF_OUTPUT_TOKENS_PER_REQUEST
+        )
+    projected_output_per_request = min(projected_output_per_request, max_tokens)
+    projected_output_tokens = request_count * projected_output_per_request
+    output_token_cap = request_count * max_tokens
+
+    projected_cost = estimate_cost_from_totals(
+        pricing,
+        prompt_tokens=estimated_input_tokens,
+        completion_tokens=projected_output_tokens,
+    )
+    all_cap_cost = estimate_cost_from_totals(
+        pricing,
+        prompt_tokens=estimated_input_tokens,
+        completion_tokens=output_token_cap,
+    )
+    return {
+        "model_key": model_key,
+        "variation_sets": len(run_items),
+        "total_comparisons": total_comparisons,
+        "num_trials": num_trials,
+        "experiment_request_count": experiment_request_count,
+        "prelaunch_request_count": prelaunch_request_count,
+        "request_count": request_count,
+        "reasoning_on": reasoning_on,
+        "input_text_bytes": input_text_bytes,
+        "estimated_input_tokens": estimated_input_tokens,
+        "projected_output_per_request": projected_output_per_request,
+        "projected_output_tokens": projected_output_tokens,
+        "output_token_cap": output_token_cap,
+        "estimated_cost_usd": projected_cost,
+        "maximum_output_cost_usd": all_cap_cost,
+        "input_rate_per_mtok": pricing["input"],
+        "output_rate_per_mtok": pricing["output"],
+    }
+
+
+def print_phase6b_live_cost_estimate(
+    model_key: str,
+    *,
+    run_items: list[dict],
+    data_dir: Path,
+    num_trials: int,
+    with_reasoning: bool,
+    max_tokens: int,
+    system_message: str,
+    include_prelaunch_smoke: bool = True,
+) -> dict | None:
+    """Print and return the offline live-run estimate for one selected scope."""
+    estimate = estimate_phase6b_live_cost(
+        model_key,
+        run_items=run_items,
+        data_dir=data_dir,
+        num_trials=num_trials,
+        with_reasoning=with_reasoning,
+        max_tokens=max_tokens,
+        system_message=system_message,
+        include_prelaunch_smoke=include_prelaunch_smoke,
+    )
+    if estimate is None:
+        print(
+            f"[{model_key}] Preflight live cost estimate unavailable: "
+            "no offline pricing is configured."
+        )
+        return None
+
+    print(
+        f"[{estimate['model_key']}] Preflight Phase 6b live cost estimate: "
+        f"~${estimate['estimated_cost_usd']:,.6f} projected; "
+        f"all-cap estimate ~${estimate['maximum_output_cost_usd']:,.6f}."
+    )
+    print(
+        f"  Scope: {estimate['variation_sets']:,} variation sets, "
+        f"{estimate['total_comparisons']:,} comparisons, "
+        f"{estimate['experiment_request_count']:,} experiment requests"
+        + (
+            f" + {estimate['prelaunch_request_count']} pre-launch smoke request."
+            if estimate["prelaunch_request_count"]
+            else "."
+        )
+    )
+    print(
+        f"  Basis: ~{estimate['estimated_input_tokens']:,} input tokens "
+        "(offline UTF-8 text-size heuristic), "
+        f"~{estimate['projected_output_tokens']:,} projected output tokens."
+    )
+    if estimate["reasoning_on"]:
+        print(
+            "  Reasoning-on projection: "
+            f"{estimate['projected_output_per_request']:,} output tokens/request "
+            "from live-smoke calibration."
+        )
+    else:
+        print(
+            "  Reasoning-off projection: "
+            f"{estimate['projected_output_per_request']:,} output tokens/request."
+        )
+    print(
+        f"  Configured output-token cap: {estimate['output_token_cap']:,} total; "
+        f"rates: ${estimate['input_rate_per_mtok']:g} input / "
+        f"${estimate['output_rate_per_mtok']:g} output per 1M tokens."
+    )
+    print("  Estimate only; no API request has been sent.")
+    return estimate
+
+
 def is_complete(results_dir: Path, test_name: str, model_key: str) -> bool:
     def valid(path: Path) -> bool:
         if not path.is_file():
@@ -282,6 +527,7 @@ async def smoke_call(
     model_key: str,
     max_tokens: int,
     temperature: float | None,
+    max_retries: int = 5,
 ) -> bool:
     """One-call sanity check before launching the full pilot.
 
@@ -311,19 +557,14 @@ async def smoke_call(
         model_key,
         temperature=temperature if temperature is not None else 0.0,
         max_tokens=max_tokens,
+        max_retries=max_retries,
         extra_body=extra_body,
         enable_cache=enable_cache,
-    )
-    prompt = (
-        "Which do you prefer?\n"
-        "A. an apple\n"
-        "B. a banana\n\n"
-        'Reply with only the letter "A" or "B".'
     )
     msgs = []
     if system_message:
         msgs.append({"role": "system", "content": system_message})
-    msgs.append({"role": "user", "content": prompt})
+    msgs.append({"role": "user", "content": _PREFLIGHT_SMOKE_PROMPT})
     messages = [msgs]
     t0 = time.perf_counter()
     try:
@@ -359,6 +600,8 @@ async def run_single(
     gpu_count: int | None = None,
     quantization: str | None = None,
     system_message: str = "You are a helpful assistant.",
+    request_limiter: AsyncRequestLimiter | None = None,
+    max_retries: int = 5,
 ) -> dict | None:
     try:
         result = await run_experiment(
@@ -383,6 +626,8 @@ async def run_single(
             gpu_count=gpu_count,
             quantization=quantization,
             system_message=system_message,
+            request_limiter=request_limiter,
+            max_retries=max_retries,
         )
         return result
     except Exception as e:
@@ -417,13 +662,18 @@ async def run_phase6b(
     start_from: int = 0,
     max_variation_sets: int | None = None,
     smoke: bool = False,
+    request_concurrency: int | None = None,
+    requests_per_second: float | None = None,
+    max_retries: int = 5,
 ) -> None:
     manifest = load_manifest(manifest_path)
-    run_items = get_manifest_items(manifest, data_dir, variation_ids)
-    if start_from:
-        run_items = run_items[start_from:]
-    if max_variation_sets is not None:
-        run_items = run_items[:max_variation_sets]
+    run_items = scoped_manifest_items(
+        manifest,
+        data_dir,
+        variation_ids,
+        start_from=start_from,
+        max_variation_sets=max_variation_sets,
+    )
 
     if not run_items:
         print(
@@ -461,6 +711,14 @@ async def run_phase6b(
         1 for item in run_items
         if is_complete(results_dir, item["test_name"], model_key)
     )
+    pending_items = (
+        [
+            item for item in run_items
+            if not is_complete(results_dir, item["test_name"], model_key)
+        ]
+        if resume
+        else list(run_items)
+    )
 
     full_slate_sets = len(manifest["variation_files"])
     full_slate_calls = (
@@ -470,24 +728,95 @@ async def run_phase6b(
         * 2
         * num_trials
     )
-    this_run_calls = len(run_items) * manifest["n_comparison_samples"] * manifest["n_tiers"] * 2 * num_trials
+    this_run_calls = (
+        len(pending_items)
+        * manifest["n_comparison_samples"]
+        * manifest["n_tiers"]
+        * 2
+        * num_trials
+    )
+
+    live_infrastructures = ("openai_api", "anthropic_api", "openrouter")
+    request_limiter: AsyncRequestLimiter | None = None
+    resolved_request_concurrency: int | None = None
+    if infrastructure in live_infrastructures:
+        try:
+            configured_request_concurrency = get_model_config(model_key).concurrency_limit
+        except ValueError:
+            configured_request_concurrency = 20
+        resolved_request_concurrency = (
+            request_concurrency
+            if request_concurrency is not None
+            else configured_request_concurrency
+        )
+        request_limiter = AsyncRequestLimiter(
+            resolved_request_concurrency,
+            requests_per_second=requests_per_second,
+        )
 
     print("=" * 60)
     print("  RUN PLAN")
     print("=" * 60)
     print(f"  Model:            {model_key}")
-    print(f"  Sets this run:    {len(run_items)}  (full manifest: {full_slate_sets} sets)")
+    print(
+        f"  Sets this run:    {len(pending_items)}  "
+        f"(selected: {len(run_items)}, full manifest: {full_slate_sets})"
+    )
     print(f"  Resume:           {'ON' if resume else 'OFF'}  already done: {completed_sets}/{len(run_items)}")
     print(f"  max_concurrent:   {max_concurrent}")
+    print(f"  Retry attempts:   {max_retries} per request")
+    if request_limiter is not None:
+        unbounded_batch_peak = max_concurrent * min(
+            num_trials,
+            configured_request_concurrency,
+        )
+        request_limit_source = (
+            "CLI override" if request_concurrency is not None else "model config"
+        )
+        print(
+            f"  HTTP in flight:   {resolved_request_concurrency} run-wide "
+            f"({request_limit_source}; legacy nested peak ~{unbounded_batch_peak})"
+        )
+        print(
+            "  Request starts:   "
+            + (
+                f"smoothed at {requests_per_second:g}/second"
+                if requests_per_second is not None
+                else "not rate-capped"
+            )
+        )
+        print("  Note: request controls are per Python process, not shared across terminals")
     print(f"  API calls (this run, flipped × trials): {this_run_calls:,}")
     print(f"  Full manifest equivalent:                {full_slate_calls:,}")
     print("=" * 60 + "\n")
 
+    if not pending_items:
+        print("Nothing to run; all selected variation sets are already complete.")
+        return
+
+    if infrastructure in live_infrastructures:
+        print_phase6b_live_cost_estimate(
+            model_key,
+            run_items=pending_items,
+            data_dir=data_dir,
+            num_trials=num_trials,
+            with_reasoning=with_reasoning,
+            max_tokens=max_tokens,
+            system_message=system_message,
+            include_prelaunch_smoke=not skip_smoke_test,
+        )
+        print()
+
     # One-call smoke: validates models.yaml + provider (like a focused health check).
     # Scoped to API infras; HF Jobs / base-model runs have their own validation path.
-    if not skip_smoke_test and infrastructure in ("openai_api", "anthropic_api", "openrouter"):
+    if not skip_smoke_test and infrastructure in live_infrastructures:
         print("  Running pre-launch smoke test...")
-        if not await smoke_call(model_key, max_tokens, temperature):
+        if not await smoke_call(
+            model_key,
+            max_tokens,
+            temperature,
+            max_retries=max_retries,
+        ):
             print(
                 "\n  Aborting: smoke test failed. Fix the underlying error before "
                 "launching the full run, or rerun with --skip-smoke-test to bypass."
@@ -496,18 +825,10 @@ async def run_phase6b(
         print()
 
     if resume:
-        pending = [
-            item for item in run_items
-            if not is_complete(results_dir, item["test_name"], model_key)
-        ]
-        skipped = len(run_items) - len(pending)
+        skipped = len(run_items) - len(pending_items)
         if skipped > 0:
             print(f"  Skipping {skipped} already-completed variation sets")
-        run_items = pending
-
-    if not run_items:
-        print("Nothing to run.")
-        return
+    run_items = pending_items
 
     print(f"  Running {len(run_items)} variation sets (max {max_concurrent} concurrent)\n")
 
@@ -519,6 +840,7 @@ async def run_phase6b(
     semaphore = asyncio.Semaphore(max_concurrent)
     completed = 0
     failed = 0
+    retry_totals: Counter[str] = Counter()
     start = datetime.now(timezone.utc)
 
     async def run_with_semaphore(item: dict) -> bool:
@@ -541,8 +863,20 @@ async def run_phase6b(
                 gpu_count=gpu_count,
                 quantization=quantization,
                 system_message=system_message,
+                request_limiter=request_limiter,
+                max_retries=max_retries,
             )
             if result is not None:
+                result_retry_counts = (
+                    (result.get("metadata") or {}).get("retry_counts") or {}
+                )
+                retry_totals.update(
+                    {
+                        key: int(value)
+                        for key, value in result_retry_counts.items()
+                        if isinstance(value, (int, float))
+                    }
+                )
                 completed += 1
                 print(f"  Completed {test_name} ({completed}/{len(run_items)})")
                 await budget.on_task_completed()
@@ -558,6 +892,35 @@ async def run_phase6b(
     print(f"\nDone. Completed: {completed}, Failed: {failed}, "
           f"Elapsed: {elapsed:.0f}s")
     print(f"  Final budget: {budget.summary()}")
+    if request_limiter is not None:
+        limiter_stats = request_limiter.snapshot()
+        observed_rate = limiter_stats["observed_start_rate"]
+        rate_suffix = (
+            f", start_rate={observed_rate:.2f}/s"
+            if isinstance(observed_rate, (int, float))
+            else ""
+        )
+        print(
+            "  Request limiter: "
+            f"attempts={limiter_stats['attempts_started']:,}, "
+            f"peak_in_flight={limiter_stats['peak_in_flight']}/"
+            f"{limiter_stats['max_concurrency']}"
+            f"{rate_suffix}"
+        )
+        print(
+            "  Limiter wait (summed across attempts): "
+            f"concurrency={limiter_stats['concurrency_wait_seconds']:.1f}s, "
+            f"pacing={limiter_stats['pacing_wait_seconds']:.1f}s"
+        )
+    if retry_totals:
+        print(
+            "  Response diagnostics: "
+            f"transport_retries={retry_totals['transport_retries']}, "
+            f"transport_failures={retry_totals['transport_failures']}, "
+            f"provider_errors={retry_totals['non_transport_errors']}, "
+            f"token_capped={retry_totals['token_capped']}, "
+            f"empty={retry_totals['empty_responses']}"
+        )
 
     cost_paths = _write_cost_logs(results_dir, model_key)
     if cost_paths is not None:
@@ -565,8 +928,22 @@ async def run_phase6b(
         print(f"  Cost Log: {cost_log_path}")
         print(f"  Cost Summary: {cost_summary_path}")
 
+    if failed:
+        raise RuntimeError(
+            f"Phase 6b run failed for {failed} variation set(s); "
+            "inspect the log and resume after the infrastructure issue clears"
+        )
+
     if hub_dataset and completed > 0:
         _push_results_to_hub(results_dir, model_key, hub_dataset)
+
+
+async def run_phase6b_with_client_cleanup(**kwargs) -> None:
+    """Run Phase 6b and close provider clients before the event loop exits."""
+    try:
+        await run_phase6b(**kwargs)
+    finally:
+        await close_api_async_clients()
 
 
 def _extract_total(usage_stats: dict, key: str) -> int:
@@ -1339,7 +1716,51 @@ def main():
             f"{LADDER_VS_COMPARISON_SUBDIR}/ and matching checkpoints subdir."
         ),
     )
-    parser.add_argument("--max-concurrent", type=int, default=3)
+    parser.add_argument(
+        "--estimate-cost-only",
+        action="store_true",
+        default=False,
+        help=(
+            "Print the selected live-run request/token/USD estimate and exit "
+            "before constructing an agent or sending any API request."
+        ),
+    )
+    parser.add_argument(
+        "--max-concurrent",
+        type=int,
+        default=3,
+        help=(
+            "Maximum variation sets processed concurrently. This is outer task "
+            "parallelism, not the number of simultaneous HTTP requests."
+        ),
+    )
+    parser.add_argument(
+        "--request-concurrency",
+        type=int,
+        default=None,
+        help=(
+            "Run-wide maximum in-flight live API attempts in this Python process. "
+            "Defaults to the selected model's configured concurrency limit."
+        ),
+    )
+    parser.add_argument(
+        "--requests-per-second",
+        type=float,
+        default=None,
+        help=(
+            "Optional run-wide request-start rate. Starts are evenly spaced to "
+            "avoid bursts; separate terminals have separate limits."
+        ),
+    )
+    parser.add_argument(
+        "--max-retries",
+        type=int,
+        default=5,
+        help=(
+            "Maximum attempts per live API request for retryable transport and "
+            "transient HTTP failures (default: 5)."
+        ),
+    )
     batch_actions = parser.add_mutually_exclusive_group()
     batch_actions.add_argument(
         "--batch-generate",
@@ -1496,6 +1917,14 @@ def main():
     args = parser.parse_args()
     if args.start_from < 0:
         parser.error("--start-from must be >= 0")
+    if args.max_concurrent < 1:
+        parser.error("--max-concurrent must be >= 1")
+    if args.request_concurrency is not None and args.request_concurrency < 1:
+        parser.error("--request-concurrency must be >= 1 when set")
+    if args.requests_per_second is not None and args.requests_per_second <= 0:
+        parser.error("--requests-per-second must be > 0 when set")
+    if args.max_retries < 1:
+        parser.error("--max-retries must be >= 1")
     if args.max_variation_sets is not None and args.max_variation_sets < 1:
         parser.error("--max-variation-sets must be >= 1 when set")
     if not 1 <= args.max_requests_per_batch <= MAX_BATCH_REQUESTS:
@@ -1512,6 +1941,11 @@ def main():
         parser.error("--model-volume-path must be absolute")
     if args.batch_action and args.submit_hf_job:
         parser.error("OpenAI batch actions cannot be combined with --submit-hf-job")
+    if args.estimate_cost_only and (args.batch_action or args.submit_hf_job):
+        parser.error(
+            "--estimate-cost-only is for direct live runs and cannot be combined "
+            "with Batch or Hugging Face job actions"
+        )
 
     args.model = canonical_model_key(args.model)
     try:
@@ -1581,6 +2015,36 @@ def main():
         )
     print()
 
+    if args.estimate_cost_only:
+        manifest = load_manifest(manifest_path)
+        estimate_items = scoped_manifest_items(
+            manifest,
+            data_dir,
+            args.variation_ids,
+            start_from=args.start_from,
+            max_variation_sets=args.max_variation_sets,
+        )
+        if args.resume:
+            estimate_items = [
+                item for item in estimate_items
+                if not is_complete(results_dir, item["test_name"], args.model)
+            ]
+        if not estimate_items:
+            print("No pending variation sets in the selected estimate scope.")
+            print("Estimate only; no API request has been sent.")
+            return 0
+        estimate = print_phase6b_live_cost_estimate(
+            args.model,
+            run_items=estimate_items,
+            data_dir=data_dir,
+            num_trials=args.trials,
+            with_reasoning=args.with_reasoning,
+            max_tokens=args.max_tokens,
+            system_message=sys_msg,
+            include_prelaunch_smoke=not args.skip_smoke_test,
+        )
+        return 0 if estimate is not None else 2
+
     if args.batch_action:
         return run_openai_batch_action(
             args,
@@ -1591,7 +2055,7 @@ def main():
         )
 
     asyncio.run(
-        run_phase6b(
+        run_phase6b_with_client_cleanup(
             model_key=args.model,
             num_trials=args.trials,
             with_reasoning=args.with_reasoning,
@@ -1618,6 +2082,9 @@ def main():
             start_from=args.start_from,
             max_variation_sets=args.max_variation_sets,
             smoke=args.smoke,
+            request_concurrency=args.request_concurrency,
+            requests_per_second=args.requests_per_second,
+            max_retries=args.max_retries,
         )
     )
 
