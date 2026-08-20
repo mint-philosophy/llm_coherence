@@ -25,7 +25,13 @@ _SKIP_OUTPUT_ROOTS = frozenset(
     {
         "checkpoints",
         "04_ladder_generation",
+        "07_model_runs",
+        "09_reporting",
+        "batch_runs",
         "figures",
+        "full_runs",
+        "repaired_runs",
+        "reporting_views",
         "tables",
     }
 )
@@ -70,28 +76,32 @@ def _count_analysis_outputs(model_key: str) -> dict[str, int]:
 def _is_model_output_dir(model_dir: Path) -> bool:
     if not model_dir.is_dir() or model_dir.name in _SKIP_OUTPUT_ROOTS:
         return False
-    return any(
+    has_run_tree = any(
         (model_dir / subdir).is_dir()
         for subdir in (WITHIN_LADDER_SUBDIR, LADDER_VS_COMPARISON_SUBDIR)
+    )
+    if not has_run_tree:
+        return False
+    if model_dir.name in MODEL_CONFIGS:
+        return True
+
+    lvc = model_dir / LADDER_VS_COMPARISON_SUBDIR
+    within = model_dir / WITHIN_LADDER_SUBDIR
+    return (
+        any(lvc.rglob("results.json"))
+        or any(lvc.rglob("*_results.json"))
+        or (within / "summary.json").is_file()
     )
 
 
 def model_run_payloads_present(
     runs_root: Path | None = None,
 ) -> bool:
-    """Return True when ``outputs/<model>/`` contains experiment payloads."""
+    """Return True when ``outputs/<model>/`` contains a canonical run tree."""
     root = runs_root if runs_root is not None else LADDER_VS_COMPARISON_RUNS_OUTPUT_DIR
     if not root.is_dir():
         return False
-    for model_dir in root.iterdir():
-        if not _is_model_output_dir(model_dir):
-            continue
-        lvc = model_dir / LADDER_VS_COMPARISON_SUBDIR
-        if any(lvc.rglob("results.json")):
-            return True
-        if (model_dir / WITHIN_LADDER_SUBDIR / "summary.json").is_file():
-            return True
-    return False
+    return any(_is_model_output_dir(model_dir) for model_dir in root.iterdir())
 
 
 def build_model_run_index(

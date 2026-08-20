@@ -67,7 +67,7 @@ The main count progression is:
 Optional — only if you **re-run** `glm-45-base-logprobs` **from scratch** (self-hosted vLLM on GPU; not routed through OpenRouter). Skip these if you download existing outputs from [MINTLABJHUANU/LLMCoherence_Var_100](https://huggingface.co/datasets/MINTLABJHUANU/LLMCoherence_Var_100) or only run other models via API:
 
 - **Docker** — [Docker Desktop](https://www.docker.com/products/docker-desktop/) and a **Docker Hub** account (`docker login`) to build and push `Dockerfile.hf_jobs`.
-- **Hugging Face** -  set `api_keys/hf_token` (or `hf auth login`) to **submit** GLM jobs with `--submit-hf-job`
+- **Hugging Face** — set the `HF_TOKEN` environment variable or run `hf auth login` to **submit** GLM jobs with `--submit-hf-job`.
 
 Create an isolated environment and install the package:
 
@@ -112,7 +112,7 @@ api_keys/api_key_anthropic.txt
 api_keys/api_key_openrouter.txt
 ```
 
-Keys are loaded through `src/llm_coherence/runtime/api_keys.py` and are not included in this repository.
+Keys are loaded through `src/llm_coherence/runtime/api_keys.py`. The repository includes empty provider-key placeholders, but no secret values.
 
 ## Verify the Installation
 
@@ -178,10 +178,8 @@ PYTHONPATH=src python scripts/05_analysis/11_analyze_7tier_coherence.py \
 Predictive utility and paper reporting require substantially more than a one-ladder smoke sample. Run them against a completed model-run root:
 
 ```bash
-RUNS_ROOT=outputs/07_model_runs
+RUNS_ROOT=outputs
 MODEL=qwen-37-flash-openrouter
-REPORTING_VIEW=outputs/reporting_views/paper_24_20260819
-WITHIN_VIEW=outputs/09_reporting/within_ladder_hf_20260818/outputs
 STAMP=YYYYMMDD
 
 PYTHONPATH=src python scripts/05_analysis/12_predictive_utility.py \
@@ -189,8 +187,8 @@ PYTHONPATH=src python scripts/05_analysis/12_predictive_utility.py \
   --results-dir "$RUNS_ROOT"
 
 PYTHONPATH=src python scripts/06_reporting/13_make_fig_table.py \
-  --results-dir "$REPORTING_VIEW" \
-  --within-results-dir "$WITHIN_VIEW" \
+  --results-dir "$RUNS_ROOT" \
+  --within-results-dir "$RUNS_ROOT" \
   --output-dir "results/figures/$STAMP" \
   --tables-dir "results/tables/$STAMP"
 ```
@@ -218,6 +216,8 @@ Run scripts from the repository root with `PYTHONPATH=src python <script>`.
 | 12   | `scripts/05_analysis/12_predictive_utility.py`                        | `src/llm_coherence/analysis/predictive_utility.py`                            |
 | 13   | `scripts/06_reporting/13_make_fig_table.py`                           | `src/llm_coherence/reporting/make_fig_table.py`                               |
 
+
+The numbering preserves the experiment sequence; there is no maintained Step 6 wrapper.
 
 The early instrument-design and ladder-audit stages require API access and are not necessary for most replication workflows. Most users should start from the tracked validated ladders and forced-choice inputs.
 
@@ -370,7 +370,7 @@ Expected local output layout:
 
 | Path                                                                     | Contents                                                                                                                                  |
 | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `data/05_ladder_validation/`                                             | Ladder validation: pruned ladder JSONs, audit reports, and judge run folders (`within_ladder_validation_tier/`, `property/`, `ranking/`). |
+| `data/05_ladder_validation/`                                             | Ladder validation: pruned ladder JSONs, audit reports, and judge run folders (`within_ladder_validation_tier/`, `within_ladder_validation_property/`, `within_ladder_validation_ranking/`). |
 | `outputs/<model_key>/within_ladder/`                                     | Instance 1 (step 10a): tier-pair preferences, cost logs, `summary.json`.                                                                  |
 | `outputs/<model_key>/ladder_vs_comparison_statements/`                   | Instance 2 (step 10b): per-ladder `results.json`, reasoning traces, cost logs.                                                            |
 | `outputs/<model_key>/ladder_vs_comparison_statements/coherence_test/`    | Step 11: `phase6b_coherence_*.json`, justification analysis, per-category summaries.                                                      |
@@ -380,30 +380,14 @@ Expected local output layout:
 | `results/tables/`                                                        | Generated tables (step 13).                                                                                                               |
 
 
-Smoke runs for step 10b write under `outputs/<model_key>/smoke_<model_key>/ladder_vs_comparison_statements/` instead of the full-run path above.
+Smoke runs for step 10b use a compact, hyphen-free model key under `outputs/<model_key>/smoke_<compact_model_key>/ladder_vs_comparison_statements/`; for example, `qwen-37-flash-openrouter` writes to `outputs/qwen-37-flash/smoke_qwen37flashopenrouter/ladder_vs_comparison_statements/`.
 
-The tracked `results/model_run_index.json` snapshot inventories local payloads under `outputs/<model_key>/`. Refresh it with `validate_artifacts.py --write-indexes` after copying or generating model-run artifacts.
-
-```bash
-# Validate a release plan without writing a bundle.
-python scripts/00_repository/hf_upload/organize_release.py \
-  scripts/00_repository/hf_upload/release_20260817.json \
-  /path/to/fresh/artifact_bundle \
-  --dry-run
-
-# Stage the same non-destructive bundle with checksums.
-python scripts/00_repository/hf_upload/organize_release.py \
-  scripts/00_repository/hf_upload/release_20260817.json \
-  /path/to/fresh/artifact_bundle \
-  --checksums
-```
-
-The release helper stages files but does not upload them. Upload the reviewed bundle with your approved Hugging Face workflow.
+After copying or generating model-run artifacts, run `validate_artifacts.py --write-indexes` to create or refresh the local `results/model_run_index.json` inventory. The index is not required when model-run payloads are absent.
 
 
 ## Public Summaries
 
-A small index of local model-run payloads is tracked for inspection:
+When local model-run payloads are present, the artifact-index command writes a lightweight inventory for inspection:
 
 ```text
 results/model_run_index.json

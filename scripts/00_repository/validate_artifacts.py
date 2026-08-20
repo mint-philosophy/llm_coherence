@@ -152,7 +152,10 @@ def main() -> int:
     parser.add_argument(
         "--write-indexes",
         action="store_true",
-        help="Refresh category_index.json and results/model_run_index.json before validating.",
+        help=(
+            "Refresh category_index.json and, when model-run payloads are present, "
+            "results/model_run_index.json before validating."
+        ),
     )
     args = parser.parse_args()
 
@@ -173,8 +176,6 @@ def main() -> int:
     validate_index(CATEGORY_INDEX, category_index, errors)
     if model_run_index is not None:
         validate_index(MODEL_RUN_INDEX, model_run_index, errors)
-    elif not MODEL_RUN_INDEX.exists():
-        errors.append(f"missing snapshot index: {rel(MODEL_RUN_INDEX)}")
 
     if errors:
         print("Artifact validation failed:")
@@ -191,7 +192,7 @@ def main() -> int:
     print(f"  final ladders: {final_ladder_count}")
     print(f"  comparison sets: {category_index['total_variation_sets']}")
     if model_run_index is None:
-        print("  model-run payloads: absent; using snapshot index only")
+        print("  model-run payloads: absent; model-run index not required")
     else:
         print(f"  model folders: {len(model_run_index['models'])}")
     return 0
