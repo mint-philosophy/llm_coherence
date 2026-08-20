@@ -368,6 +368,35 @@ MODEL_CONFIGS = {
         reasoning_artifact_type="raw_cot",
     ),
 
+    # Qwen 3.7 Flash via OpenRouter. This is a hybrid thinking model, so the
+    # same endpoint supports a genuine reasoning-off condition and a bounded
+    # reasoning-on condition. The latter retains the raw reasoning text that
+    # OpenRouter returns while reserving 200 tokens for the final answer.
+    'qwen-37-flash-openrouter': ModelConfig(
+        model_key='qwen-37-flash-openrouter',
+        temperature=0.0,
+        max_tokens=16,
+        concurrency_limit=20,
+        base_timeout=60.0,
+        extra_body={"reasoning": {"enabled": False}},
+        reasoning_artifact_type="none",
+    ),
+    'qwen-37-flash-openrouter-thinking': ModelConfig(
+        model_key='qwen-37-flash-openrouter-thinking',
+        temperature=0.0,
+        max_tokens=2400,
+        concurrency_limit=20,
+        base_timeout=120.0,
+        extra_body={
+            "reasoning": {
+                "enabled": True,
+                "max_tokens": 2200,
+                "exclude": False,
+            }
+        },
+        reasoning_artifact_type="raw_cot",
+    ),
+
     # Qwen 3.7 Max via OpenRouter. This is a hybrid thinking model: reasoning
     # can be switched fully off or on, but the current model metadata does not
     # advertise selectable effort tiers. In the ON condition Qwen determines

@@ -8,7 +8,8 @@ from llm_coherence.config import MODEL_CONFIGS, canonical_model_key
 
 
 # Approximate standard cost per 1M tokens in USD. OpenAI rates checked
-# 2026-08-10 against https://developers.openai.com/api/docs/models/compare.
+# 2026-08-10 against https://developers.openai.com/api/docs/models/compare;
+# Qwen OpenRouter rates checked 2026-08-17 against the model catalog.
 MODEL_COST_ESTIMATES = {
     "claude-opus-openrouter": {"input": 5.0, "output": 25.0},
     "claude-opus": {"input": 5.0, "output": 25.0},
@@ -48,6 +49,8 @@ MODEL_COST_ESTIMATES = {
     "kimi-k3-openrouter-thinking-low": {"input": 3.0, "output": 15.0},
     "kimi-k3-openrouter-thinking-medium": {"input": 3.0, "output": 15.0},
     "kimi-k3-openrouter-thinking-high": {"input": 3.0, "output": 15.0},
+    "qwen-37-flash-openrouter": {"input": 0.03, "output": 0.13},
+    "qwen-37-flash-openrouter-thinking": {"input": 0.03, "output": 0.13},
     "qwen-37-max-openrouter": {"input": 1.475, "output": 4.425},
     "qwen-37-max-openrouter-thinking": {"input": 1.475, "output": 4.425},
 }
@@ -99,7 +102,43 @@ CALIBRATED_OUTPUT_TOKENS: dict[str, int] = {
     "opus-47-thinking": 300,
     "gemini-31-pro-thinking": 200,
     "deepseek-v31-hybrid-thinking": 250,
+    "qwen-37-flash-openrouter-thinking": 750,
 }
+
+# Projected completion-token use for live reasoning endpoints. These values
+# are deliberately separate from strict output caps: they support a realistic
+# planning estimate while every preflight also reports the all-cap cost. Qwen
+# 3.7 Flash within-ladder is calibrated to the completed 42-request reasoning
+# smoke (30,733 completion tokens, or about 732/request), rounded up to 750.
+LIVE_REASONING_OUTPUT_TOKENS_PER_REQUEST: dict[str, int] = {
+    "qwen-37-flash-openrouter-thinking": 750,
+}
+
+# Phase 6b prompts elicit materially longer reasoning than the within-ladder
+# prompts. The completed 420-request smoke used 609,387 completion tokens
+# (about 1,451/request), so the planning estimate rounds up to 1,500. Keeping
+# this calibration separate prevents the Phase 6b observation from inflating
+# within-ladder projections.
+PHASE6B_LIVE_REASONING_OUTPUT_TOKENS_PER_REQUEST: dict[str, int] = {
+    "qwen-37-flash-openrouter-thinking": 1500,
+}
+
+
+def live_reasoning_output_tokens_per_request(
+    model_key: str,
+    *,
+    experiment: str = "within_ladder",
+) -> int:
+    """Return projected output tokens for one live reasoning request."""
+    calibration = (
+        PHASE6B_LIVE_REASONING_OUTPUT_TOKENS_PER_REQUEST
+        if experiment == "phase6b"
+        else LIVE_REASONING_OUTPUT_TOKENS_PER_REQUEST
+    )
+    return calibration.get(
+        canonical_model_key(model_key),
+        AVG_OUTPUT_TOKENS_COT,
+    )
 
 
 def is_thinking_run(model_key: str) -> bool:

@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import io
 import json
+import sys
 import tempfile
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from llm_coherence.config import (
     MODEL_CONFIGS,
@@ -24,6 +26,7 @@ from llm_coherence.experiments.ladder_statement_pair.openai_batch_runner import 
     MAX_BATCH_FILE_BYTES,
     OPENAI_BATCH_ENDPOINT,
     REASONING_SUMMARIES_NAME,
+    _batch_missing_trial_records,
     _write_sharded_requests,
     batch_queue_limit_for_model,
     build_openai_responses_batch_body,
@@ -34,6 +37,17 @@ from llm_coherence.experiments.ladder_statement_pair.openai_batch_runner import 
     process_batch_run,
     submit_pending_batch_shards,
     validate_batch_run_binding,
+)
+from llm_coherence.experiments.ladder_statement_pair.experiment_runner_tradeoff import (
+    run_experiment as run_tradeoff_experiment,
+)
+from llm_coherence.experiments.ladder_statement_pair.run_7tier_experiment import (
+    estimate_phase6b_live_cost,
+    main as phase6b_main,
+    manifest_item_for_file,
+    print_phase6b_live_cost_estimate,
+    run_phase6b,
+    run_phase6b_with_client_cleanup,
 )
 from llm_coherence.experiments.within_ladder.run_within_ladder_experiment import (
     MODELS,
@@ -55,7 +69,12 @@ from llm_coherence.experiments.within_ladder.run_within_ladder_experiment import
     run_live,
     write_clean_and_cost_log,
 )
-from llm_coherence.runtime.agents import LiteLLMAgent, MODEL_SPECS, model_name_for_key
+from llm_coherence.runtime.agents import (
+    LiteLLMAgent,
+    MODEL_SPECS,
+    is_retryable_transport_exception as is_retryable_agent_exception,
+    model_name_for_key,
+)
 from llm_coherence.runtime.model_run_index import model_reasoning_mode
 from llm_coherence.runtime.preflight_check import (
     MODEL_COST_ESTIMATES,
@@ -80,6 +99,24 @@ GPT56_CASES = {
 
 
 OPENROUTER_CASES = {
+    "qwen-37-flash-openrouter": {
+        "model": "qwen/qwen3.7-flash",
+        "reasoning": {"enabled": False},
+        "max_tokens": 16,
+        "thinking": False,
+        "prices": {"input": 0.03, "output": 0.13},
+    },
+    "qwen-37-flash-openrouter-thinking": {
+        "model": "qwen/qwen3.7-flash",
+        "reasoning": {
+            "enabled": True,
+            "max_tokens": 2200,
+            "exclude": False,
+        },
+        "max_tokens": 2400,
+        "thinking": True,
+        "prices": {"input": 0.03, "output": 0.13},
+    },
     "qwen-37-max-openrouter": {
         "model": "qwen/qwen3.7-max-20260520",
         "reasoning": {"enabled": False},
@@ -178,6 +215,80 @@ class _FakeClient:
     def __init__(self, remote: list | None = None) -> None:
         self.files = _FakeFiles()
         self.batches = _FakeBatches(remote)
+
+
+class _RestartableTradeoffAgent:
+    accepts_system_message = True
+    uses_logits = False
+    enable_cache = False
+    base_timeout = 120.0
+
+    def __init__(self, plans: list[list[tuple[str | None, str]]]) -> None:
+        self.model = "openrouter/qwen/qwen3.7-flash"
+        self.extra_body = {"reasoning": {"enabled": False}}
+        self.plans = list(plans)
+        self.call_sizes: list[int] = []
+        self.usage_log: list[dict] = []
+        self.reasoning_log: list[dict] = []
+        self.last_completion_outcomes: list[dict] = []
+        self.retry_counts = {
+            "transport_retries": 0,
+            "transport_failures": 0,
+        }
+
+    async def async_completions(self, messages, **_kwargs):
+        plan = self.plans.pop(0)
+        self.call_sizes.append(len(messages))
+        if len(plan) != len(messages):
+            raise AssertionError(f"plan/message mismatch: {len(plan)} != {len(messages)}")
+        responses: list[str | None] = []
+        outcomes: list[dict] = []
+        for message_idx, (response, status) in enumerate(plan):
+            if status == "transport_failure":
+                self.retry_counts["transport_retries"] += 2
+                self.retry_counts["transport_failures"] += 1
+                responses.append(None)
+                outcomes.append(
+                    {
+                        "status": status,
+                        "finish_reason": None,
+                        "raw_response": None,
+                        "error": "connection failed",
+                        "attempts": 3,
+                        "transport_retries": 2,
+                    }
+                )
+                continue
+            responses.append(response)
+            outcomes.append(
+                {
+                    "status": "completed",
+                    "finish_reason": "stop",
+                    "raw_response": response,
+                    "error": None,
+                    "attempts": 1,
+                    "transport_retries": 0,
+                }
+            )
+            self.usage_log.append(
+                {
+                    "prompt_tokens": 10,
+                    "completion_tokens": 2,
+                    "reasoning_tokens": 1,
+                    "cost_usd": 0.01,
+                    "cost_source": "provider_reported",
+                }
+            )
+            self.reasoning_log.append(
+                {
+                    "message_idx": message_idx,
+                    "attempt": 0,
+                    "content": response,
+                    "reasoning": f"reasoning-{response}",
+                }
+            )
+        self.last_completion_outcomes = outcomes
+        return responses
 
 
 class WithinLadderSmokeScopeTests(unittest.TestCase):
@@ -577,6 +688,161 @@ class OpenRouterModelConfigurationTests(unittest.TestCase):
             estimate["maximum_output_cost_usd"],
         )
 
+    def test_flash_reasoning_preflight_enforces_budgeted_output_cap(self) -> None:
+        requests = [
+            {
+                "custom_id": f"ladder__T1_vs_T2__{direction}",
+                "body": {
+                    "model": "qwen/qwen3.7-flash",
+                    "messages": [{"role": "user", "content": "a" * 5_000}],
+                    "max_tokens": 2_400,
+                    "reasoning": {
+                        "enabled": True,
+                        "max_tokens": 2_200,
+                        "exclude": False,
+                    },
+                },
+            }
+            for direction in ("AB", "BA")
+        ]
+
+        estimate = estimate_pre_submit_live_cost(
+            "qwen-37-flash-openrouter-thinking",
+            requests=requests,
+        )
+
+        self.assertIsNotNone(estimate)
+        self.assertEqual(estimate["request_count"], 2)
+        self.assertEqual(estimate["reasoning_on_requests"], 2)
+        self.assertEqual(estimate["estimated_input_tokens"], 2_018)
+        self.assertEqual(estimate["projected_output_tokens"], 1_500)
+        self.assertEqual(
+            estimate["reasoning_output_projection_per_request"],
+            750,
+        )
+        self.assertEqual(estimate["output_token_cap"], 4_800)
+        self.assertAlmostEqual(estimate["estimated_cost_usd"], 0.000256)
+        self.assertAlmostEqual(estimate["maximum_output_cost_usd"], 0.000685)
+
+    def test_flash_runner_keeps_raw_reasoning_and_cost_telemetry(self) -> None:
+        model_key = "qwen-37-flash-openrouter-thinking"
+        config = MODEL_CONFIGS[model_key]
+        agent = LiteLLMAgent(
+            model=MODEL_SPECS[model_key].model_name,
+            max_tokens=config.max_tokens,
+            extra_body=config.extra_body,
+        )
+        kwargs = agent._completion_kwargs(
+            [{"role": "user", "content": "Choose A or B."}],
+            timeout=30.0,
+        )
+        self.assertEqual(kwargs["max_tokens"], 2400)
+        self.assertEqual(
+            kwargs["extra_body"]["reasoning"],
+            {"enabled": True, "max_tokens": 2200, "exclude": False},
+        )
+        self.assertEqual(kwargs["extra_body"]["usage"], {"include": True})
+
+        response = SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        reasoning_content=None,
+                        reasoning=None,
+                        reasoning_details=[
+                            {"type": "reasoning.text", "text": "Visible trace"}
+                        ],
+                    )
+                )
+            ]
+        )
+        agent._log_reasoning(response, message_idx=0, attempt=0, content="A")
+        self.assertEqual(
+            agent.reasoning_log[-1]["reasoning"],
+            [{"type": "reasoning.text", "text": "Visible trace"}],
+        )
+
+        no_trace_response = SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        reasoning_content=None,
+                        reasoning=None,
+                        reasoning_details=None,
+                    )
+                )
+            ]
+        )
+        before = len(agent.reasoning_log)
+        agent._log_reasoning(
+            no_trace_response,
+            message_idx=1,
+            attempt=0,
+            content="B",
+        )
+        self.assertEqual(len(agent.reasoning_log), before)
+
+    def test_transport_only_agent_retries_transient_429(self) -> None:
+        import httpx
+
+        request = httpx.Request(
+            "POST",
+            "https://openrouter.ai/api/v1/chat/completions",
+        )
+        rate_limited = httpx.HTTPStatusError(
+            "rate limited",
+            request=request,
+            response=httpx.Response(
+                429,
+                request=request,
+                headers={"Retry-After": "0"},
+            ),
+        )
+        bad_request = httpx.HTTPStatusError(
+            "bad request",
+            request=request,
+            response=httpx.Response(400, request=request),
+        )
+        self.assertTrue(is_retryable_agent_exception(rate_limited))
+        self.assertFalse(is_retryable_agent_exception(bad_request))
+
+        response = SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    finish_reason="stop",
+                    message=SimpleNamespace(
+                        content="A",
+                        reasoning_content=None,
+                        reasoning=None,
+                        reasoning_details=None,
+                    ),
+                )
+            ],
+            usage=None,
+            _hidden_params={},
+        )
+        agent = LiteLLMAgent(
+            model="openrouter/qwen/qwen3.7-flash",
+            max_tokens=16,
+            max_retries=2,
+            base_delay=0.0,
+            max_delay=0.0,
+            use_jitter=False,
+            retry_transport_only=True,
+        )
+        agent._acompletion = AsyncMock(side_effect=[rate_limited, response])
+
+        answers = asyncio.run(
+            agent.async_completions(
+                [[{"role": "user", "content": "Choose A or B."}]],
+                verbose=False,
+            )
+        )
+        self.assertEqual(answers, ["A"])
+        self.assertEqual(agent._acompletion.await_count, 2)
+        self.assertEqual(agent.retry_counts["transport_retries"], 1)
+        self.assertEqual(agent.last_completion_outcomes[0]["status"], "completed")
+
     def test_main_runner_keeps_reasoning_and_requests_cost_telemetry(self) -> None:
         model_key = "qwen-37-max-openrouter-thinking"
         config = MODEL_CONFIGS[model_key]
@@ -595,6 +861,377 @@ class OpenRouterModelConfigurationTests(unittest.TestCase):
             {"enabled": True},
         )
         self.assertEqual(kwargs["extra_body"]["usage"], {"include": True})
+
+
+class Phase6bLiveCostPreflightTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tempdir = tempfile.TemporaryDirectory()
+        self.root = Path(self.tempdir.name)
+        self.data_dir = self.root / "data"
+        self.data_dir.mkdir()
+
+        self.comparison_name = "phase6b_variations_pruned_final_Test_1_comparisons.json"
+        self.comparison_path = self.data_dir / self.comparison_name
+        self.comparison_path.write_text(
+            json.dumps(
+                {
+                    "comparisons": [
+                        {
+                            "outcome_a": {"text": "Tier outcome."},
+                            "outcome_b": {"text": "Comparison outcome."},
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        self.manifest_path = self.data_dir / "phase6b_variations_pruned_final_manifest.json"
+        self.manifest_path.write_text(
+            json.dumps(
+                {
+                    "variation_files": [self.comparison_name],
+                    "n_tiers": 7,
+                    "n_comparison_samples": 30,
+                }
+            ),
+            encoding="utf-8",
+        )
+        self.run_items = [
+            manifest_item_for_file(self.data_dir, self.comparison_name)
+        ]
+
+    def tearDown(self) -> None:
+        self.tempdir.cleanup()
+
+    def test_off_estimate_counts_flips_trials_and_prelaunch(self) -> None:
+        estimate = estimate_phase6b_live_cost(
+            "qwen-37-flash-openrouter",
+            run_items=self.run_items,
+            data_dir=self.data_dir,
+            num_trials=2,
+            with_reasoning=False,
+            max_tokens=16,
+            system_message="You are a helpful assistant.",
+            include_prelaunch_smoke=True,
+        )
+
+        self.assertIsNotNone(estimate)
+        self.assertEqual(estimate["variation_sets"], 1)
+        self.assertEqual(estimate["total_comparisons"], 1)
+        self.assertEqual(estimate["experiment_request_count"], 4)
+        self.assertEqual(estimate["prelaunch_request_count"], 1)
+        self.assertEqual(estimate["request_count"], 5)
+        self.assertFalse(estimate["reasoning_on"])
+        self.assertEqual(estimate["projected_output_per_request"], 5)
+        self.assertEqual(estimate["projected_output_tokens"], 25)
+        self.assertEqual(estimate["output_token_cap"], 80)
+
+    def test_thinking_estimate_uses_observed_flash_calibration(self) -> None:
+        estimate = estimate_phase6b_live_cost(
+            "qwen-37-flash-openrouter-thinking",
+            run_items=self.run_items,
+            data_dir=self.data_dir,
+            num_trials=2,
+            with_reasoning=True,
+            max_tokens=2_400,
+            system_message="You are a helpful assistant.",
+            include_prelaunch_smoke=True,
+        )
+
+        self.assertIsNotNone(estimate)
+        self.assertTrue(estimate["reasoning_on"])
+        self.assertEqual(estimate["request_count"], 5)
+        self.assertEqual(estimate["projected_output_per_request"], 1_500)
+        self.assertEqual(estimate["projected_output_tokens"], 7_500)
+        self.assertEqual(estimate["output_token_cap"], 12_000)
+        self.assertLess(
+            estimate["estimated_cost_usd"],
+            estimate["maximum_output_cost_usd"],
+        )
+
+        stream = io.StringIO()
+        with redirect_stdout(stream):
+            displayed = print_phase6b_live_cost_estimate(
+                "qwen-37-flash-openrouter-thinking",
+                run_items=self.run_items,
+                data_dir=self.data_dir,
+                num_trials=2,
+                with_reasoning=True,
+                max_tokens=2_400,
+                system_message="You are a helpful assistant.",
+                include_prelaunch_smoke=True,
+            )
+        self.assertEqual(displayed, estimate)
+        output = stream.getvalue()
+        self.assertIn("Preflight Phase 6b live cost estimate", output)
+        self.assertIn("all-cap estimate", output)
+        self.assertIn("no API request has been sent", output)
+
+    def test_estimate_only_cli_exits_before_agent_or_async_run(self) -> None:
+        results_dir = self.root / "results"
+        checkpoints_dir = self.root / "checkpoints"
+        argv = [
+            "10b_run_7tier_experiment.py",
+            "--model",
+            "qwen-37-flash-openrouter",
+            "--data-dir",
+            str(self.data_dir),
+            "--manifest",
+            str(self.manifest_path),
+            "--results-dir",
+            str(results_dir),
+            "--checkpoints-dir",
+            str(checkpoints_dir),
+            "--trials",
+            "1",
+            "--max-variation-sets",
+            "1",
+            "--infrastructure",
+            "openrouter",
+            "--estimate-cost-only",
+        ]
+
+        stream = io.StringIO()
+        module = (
+            "llm_coherence.experiments.ladder_statement_pair."
+            "run_7tier_experiment"
+        )
+        with (
+            patch.object(sys, "argv", argv),
+            patch(f"{module}.create_agent") as create_agent_mock,
+            patch(f"{module}.asyncio.run") as asyncio_run_mock,
+            redirect_stdout(stream),
+        ):
+            result = phase6b_main()
+
+        self.assertEqual(result, 0)
+        create_agent_mock.assert_not_called()
+        asyncio_run_mock.assert_not_called()
+        output = stream.getvalue()
+        self.assertIn("2 experiment requests + 1 pre-launch smoke request", output)
+        self.assertIn("no API request has been sent", output)
+
+    def test_live_path_prints_cost_before_provider_smoke(self) -> None:
+        module = (
+            "llm_coherence.experiments.ladder_statement_pair."
+            "run_7tier_experiment"
+        )
+        smoke_mock = AsyncMock(return_value=False)
+        stream = io.StringIO()
+        with (
+            patch(f"{module}.smoke_call", smoke_mock),
+            redirect_stdout(stream),
+            self.assertRaises(SystemExit),
+        ):
+            asyncio.run(
+                run_phase6b(
+                    model_key="qwen-37-flash-openrouter",
+                    num_trials=1,
+                    with_reasoning=False,
+                    max_tokens=16,
+                    data_dir=self.data_dir,
+                    manifest_path=self.manifest_path,
+                    results_dir=self.root / "live-results",
+                    checkpoints_dir=self.root / "live-checkpoints",
+                    variation_ids=None,
+                    max_concurrent=1,
+                    resume=False,
+                    verbose=False,
+                    reasoning_mode="none",
+                    temperature=0.0,
+                    infrastructure="openrouter",
+                    skip_smoke_test=False,
+                    max_variation_sets=1,
+                )
+            )
+
+        smoke_mock.assert_awaited_once()
+        output = stream.getvalue()
+        self.assertLess(
+            output.index("Preflight Phase 6b live cost estimate"),
+            output.index("Running pre-launch smoke test"),
+        )
+
+    def test_cli_wrapper_closes_provider_clients_after_failure(self) -> None:
+        module = (
+            "llm_coherence.experiments.ladder_statement_pair."
+            "run_7tier_experiment"
+        )
+        run_mock = AsyncMock(side_effect=RuntimeError("provider failure"))
+        close_mock = AsyncMock()
+        with (
+            patch(f"{module}.run_phase6b", run_mock),
+            patch(f"{module}.close_api_async_clients", close_mock),
+            self.assertRaisesRegex(RuntimeError, "provider failure"),
+        ):
+            asyncio.run(run_phase6b_with_client_cleanup(example=True))
+
+        run_mock.assert_awaited_once_with(example=True)
+        close_mock.assert_awaited_once_with()
+
+    def _run_with_transport_failure(
+        self,
+        *,
+        results_dir: Path,
+        checkpoints_dir: Path,
+        max_retries: int = 3,
+    ) -> _RestartableTradeoffAgent:
+        module = (
+            "llm_coherence.experiments.ladder_statement_pair."
+            "experiment_runner_tradeoff"
+        )
+        fake_agent = _RestartableTradeoffAgent(
+            [
+                [("A", "completed"), (None, "transport_failure")],
+                [("B", "completed"), ("A", "completed")],
+            ]
+        )
+        with (
+            patch(
+                f"{module}.create_agent",
+                return_value=fake_agent,
+            ),
+            self.assertRaisesRegex(
+                RuntimeError,
+                "resume will retry only failed transport IDs",
+            ),
+        ):
+            asyncio.run(
+                run_tradeoff_experiment(
+                    test_name=(
+                        "phase6b_variations_pruned_final_Test_1"
+                    ),
+                    model_key="qwen-37-flash-openrouter",
+                    num_trials=2,
+                    data_dir=self.data_dir,
+                    comparison_path=self.comparison_path,
+                    results_dir=results_dir,
+                    checkpoints_dir=checkpoints_dir,
+                    include_flipped=True,
+                    resume=True,
+                    with_reasoning=False,
+                    max_tokens=16,
+                    max_retries=max_retries,
+                    verbose=False,
+                    infrastructure="openrouter",
+                )
+            )
+        return fake_agent
+
+    def test_exhausted_transport_resume_retries_only_failed_ids(self) -> None:
+        module = (
+            "llm_coherence.experiments.ladder_statement_pair."
+            "experiment_runner_tradeoff"
+        )
+        results_dir = self.root / "failed-results"
+        checkpoints_dir = self.root / "failed-checkpoints"
+        first_agent = self._run_with_transport_failure(
+            results_dir=results_dir,
+            checkpoints_dir=checkpoints_dir,
+        )
+
+        checkpoint_path = next(checkpoints_dir.glob("*.json"))
+        checkpoint = json.loads(checkpoint_path.read_text(encoding="utf-8"))
+        self.assertEqual(checkpoint["schema_version"], "2.0")
+        self.assertEqual(checkpoint["run_config"]["max_retries"], 3)
+        self.assertEqual(len(checkpoint["telemetry"]["usage_log"]), 3)
+        self.assertEqual(len(checkpoint["telemetry"]["reasoning_log"]), 3)
+        trial_records = checkpoint["partial_comparison"]["trial_state"]["directions"]
+        self.assertEqual(
+            [record["outcome"]["status"] for record in trial_records["AB"]],
+            ["completed", "transport_failure"],
+        )
+        self.assertEqual(
+            [record["outcome"]["status"] for record in trial_records["BA"]],
+            ["completed", "completed"],
+        )
+        self.assertEqual(first_agent.call_sizes, [2, 2])
+
+        resumed_agent = _RestartableTradeoffAgent(
+            [[("B", "completed")]]
+        )
+        with patch(f"{module}.create_agent", return_value=resumed_agent):
+            result = asyncio.run(
+                run_tradeoff_experiment(
+                    test_name="phase6b_variations_pruned_final_Test_1",
+                    model_key="qwen-37-flash-openrouter",
+                    num_trials=2,
+                    data_dir=self.data_dir,
+                    comparison_path=self.comparison_path,
+                    results_dir=results_dir,
+                    checkpoints_dir=checkpoints_dir,
+                    include_flipped=True,
+                    resume=True,
+                    with_reasoning=False,
+                    max_tokens=16,
+                    max_retries=3,
+                    verbose=False,
+                    infrastructure="openrouter",
+                )
+            )
+
+        self.assertEqual(resumed_agent.call_sizes, [1])
+        self.assertEqual(result["metadata"]["usage_stats"]["prompt_tokens"]["total"], 40)
+        self.assertEqual(result["metadata"]["usage_stats"]["reasoning_tokens"]["total"], 4)
+        self.assertAlmostEqual(result["metadata"]["actual_cost_usd"], 0.04)
+        self.assertEqual(result["preferences"][0]["missing_trials"], 0)
+        self.assertFalse(checkpoint_path.exists())
+        traces_path = (
+            results_dir
+            / "phase6b_ladder_Test_1"
+            / "reasoning_traces.jsonl"
+        )
+        traces = [
+            json.loads(line)
+            for line in traces_path.read_text(encoding="utf-8").splitlines()
+        ]
+        self.assertEqual(len(traces), 4)
+        self.assertEqual(
+            {trace["custom_id"] for trace in traces},
+            {
+                "c0000-dab-t000",
+                "c0000-dab-t001",
+                "c0000-dba-t000",
+                "c0000-dba-t001",
+            },
+        )
+
+    def test_resume_rejects_response_setting_fingerprint_mismatch(self) -> None:
+        module = (
+            "llm_coherence.experiments.ladder_statement_pair."
+            "experiment_runner_tradeoff"
+        )
+        results_dir = self.root / "mismatch-results"
+        checkpoints_dir = self.root / "mismatch-checkpoints"
+        self._run_with_transport_failure(
+            results_dir=results_dir,
+            checkpoints_dir=checkpoints_dir,
+            max_retries=3,
+        )
+
+        with (
+            patch(f"{module}.create_agent") as create_agent_mock,
+            self.assertRaisesRegex(ValueError, "fingerprint mismatch"),
+        ):
+            asyncio.run(
+                run_tradeoff_experiment(
+                    test_name="phase6b_variations_pruned_final_Test_1",
+                    model_key="qwen-37-flash-openrouter",
+                    num_trials=2,
+                    data_dir=self.data_dir,
+                    comparison_path=self.comparison_path,
+                    results_dir=results_dir,
+                    checkpoints_dir=checkpoints_dir,
+                    include_flipped=True,
+                    resume=True,
+                    with_reasoning=False,
+                    max_tokens=16,
+                    max_retries=4,
+                    verbose=False,
+                    infrastructure="openrouter",
+                )
+            )
+        create_agent_mock.assert_not_called()
 
 
 class GPT56BatchRoundTripTests(unittest.TestCase):
@@ -880,6 +1517,67 @@ class GPT56BatchRoundTripTests(unittest.TestCase):
         self.assertEqual(preference["count_prefer_b"], 1)
         self.assertEqual(preference["parseable_trials"], 3)
         self.assertEqual(preference["expected_trials"], 4)
+        self.assertEqual(preference["missing_trials"], 1)
+        self.assertEqual(preference["missing_by_reason"], {"token_capped": 1})
+        self.assertEqual(preference["probability_denominator"], "parseable_trials")
+        self.assertEqual(
+            preference["prob_prefer_a_bounds"],
+            {
+                "lower_missing_prefer_b": 0.5,
+                "upper_missing_prefer_a": 0.75,
+            },
+        )
+        self.assertEqual(
+            preference["missing_responses"][0]["custom_id"],
+            "s0000-c0000-dab-t000",
+        )
+        self.assertEqual(
+            result["metadata"]["response_diagnostics"]["missing_response_counts"],
+            {"token_capped": 1},
+        )
+
+    def test_legacy_length_uses_shared_token_capped_missing_schema(self) -> None:
+        custom_id = "s0000-c0000-dab-t000"
+        records = _batch_missing_trial_records(
+            set_index=0,
+            comparison_index=0,
+            direction="ab",
+            parsed=[None],
+            diagnostics_by_id={
+                custom_id: {
+                    "text": "Answer: A because",
+                    "response_status": "unknown",
+                    "finish_reason": "length",
+                    "incomplete_reason": None,
+                    "refusals": [],
+                    "batch_attempt": 0,
+                }
+            },
+        )
+
+        self.assertEqual(len(records), 1)
+        record = records[0]
+        self.assertEqual(record["reason"], "token_capped")
+        self.assertEqual(record["finish_reason"], "length")
+        self.assertEqual(record["custom_id"], custom_id)
+        self.assertEqual(record["response_status"], "unknown")
+        self.assertEqual(record["schema_version"], "1.0")
+        self.assertEqual(
+            set(record),
+            {
+                "schema_version",
+                "direction",
+                "trial_index",
+                "custom_id",
+                "reason",
+                "finish_reason",
+                "response_status",
+                "raw_response",
+                "error",
+                "attempts",
+                "transport_retries",
+            },
+        )
 
     def test_processing_rejects_nonterminal_and_partial_terminal_jobs(self) -> None:
         run_dir = self._generate()
@@ -926,6 +1624,15 @@ class GPT56BatchRoundTripTests(unittest.TestCase):
         self.assertEqual(preference["parseable_trials"], 0)
         self.assertIsNone(preference["prob_prefer_a"])
         self.assertIsNone(preference["prob_prefer_b"])
+        self.assertEqual(preference["missing_trials"], 4)
+        self.assertEqual(preference["missing_by_reason"], {"empty_response": 4})
+        self.assertEqual(
+            preference["prob_prefer_a_bounds"],
+            {
+                "lower_missing_prefer_b": 0.0,
+                "upper_missing_prefer_a": 1.0,
+            },
+        )
 
     def test_processing_records_missing_requested_reasoning_summaries(self) -> None:
         run_dir = self._generate()
@@ -1101,6 +1808,13 @@ class WithinLadderSafetyTests(unittest.TestCase):
             )
         )
         self.assertFalse(_is_retryable_transport_exception(RuntimeError("API error")))
+        request = httpx.Request("POST", "https://openrouter.ai/api/v1/chat/completions")
+        rate_limited = httpx.HTTPStatusError(
+            "rate limited",
+            request=request,
+            response=httpx.Response(429, request=request),
+        )
+        self.assertTrue(_is_retryable_transport_exception(rate_limited))
         self.assertTrue(
             _is_transport_failure_row(
                 {
@@ -1117,6 +1831,15 @@ class WithinLadderSafetyTests(unittest.TestCase):
         self.assertFalse(
             _is_transport_failure_row(
                 {"error": "rate limited", "error_type": "non_transport"}
+            )
+        )
+        self.assertTrue(
+            _is_transport_failure_row(
+                {
+                    "error": "Client error '429 Too Many Requests' for url "
+                    "'https://openrouter.ai/api/v1/chat/completions'",
+                    "error_type": "non_transport",
+                }
             )
         )
         self.assertFalse(
