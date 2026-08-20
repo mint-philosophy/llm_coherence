@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import os
 import random
+import time
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any
 
@@ -87,6 +89,14 @@ MODEL_SPECS: dict[str, ModelSpec] = {
         "openrouter/moonshotai/kimi-k3",
         "openrouter",
     ),
+    "qwen-37-flash-openrouter": ModelSpec(
+        "openrouter/qwen/qwen3.7-flash",
+        "openrouter",
+    ),
+    "qwen-37-flash-openrouter-thinking": ModelSpec(
+        "openrouter/qwen/qwen3.7-flash",
+        "openrouter",
+    ),
     "qwen-37-max-openrouter": ModelSpec(
         "openrouter/qwen/qwen3.7-max-20260520",
         "openrouter",
@@ -105,6 +115,8 @@ _TOKEN_CAP_FINISH_REASONS = {
     "max_completion_tokens",
 }
 
+_RETRYABLE_HTTP_STATUS_CODES = {408, 409, 425, 429, 500, 502, 503, 504}
+
 
 def is_token_capped_finish_reason(reason: Any) -> bool:
     """Return whether a provider finish reason denotes the fixed token cap."""
@@ -114,11 +126,13 @@ def is_token_capped_finish_reason(reason: Any) -> bool:
 
 
 def is_retryable_transport_exception(exc: BaseException) -> bool:
-    """Classify retryable live-call failures without retrying model outcomes.
+    """Classify retryable infrastructure failures with no model outcome.
 
     LiteLLM may wrap ``httpx`` transport exceptions, so inspect the exception
-    chain as well as the outer SDK exception. Provider HTTP errors, rate limits,
-    bad requests, empty responses, and parse failures are deliberately absent.
+    chain as well as the outer SDK exception. Transient HTTP statuses such as
+    429 and 5xx are safe to retry because the provider returned no model
+    choice. Bad requests, model refusals, token caps, empty responses, and
+    parse failures remain non-retryable experimental outcomes.
     """
     transport_names = {
         "APIConnectionError",
@@ -148,9 +162,26 @@ def is_retryable_transport_exception(exc: BaseException) -> bool:
 
             if isinstance(current, httpx.TransportError):
                 return True
+            if isinstance(current, httpx.HTTPStatusError):
+                if current.response.status_code in _RETRYABLE_HTTP_STATUS_CODES:
+                    return True
         except ImportError:
             pass
         module = type(current).__module__.lower()
+        status_code = getattr(current, "status_code", None)
+        if status_code is None:
+            response = getattr(current, "response", None)
+            status_code = getattr(response, "status_code", None)
+        try:
+            if int(status_code) in _RETRYABLE_HTTP_STATUS_CODES:
+                return True
+        except (TypeError, ValueError):
+            pass
+        if (
+            type(current).__name__ == "RateLimitError"
+            and any(name in module for name in ("litellm", "openai", "anthropic"))
+        ):
+            return True
         if (
             type(current).__name__ in transport_names
             and any(name in module for name in ("httpx", "httpcore", "litellm", "openai"))
@@ -158,6 +189,45 @@ def is_retryable_transport_exception(exc: BaseException) -> bool:
             return True
         current = current.__cause__ or current.__context__
     return False
+
+
+def _exception_http_status_code(exc: BaseException) -> int | None:
+    """Return a wrapped HTTP status code when an SDK exposes one."""
+    seen: set[int] = set()
+    current: BaseException | None = exc
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        status_code = getattr(current, "status_code", None)
+        if status_code is None:
+            response = getattr(current, "response", None)
+            status_code = getattr(response, "status_code", None)
+        try:
+            return int(status_code)
+        except (TypeError, ValueError):
+            pass
+        if type(current).__name__ == "RateLimitError":
+            return 429
+        current = current.__cause__ or current.__context__
+    return None
+
+
+def _exception_retry_after_seconds(exc: BaseException) -> float | None:
+    """Return Retry-After from a wrapped response when available."""
+    seen: set[int] = set()
+    current: BaseException | None = exc
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        response = getattr(current, "response", None)
+        headers = getattr(response, "headers", None)
+        if headers is not None:
+            retry_after = headers.get("Retry-After")
+            if retry_after is not None:
+                try:
+                    return max(float(retry_after), 0.0)
+                except (TypeError, ValueError):
+                    pass
+        current = current.__cause__ or current.__context__
+    return None
 
 
 def _completion_finish_reason(completion_res: Any) -> str | None:
@@ -180,6 +250,141 @@ def model_name_for_key(model_key: str) -> str | None:
     return cfg.model_name_full if cfg is not None else None
 
 
+async def close_api_async_clients() -> None:
+    """Close LiteLLM's cached async HTTP clients after a CLI live run.
+
+    LiteLLM caches provider clients across requests for connection reuse. The
+    cache must be closed before ``asyncio.run`` tears down its event loop or
+    aiohttp reports an unclosed client session at process exit.
+    """
+    try:
+        import litellm
+    except ImportError:
+        return
+
+    close_clients = getattr(litellm, "close_litellm_async_clients", None)
+    if close_clients is None:
+        return
+    try:
+        await close_clients()
+    except Exception:
+        # Cleanup must not mask a completed experiment or its original error.
+        return
+
+
+class AsyncRequestLimiter:
+    """Run-wide cap and optional smoothing for live API request attempts.
+
+    ``LiteLLMAgent.async_completions`` is called independently by every
+    concurrently running ladder.  A semaphore created inside that method only
+    limits one batch, so outer ladder concurrency can otherwise multiply the
+    actual number of in-flight HTTP requests.  Sharing one instance of this
+    limiter across agents makes the configured cap apply to the whole Python
+    process, including retry attempts.
+
+    ``requests_per_second`` controls request *starts*, not completions.  Starts
+    are evenly spaced while a concurrency slot is held, avoiding a new burst
+    immediately after a provider window clears.
+    """
+
+    def __init__(
+        self,
+        max_concurrency: int,
+        requests_per_second: float | None = None,
+    ) -> None:
+        if max_concurrency < 1:
+            raise ValueError("max_concurrency must be >= 1")
+        if requests_per_second is not None and requests_per_second <= 0:
+            raise ValueError("requests_per_second must be > 0 when set")
+
+        self.max_concurrency = int(max_concurrency)
+        self.requests_per_second = (
+            float(requests_per_second)
+            if requests_per_second is not None
+            else None
+        )
+        self._minimum_start_interval = (
+            1.0 / self.requests_per_second
+            if self.requests_per_second is not None
+            else 0.0
+        )
+        self._semaphore = asyncio.Semaphore(self.max_concurrency)
+        self._start_lock = asyncio.Lock()
+        self._next_start = 0.0
+        self._active = 0
+        self._peak_active = 0
+        self._attempts_started = 0
+        self._attempts_completed = 0
+        self._first_start: float | None = None
+        self._last_start: float | None = None
+        self._concurrency_wait_seconds = 0.0
+        self._pacing_wait_seconds = 0.0
+
+    @asynccontextmanager
+    async def slot(self):
+        """Acquire one run-wide request slot and apply start-rate smoothing."""
+        queued_at = time.monotonic()
+        await self._semaphore.acquire()
+        acquired_at = time.monotonic()
+        self._concurrency_wait_seconds += acquired_at - queued_at
+        active = False
+        try:
+            if self._minimum_start_interval:
+                async with self._start_lock:
+                    now = time.monotonic()
+                    scheduled = max(now, self._next_start)
+                    delay = scheduled - now
+                    if delay > 0:
+                        await asyncio.sleep(delay)
+                        self._pacing_wait_seconds += delay
+                    started_at = time.monotonic()
+                    # Do not "catch up" with a burst if the event loop wakes
+                    # later than scheduled.
+                    self._next_start = (
+                        max(scheduled, started_at) + self._minimum_start_interval
+                    )
+            else:
+                started_at = time.monotonic()
+
+            self._attempts_started += 1
+            self._first_start = self._first_start or started_at
+            self._last_start = started_at
+            self._active += 1
+            active = True
+            self._peak_active = max(self._peak_active, self._active)
+            yield
+        finally:
+            if active:
+                self._active -= 1
+                self._attempts_completed += 1
+            self._semaphore.release()
+
+    def snapshot(self) -> dict[str, int | float | None]:
+        """Return diagnostics without resetting the limiter."""
+        observed_rate: float | None = None
+        if (
+            self._attempts_started > 1
+            and self._first_start is not None
+            and self._last_start is not None
+            and self._last_start > self._first_start
+        ):
+            observed_rate = (
+                (self._attempts_started - 1)
+                / (self._last_start - self._first_start)
+            )
+        return {
+            "max_concurrency": self.max_concurrency,
+            "requests_per_second": self.requests_per_second,
+            "attempts_started": self._attempts_started,
+            "attempts_completed": self._attempts_completed,
+            "in_flight": self._active,
+            "peak_in_flight": self._peak_active,
+            "observed_start_rate": observed_rate,
+            "concurrency_wait_seconds": self._concurrency_wait_seconds,
+            "pacing_wait_seconds": self._pacing_wait_seconds,
+        }
+
+
 class LiteLLMAgent:
     """Async LiteLLM wrapper with retry, usage, and reasoning trace logging."""
 
@@ -198,6 +403,7 @@ class LiteLLMAgent:
         extra_body: dict[str, Any] | None = None,
         enable_cache: bool = False,
         retry_transport_only: bool = False,
+        request_limiter: AsyncRequestLimiter | None = None,
     ):
         try:
             import litellm
@@ -230,6 +436,7 @@ class LiteLLMAgent:
         self.extra_body = extra_body or {}
         self.enable_cache = enable_cache
         self.retry_transport_only = retry_transport_only
+        self.request_limiter = request_limiter
         self.usage_log: list[dict[str, Any]] = []
         self.reasoning_log: list[dict[str, Any]] = []
         self.last_completion_outcomes: list[dict[str, Any]] = []
@@ -345,7 +552,13 @@ class LiteLLMAgent:
     def _log_reasoning(self, completion_res: Any, message_idx: int, attempt: int, content: str) -> None:
         try:
             msg = completion_res.choices[0].message
-            reasoning = getattr(msg, "reasoning_content", None) or getattr(msg, "reasoning", None)
+            reasoning = (
+                getattr(msg, "reasoning_content", None)
+                or getattr(msg, "reasoning", None)
+                or getattr(msg, "reasoning_details", None)
+            )
+            if reasoning in (None, "", [], {}):
+                return
             self.reasoning_log.append(
                 {
                     "message_idx": message_idx,
@@ -396,12 +609,19 @@ class LiteLLMAgent:
                 completion_res = None
                 try:
                     async with semaphore:
-                        completion_res = await self._acompletion(
-                            **self._completion_kwargs(message, current_timeout)
-                        )
+                        if self.request_limiter is None:
+                            completion_res = await self._acompletion(
+                                **self._completion_kwargs(message, current_timeout)
+                            )
+                        else:
+                            async with self.request_limiter.slot():
+                                completion_res = await self._acompletion(
+                                    **self._completion_kwargs(message, current_timeout)
+                                )
                 except Exception as exc:
                     counts["errors"] += 1
                     transport = is_retryable_transport_exception(exc)
+                    status_code = _exception_http_status_code(exc)
                     if isinstance(exc, (asyncio.TimeoutError, TimeoutError)):
                         counts["timeouts"] += 1
                     if transport:
@@ -416,7 +636,11 @@ class LiteLLMAgent:
                         can_retry = attempt < self.max_retries - 1
 
                     if verbose:
-                        label = "Transport" if transport else "Non-transport"
+                        label = (
+                            "Retryable infrastructure"
+                            if transport
+                            else "Non-retryable provider"
+                        )
                         suffix = "retrying" if can_retry else "not retrying"
                         print(
                             f"[{label} error] Attempt {attempt + 1}/{self.max_retries} "
@@ -429,9 +653,20 @@ class LiteLLMAgent:
                         if isinstance(exc, (asyncio.TimeoutError, TimeoutError)):
                             current_timeout *= 2.0
                         else:
-                            sleep_for = retry_delay + (
-                                random.uniform(0, 1) if self.use_jitter else 0
-                            )
+                            retry_after = _exception_retry_after_seconds(exc)
+                            if retry_after is not None:
+                                sleep_for = retry_after
+                            elif status_code == 429:
+                                # OpenRouter's shared upstream pools frequently
+                                # omit Retry-After. Let the rolling window clear.
+                                sleep_for = max(
+                                    retry_delay,
+                                    10.0 * (attempt + 1),
+                                )
+                            else:
+                                sleep_for = retry_delay
+                            if self.use_jitter:
+                                sleep_for += random.uniform(0, 1)
                             await asyncio.sleep(sleep_for)
                             retry_delay = min(retry_delay * 2.0, self.max_delay)
                         continue
@@ -648,10 +883,12 @@ def create_agent(
     temperature: float = 0.0,
     max_tokens: int = 10,
     concurrency_limit: int = 50,
+    max_retries: int = 5,
     trust_remote_code: bool = True,
     extra_body: dict[str, Any] | None = None,
     enable_cache: bool = False,
     retry_transport_only: bool = False,
+    request_limiter: AsyncRequestLimiter | None = None,
     **kwargs: Any,
 ) -> LiteLLMAgent:
     """Create a LiteLLM-backed API agent from an llm_coherence model key."""
@@ -685,8 +922,10 @@ def create_agent(
         max_tokens=max_tokens,
         concurrency_limit=concurrency_limit,
         accepts_system_message=spec.accepts_system_message,
+        max_retries=max_retries,
         base_timeout=float(kwargs.get("base_timeout", cfg.base_timeout if cfg else 5.0)),
         extra_body=resolved_extra_body,
         enable_cache=resolved_enable_cache,
         retry_transport_only=retry_transport_only,
+        request_limiter=request_limiter,
     )

@@ -26,7 +26,7 @@ import os
 import re
 import time
 import uuid
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Iterator
@@ -46,6 +46,7 @@ from llm_coherence.experiments.ladder_statement_pair.experiment_runner_tradeoff 
     build_prompt,
     counts_from_responses,
     load_comparisons,
+    missing_result_record,
     save_results,
 )
 from llm_coherence.runtime.agents import MODEL_SPECS, model_name_for_key
@@ -1193,7 +1194,10 @@ def _response_inventory(
                 if status_code == 200 and isinstance(body, dict):
                     if custom_id in responses:
                         stats["duplicates"] += 1
-                    responses[custom_id] = row
+                    responses[custom_id] = {
+                        **row,
+                        "_batch_attempt": int(entry.get("attempt", 0)),
+                    }
                     failures.pop(custom_id, None)
                     stats["successful"] += 1
                     continue
@@ -1438,6 +1442,73 @@ def _response_text_and_diagnostics(body: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _batch_missing_trial_records(
+    *,
+    set_index: int,
+    comparison_index: int,
+    direction: str,
+    parsed: list[str],
+    diagnostics_by_id: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Describe every non-parseable Batch trial using the live-result schema."""
+    records: list[dict[str, Any]] = []
+    display_direction = direction.upper()
+    for trial_index, parsed_value in enumerate(parsed):
+        if parsed_value in {"A", "B"}:
+            continue
+        custom_id = encode_custom_id(
+            set_index,
+            comparison_index,
+            direction.lower(),
+            trial_index,
+        )
+        diagnostics = diagnostics_by_id.get(custom_id, {})
+        response_status = str(diagnostics.get("response_status") or "missing")
+        incomplete_reason = diagnostics.get("incomplete_reason")
+        refusals = diagnostics.get("refusals") or []
+        raw_response = diagnostics.get("text")
+        finish_reason = diagnostics.get("finish_reason")
+
+        if incomplete_reason in {
+            "length",
+            "max_tokens",
+            "max_output_tokens",
+            "max_completion_tokens",
+        } or finish_reason in {
+            "length",
+            "max_tokens",
+            "max_output_tokens",
+            "max_completion_tokens",
+        }:
+            reason = "token_capped"
+        elif incomplete_reason:
+            reason = str(incomplete_reason)
+        elif refusals:
+            reason = "refusal"
+        elif response_status not in {"completed", "missing"}:
+            reason = response_status
+        elif raw_response is None:
+            reason = "empty_response" if diagnostics else "missing_response"
+        else:
+            reason = "unparseable"
+
+        records.append(
+            missing_result_record(
+                direction=display_direction,
+                trial_index=trial_index,
+                custom_id=custom_id,
+                reason=reason,
+                finish_reason=finish_reason,
+                response_status=response_status,
+                raw_response=raw_response,
+                error=None,
+                attempts=int(diagnostics.get("batch_attempt", 0)) + 1,
+                transport_retries=int(diagnostics.get("batch_attempt", 0)),
+            )
+        )
+    return records
+
+
 def process_batch_run(run_dir: Path) -> dict[str, Any]:
     """Rebuild per-ladder ``results.json`` files from downloaded batch output."""
     manifest = validate_batch_inputs(run_dir)
@@ -1505,6 +1576,7 @@ def process_batch_run(run_dir: Path) -> dict[str, Any]:
     reasoning_summary_requested = reasoning_summary_mode is not None
 
     slots: dict[tuple[int, int, str], list[str | None]] = {}
+    response_diagnostics_by_id: dict[str, dict[str, Any]] = {}
     reasoning_traces_by_set: dict[int, list[dict[str, Any]]] = defaultdict(list)
     reasoning_summary_block_count_by_set: dict[int, int] = defaultdict(int)
     missing_reasoning_summary_ids: list[str] = []
@@ -1524,6 +1596,8 @@ def process_batch_run(run_dir: Path) -> dict[str, Any]:
             raise ValueError(f"Trial index out of range in {custom_id!r}.")
         body = row["response"]["body"]
         diagnostics = _response_text_and_diagnostics(body)
+        diagnostics["batch_attempt"] = int(row.get("_batch_attempt", 0))
+        response_diagnostics_by_id[custom_id] = diagnostics
         values[trial_index] = (
             diagnostics["text"]
             if diagnostics["response_status"] == "completed"
@@ -1581,6 +1655,7 @@ def process_batch_run(run_dir: Path) -> dict[str, Any]:
         )
         preferences: list[dict[str, Any]] = []
         set_unparseable = 0
+        set_missing_by_reason: Counter[str] = Counter()
         set_zero_parseable_comparison_indices: list[int] = []
         for comparison_index, comparison in enumerate(comparisons):
             original = slots.get(
@@ -1608,7 +1683,23 @@ def process_batch_run(run_dir: Path) -> dict[str, Any]:
             count_a, count_b = counts_from_responses(parsed_original, parsed_flipped)
             expected = num_trials * (2 if include_flipped else 1)
             parsed_total = count_a + count_b
-            set_unparseable += expected - parsed_total
+            missing_records = _batch_missing_trial_records(
+                set_index=set_index,
+                comparison_index=comparison_index,
+                direction="ab",
+                parsed=parsed_original,
+                diagnostics_by_id=response_diagnostics_by_id,
+            ) + _batch_missing_trial_records(
+                set_index=set_index,
+                comparison_index=comparison_index,
+                direction="ba",
+                parsed=parsed_flipped,
+                diagnostics_by_id=response_diagnostics_by_id,
+            )
+            missing_count = expected - parsed_total
+            missing_by_reason = Counter(record["reason"] for record in missing_records)
+            set_missing_by_reason.update(missing_by_reason)
+            set_unparseable += missing_count
             if parsed_total == 0:
                 set_zero_parseable_comparison_indices.append(comparison_index)
                 zero_parseable_pairs.append(
@@ -1623,6 +1714,17 @@ def process_batch_run(run_dir: Path) -> dict[str, Any]:
                 "prob_prefer_b": round(count_b / parsed_total, 4) if parsed_total else None,
                 "parseable_trials": parsed_total,
                 "expected_trials": expected,
+                "missing_trials": missing_count,
+                "missing_by_reason": dict(sorted(missing_by_reason.items())),
+                "missing_responses": missing_records,
+                "probability_denominator": "parseable_trials",
+                "prob_prefer_a_bounds": {
+                    "lower_missing_prefer_b": round(count_a / expected, 4),
+                    "upper_missing_prefer_a": round(
+                        (count_a + missing_count) / expected,
+                        4,
+                    ),
+                },
             }
             if with_reasoning:
                 pref["raw_responses_original"] = original
@@ -1706,6 +1808,9 @@ def process_batch_run(run_dir: Path) -> dict[str, Any]:
                     "response_status_counts": dict(response_status_by_set.get(set_index, {})),
                     "refusal_count": refusals_by_set.get(set_index, 0),
                     "incomplete_count": incomplete_by_set.get(set_index, 0),
+                    "missing_response_counts": dict(
+                        sorted(set_missing_by_reason.items())
+                    ),
                     "zero_parseable_comparison_count": len(
                         set_zero_parseable_comparison_indices
                     ),

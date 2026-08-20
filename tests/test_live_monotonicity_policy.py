@@ -48,6 +48,36 @@ class LiveMonotonicityRetryPolicyTests(unittest.TestCase):
         self.assertEqual(agent.retry_counts["transport_retries"], 1)
         self.assertEqual(agent.last_completion_outcomes[0]["status"], "completed")
 
+    def test_transport_failure_honors_ten_attempt_limit(self) -> None:
+        agent = LiteLLMAgent(
+            model="openrouter/qwen/qwen3.7-max-20260520",
+            max_tokens=16,
+            max_retries=10,
+            base_delay=0,
+            max_delay=0,
+            use_jitter=False,
+            retry_transport_only=True,
+        )
+        calls = 0
+
+        async def fake_completion(**_kwargs):
+            nonlocal calls
+            calls += 1
+            raise httpx.ConnectError("connection failed")
+
+        agent._acompletion = fake_completion
+        result = asyncio.run(
+            agent.async_completions(
+                [[{"role": "user", "content": "x"}]],
+                verbose=False,
+            )
+        )
+
+        self.assertEqual(result, [None])
+        self.assertEqual(calls, 10)
+        self.assertEqual(agent.retry_counts["transport_retries"], 9)
+        self.assertEqual(agent.retry_counts["transport_failures"], 1)
+
     def test_non_transport_error_is_not_retried(self) -> None:
         agent = self._agent()
         calls = 0
@@ -136,7 +166,27 @@ class LiveMonotonicityRetryPolicyTests(unittest.TestCase):
         self.assertEqual(result["missing_trials"], 1)
         self.assertEqual(result["missing_by_reason"], {"token_capped": 1})
         self.assertEqual(agent.timeouts, [120.0, 120.0])
-        self.assertEqual(result["missing_responses"][0]["raw_response"], "Answer: A")
+        missing = result["missing_responses"][0]
+        self.assertEqual(missing["raw_response"], "Answer: A")
+        self.assertEqual(missing["custom_id"], "c0000-dab-t000")
+        self.assertEqual(missing["response_status"], "token_capped")
+        self.assertEqual(missing["schema_version"], "1.0")
+        self.assertEqual(
+            set(missing),
+            {
+                "schema_version",
+                "direction",
+                "trial_index",
+                "custom_id",
+                "reason",
+                "finish_reason",
+                "response_status",
+                "raw_response",
+                "error",
+                "attempts",
+                "transport_retries",
+            },
+        )
         self.assertEqual(result["prob_prefer_a"], 1.0)
         self.assertEqual(
             result["prob_prefer_a_bounds"],
