@@ -27,6 +27,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from matplotlib.lines import Line2D
+from matplotlib.text import Text
 import numpy as np
 
 # Publication typography.  The methodology pipeline and valence-ladder
@@ -34,6 +35,7 @@ import numpy as np
 # prevents Matplotlib from silently falling back to its default DejaVu Sans and
 # keeps text editable/searchable in vector exports.
 COL_WIDTH_IN = 3.25  # AAAI two-column layout, single column, inches
+PUBLICATION_FONT_SIZE_PT = 9.0
 
 matplotlib.rcParams.update({
     "font.family": "sans-serif",
@@ -41,25 +43,25 @@ matplotlib.rcParams.update({
     "font.weight": "regular",
     "axes.titleweight": "regular",
     "axes.labelweight": "regular",
-    "font.size": 8,
-    "axes.titlesize": 9,
-    "axes.labelsize": 8,
-    "xtick.labelsize": 7,
-    "ytick.labelsize": 7,
-    "legend.fontsize": 7,
+    "font.size": PUBLICATION_FONT_SIZE_PT,
+    "axes.titlesize": PUBLICATION_FONT_SIZE_PT,
+    "axes.labelsize": PUBLICATION_FONT_SIZE_PT,
+    "xtick.labelsize": PUBLICATION_FONT_SIZE_PT,
+    "ytick.labelsize": PUBLICATION_FONT_SIZE_PT,
+    "legend.fontsize": PUBLICATION_FONT_SIZE_PT,
     "figure.dpi": 300,
     "pdf.fonttype": 42,
     "ps.fonttype": 42,
     "svg.fonttype": "none",
 })
 
-from llm_coherence.config import (
+from llm_coherence.config import (  # noqa: E402
     MODEL_CONFIGS,
     ModelConfig,
     model_key_from_results_folder,
     resolve_model_results_dir,
 )
-from llm_coherence.paths import (
+from llm_coherence.paths import (  # noqa: E402
     COHERENCE_TEST_SUBDIR,
     FIGURES_OUTPUT_DIR,
     LADDER_VS_COMPARISON_RUNS_OUTPUT_DIR,
@@ -73,6 +75,28 @@ from llm_coherence.paths import (
 SCRIPT_DIR = pathlib.Path(__file__).resolve().parent
 
 N_TIERS = 7
+
+
+def validate_minimum_figure_font_size(
+    figure: plt.Figure,
+    minimum_pt: float = PUBLICATION_FONT_SIZE_PT,
+) -> None:
+    """Reject a publication figure containing visible text below ``minimum_pt``."""
+    undersized = [
+        (text.get_text(), float(text.get_fontsize()))
+        for text in figure.findobj(match=Text)
+        if text.get_visible()
+        and text.get_text().strip()
+        and float(text.get_fontsize()) < minimum_pt
+    ]
+    if undersized:
+        preview = ", ".join(
+            f"{label!r} ({size:g} pt)" for label, size in undersized[:5]
+        )
+        raise ValueError(
+            f"Figure contains text below the {minimum_pt:g} pt publication "
+            f"minimum: {preview}"
+        )
 
 
 def _warn_column_fit(figure_name: str, action: str) -> None:
@@ -531,7 +555,7 @@ def _bar_chart_margins(
     labels_on_all_panels: bool = False,
 ) -> dict[str, float]:
     """Subplot margins with room for rotated x tick labels."""
-    max_len = max((len(l) for l in labels), default=16)
+    max_len = max((len(label) for label in labels), default=16)
     if n_panels > 1 and labels_on_all_panels:
         bottom = min(0.17, 0.05 + 0.0028 * max_len)
     else:
@@ -2403,7 +2427,11 @@ def _annotate_macro_avg(ax, avg: float, label: str, *, color: str = "#333333"):
     ax.axhline(avg, color=color, lw=1.2, ls=":", alpha=0.85, zorder=10)
     ax.text(
         0.03, 0.97, label,
-        transform=ax.transAxes, va="top", ha="left", fontsize=7.5, color=color,
+        transform=ax.transAxes,
+        va="top",
+        ha="left",
+        fontsize=PUBLICATION_FONT_SIZE_PT,
+        color=color,
         bbox=dict(boxstyle="round,pad=0.25", fc="white", ec="#cccccc", alpha=0.92),
         zorder=11, clip_on=True,
     )
@@ -2425,7 +2453,7 @@ def _annotate_macro_avg_vertical(
         transform=ax.transAxes,
         va="bottom",
         ha="right",
-        fontsize=7.5,
+        fontsize=PUBLICATION_FONT_SIZE_PT,
         color=color,
         bbox=dict(boxstyle="round,pad=0.25", fc="white", ec="#cccccc", alpha=0.92),
         zorder=11,
@@ -2639,7 +2667,13 @@ def _draw_binned_trend_panel(
     ax.set_xlabel("Monotonicity rate")
     ax.set_ylabel("Held-out test AUC")
     ax.grid(True, linestyle="--", linewidth=0.4, alpha=0.3)
-    ax.legend(loc="lower right", frameon=True, fontsize=7, framealpha=0.92, edgecolor="#dddddd")
+    ax.legend(
+        loc="lower right",
+        frameon=True,
+        fontsize=PUBLICATION_FONT_SIZE_PT,
+        framealpha=0.92,
+        edgecolor="#dddddd",
+    )
     style_axes(ax)
 
 
@@ -3428,7 +3462,10 @@ def _draw_category_heatmap(
 
     n_model_rows = len(models_subset)
     n_display_rows = n_model_rows + 1
-    fig, ax = plt.subplots(figsize=(7.0, 3.10), dpi=300)
+    # Scale the height with the number of models so 9 pt row labels and cell
+    # values remain readable in the final two-column figure.
+    fig_height = max(3.65, 0.25 * n_display_rows + 0.70)
+    fig, ax = plt.subplots(figsize=(7.0, fig_height), dpi=300)
 
     im = ax.imshow(
         M_display, aspect="auto", cmap=CATEGORY_HEATMAP_CMAP,
@@ -3459,14 +3496,14 @@ def _draw_category_heatmap(
                 ha="center",
                 va="center",
                 color=text_color,
-                fontsize=5.2,
+                fontsize=PUBLICATION_FONT_SIZE_PT,
                 fontweight="bold" if row_index == n_model_rows else "normal",
             )
 
     # A vertical colorbar avoids adding another horizontal band below the
     # already angled category labels.
-    fig.subplots_adjust(left=0.22, right=0.90, bottom=0.30, top=0.92)
-    cax = fig.add_axes([0.925, 0.30, 0.014, 0.62])
+    fig.subplots_adjust(left=0.245, right=0.925, bottom=0.31, top=0.91)
+    cax = fig.add_axes([0.945, 0.31, 0.014, 0.60])
     cbar = fig.colorbar(im, cax=cax, orientation="vertical")
     cbar.set_label("Strict monotonicity (%)")
     return fig
@@ -4437,6 +4474,7 @@ def main():
         fig = make_figure()
         if fig is None:
             continue
+        validate_minimum_figure_font_size(fig)
         width_in, height_in = fig.get_size_inches()
         print(f"  {name}: figsize=({width_in:.2f}, {height_in:.2f}) in")
         if abs(width_in - COL_WIDTH_IN) > 1e-6:

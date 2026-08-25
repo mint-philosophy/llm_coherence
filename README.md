@@ -195,6 +195,20 @@ PYTHONPATH=src python scripts/06_reporting/13_make_fig_table.py \
 
 The reporting command writes each figure as PDF and PNG, including `fig_within_ladder_gap`, without modifying prior stamped directories. For a full model rerun, omit `--smoke` and `--max-variation-sets`, set the desired trial count and run-wide limits, and retain `--resume`.
 
+The dense two-column figures can also be regenerated with a checked 9-point
+minimum font. The paths are command-line inputs rather than date-specific
+paths embedded in the script:
+
+```bash
+PYTHONPATH=src python scripts/06_reporting/regenerate_figures_3_5_9pt.py \
+  --tables-dir "results/tables/$STAMP" \
+  --results-dir "$RUNS_ROOT" \
+  --output-dir "results/figures/$STAMP"
+```
+
+Use `--figure` repeatedly to generate only selected groups: `within-ladder`,
+`category-off`, `category-on`, or `triptych`.
+
 ## Pipeline
 
 Run scripts from the repository root with `PYTHONPATH=src python <script>`.
