@@ -27,30 +27,41 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from matplotlib.lines import Line2D
+from matplotlib.text import Text
 import numpy as np
 
 # Publication typography.  The methodology pipeline and valence-ladder
 # schematics use the same Helvetica/Arial sans-serif stack.  Declaring it here
 # prevents Matplotlib from silently falling back to its default DejaVu Sans and
 # keeps text editable/searchable in vector exports.
+COL_WIDTH_IN = 3.25  # AAAI two-column layout, single column, inches
+PUBLICATION_FONT_SIZE_PT = 9.0
+
 matplotlib.rcParams.update({
     "font.family": "sans-serif",
     "font.sans-serif": ["Helvetica", "Arial", "Liberation Sans", "DejaVu Sans"],
     "font.weight": "regular",
     "axes.titleweight": "regular",
     "axes.labelweight": "regular",
+    "font.size": PUBLICATION_FONT_SIZE_PT,
+    "axes.titlesize": PUBLICATION_FONT_SIZE_PT,
+    "axes.labelsize": PUBLICATION_FONT_SIZE_PT,
+    "xtick.labelsize": PUBLICATION_FONT_SIZE_PT,
+    "ytick.labelsize": PUBLICATION_FONT_SIZE_PT,
+    "legend.fontsize": PUBLICATION_FONT_SIZE_PT,
+    "figure.dpi": 300,
     "pdf.fonttype": 42,
     "ps.fonttype": 42,
     "svg.fonttype": "none",
 })
 
-from llm_coherence.config import (
+from llm_coherence.config import (  # noqa: E402
     MODEL_CONFIGS,
     ModelConfig,
     model_key_from_results_folder,
     resolve_model_results_dir,
 )
-from llm_coherence.paths import (
+from llm_coherence.paths import (  # noqa: E402
     COHERENCE_TEST_SUBDIR,
     FIGURES_OUTPUT_DIR,
     LADDER_VS_COMPARISON_RUNS_OUTPUT_DIR,
@@ -64,6 +75,47 @@ from llm_coherence.paths import (
 SCRIPT_DIR = pathlib.Path(__file__).resolve().parent
 
 N_TIERS = 7
+
+
+def validate_minimum_figure_font_size(
+    figure: plt.Figure,
+    minimum_pt: float = PUBLICATION_FONT_SIZE_PT,
+) -> None:
+    """Reject a publication figure containing visible text below ``minimum_pt``."""
+    undersized = [
+        (text.get_text(), float(text.get_fontsize()))
+        for text in figure.findobj(match=Text)
+        if text.get_visible()
+        and text.get_text().strip()
+        and float(text.get_fontsize()) < minimum_pt
+    ]
+    if undersized:
+        preview = ", ".join(
+            f"{label!r} ({size:g} pt)" for label, size in undersized[:5]
+        )
+        raise ValueError(
+            f"Figure contains text below the {minimum_pt:g} pt publication "
+            f"minimum: {preview}"
+        )
+
+
+def _warn_column_fit(figure_name: str, action: str) -> None:
+    """Record a column-width layout choice that is not a font shrink."""
+    print(
+        f"WARNING: {figure_name}: {action} to remain legible at "
+        f"{COL_WIDTH_IN:.2f} in column width."
+    )
+
+
+def _column_subplots(nrows: int = 1, ncols: int = 1, *, height: float, **kwargs):
+    """Create a figure at the AAAI single-column width."""
+    return plt.subplots(
+        nrows,
+        ncols,
+        figsize=(COL_WIDTH_IN, height),
+        dpi=300,
+        **kwargs,
+    )
 
 # Palette cycles when family cannot be inferred.
 _DEFAULT_PALETTE = [
@@ -188,8 +240,8 @@ PAPER_MODEL_BASE_NAMES: dict[str, str] = {
     "llama-31-8b-instruct": "Llama-3.1-8B-Instruct",
     "kimi-k2": "Kimi-K2",
     "kimi-k3": "Kimi-K3",
-    "qwen-37-flash": "Qwen3.7 Flash",
-    "qwen-37-max": "Qwen3.7 Max",
+    "qwen-37-flash": "Qwen-3.7 Flash",
+    "qwen-37-max": "Qwen-3.7 Max",
 }
 
 
@@ -503,7 +555,7 @@ def _bar_chart_margins(
     labels_on_all_panels: bool = False,
 ) -> dict[str, float]:
     """Subplot margins with room for rotated x tick labels."""
-    max_len = max((len(l) for l in labels), default=16)
+    max_len = max((len(label) for label in labels), default=16)
     if n_panels > 1 and labels_on_all_panels:
         bottom = min(0.17, 0.05 + 0.0028 * max_len)
     else:
@@ -524,11 +576,48 @@ def _bar_chart_margins(
     }
 
 
+_HEATMAP_MODEL_ABBREV = {
+    "GPT-5.4-Nano": "5.4-Nano",
+    "GPT-5.4-Mini": "5.4-Mini",
+    "GPT-5.4": "5.4",
+    "GPT-5.6 Terra": "5.6-Terra",
+    "GPT-5.6 Luna": "5.6-Luna",
+    "GPT-5.6 Sol": "5.6-Sol",
+    "GLM-4.5-Hybrid": "GLM-Hybrid",
+    "GLM-4.5 Base": "GLM-Base",
+    "Llama-3.1-8B-Instruct": "Llama-8B",
+    "Mistral-Small-2603": "Mistral-S",
+    "Ministral-3B-2512": "Ministral-3B",
+    "Nemotron-3-Super": "Nemotron",
+    "Opus-4.6": "Opus-4.6",
+    "Qwen-3.7 Flash": "Qwen-3.7 Flash",
+}
+
+
 def _compact_bar_label(file_key: str) -> str:
-    """Single-line bar-axis label (tables use full paper_model_label)."""
-    base = base_model_label(file_key)
-    tag = "reasoning on" if infer_reasoning(file_key) == "on" else "reasoning off"
+    """Single-line bar-axis label abbreviated for single-column width."""
+    base = base_model_label(file_key).replace(" (baseline)", "")
+    tag = "on" if infer_reasoning(file_key) == "on" else "off"
     return f"{base} · {tag}"
+
+
+def _column_model_name(label: str) -> str:
+    """Abbreviate long y-axis names; preserve coverage daggers."""
+    dagger = label.endswith("\u2020")
+    base = label.rstrip("\u2020").replace(" (baseline)", "")
+    if len(base) > 12:
+        base = _HEATMAP_MODEL_ABBREV.get(base, base)
+    return f"{base}\u2020" if dagger else base
+
+
+def _heatmap_model_label(file_key: str, *, stacked: bool = True) -> str:
+    """Dense heatmap tick label; keeps on/off but shortens model names."""
+    base = base_model_label(file_key).replace(" (baseline)", "")
+    short = _HEATMAP_MODEL_ABBREV.get(base, base)
+    tag = "on" if infer_reasoning(file_key) == "on" else "off"
+    if stacked:
+        return f"{short}\n{tag}"
+    return f"{short} · {tag}"
 
 
 def _set_rotated_bar_labels(
@@ -1929,8 +2018,12 @@ def fig7c_within_ladder_accuracy(
 
     groups = sorted(grouped.values(), key=_within_ladder_group_sort_key)
     y = np.arange(len(groups))[::-1]
-    fig_h = max(5.0, 0.43 * len(groups) + 1.25)
-    fig, ax = plt.subplots(figsize=(10.0, fig_h), dpi=300)
+    fig_h = max(5.4, 0.38 * len(groups) + 1.6)
+    fig, ax = _column_subplots(height=fig_h)
+    _warn_column_fit(
+        "fig7c_within_ladder_accuracy",
+        "abbreviated model names and kept a single vertical panel",
+    )
 
     all_values: list[float] = []
     for yi, group in zip(y, groups):
@@ -1974,13 +2067,13 @@ def fig7c_within_ladder_accuracy(
                 zorder=3,
             )
             ax.text(
-                value + 0.12,
+                value,
                 yi + dy,
                 f"{value:.1f}",
                 va="center",
-                ha="left",
-                fontsize=7.2,
+                ha="center",
                 color="#333333",
+                clip_on=True,
             )
 
     xmin = max(0.0, math.floor((min(all_values) - 1.0) * 2.0) / 2.0)
@@ -1989,10 +2082,11 @@ def fig7c_within_ladder_accuracy(
     ax.set_yticks(y)
     ax.set_yticklabels(
         [
-            group["label"] + ("\u2020" if group["partial_coverage"] else "")
+            _column_model_name(
+                group["label"] + ("\u2020" if group["partial_coverage"] else "")
+            )
             for group in groups
-        ],
-        fontsize=8.4,
+        ]
     )
     for tick in ax.get_yticklabels():
         tick.set_color("#111111")
@@ -2001,14 +2095,13 @@ def fig7c_within_ladder_accuracy(
     ax.text(
         95.08,
         0.985,
-        "95% audit threshold",
+        "95%",
         transform=ax.get_xaxis_transform(),
         va="top",
         ha="left",
-        fontsize=7.2,
         color="#666666",
     )
-    ax.set_xlabel("Within-ladder tier-pair accuracy (%)", fontsize=9)
+    ax.set_xlabel("Within-ladder tier-pair accuracy (%)")
     ax.grid(axis="x", linestyle="--", linewidth=0.45, alpha=0.24)
     style_axes(ax)
     ax.legend(
@@ -2022,20 +2115,18 @@ def fig7c_within_ladder_accuracy(
         frameon=True,
         framealpha=0.95,
         edgecolor="#dddddd",
-        fontsize=7.5,
         ncol=2,
     )
     if any(group["partial_coverage"] for group in groups):
         fig.text(
             0.5,
             0.015,
-            "\u2020 Accuracy uses the parseable-response denominator; see CSV coverage columns.",
+            "\u2020 Parseable-response denominator; see CSV coverage.",
             ha="center",
             va="bottom",
-            fontsize=7,
             color="#666666",
         )
-    fig.subplots_adjust(left=0.24, right=0.97, bottom=0.13, top=0.98)
+    fig.subplots_adjust(left=0.28, right=0.97, bottom=0.14, top=0.98)
     return fig
 
 
@@ -2071,14 +2162,19 @@ def fig7d_within_ladder_category_heatmap(
     n_display_rows = n_models + 1
 
     row_labels = [
-        f"{base_model_label(mk)} · {'on' if infer_reasoning(mk) == 'on' else 'off'}"
+        _heatmap_model_label(mk, stacked=False).replace(" · ", " ")
         for mk, _ in model_cols
-    ] + ["Column mean"]
+    ] + ["mean"]
     col_labels = [_category_short(c) for c in categories]
 
-    fig_w = max(10.8, 0.72 * n_cats + 2.8)
-    fig_h = max(4.5, 0.38 * n_display_rows + 1.8)
-    fig, ax = plt.subplots(figsize=(fig_w, fig_h), dpi=300)
+    fig_h = max(5.2, 0.32 * n_display_rows + 1.9)
+    fig, ax = _column_subplots(height=fig_h)
+    _warn_column_fit(
+        "fig7d_within_ladder_category_heatmap",
+        "abbreviated model names, rotated category ticks 90 degrees, "
+        "dropped in-cell numbers (color scale carries the signal), "
+        "and moved the colorbar below the heatmap",
+    )
 
     valid_vals = M[~np.isnan(M)]
     if valid_vals.size:
@@ -2097,12 +2193,12 @@ def fig7d_within_ladder_category_heatmap(
         norm=norm,
     )
     ax.set_xticks(range(n_cats))
-    ax.set_xticklabels(col_labels, rotation=42, ha="right", fontsize=7.5)
+    ax.set_xticklabels(col_labels, rotation=90, ha="center")
     ax.set_yticks(range(n_display_rows))
-    ax.set_yticklabels(row_labels, fontsize=7.4)
+    ax.set_yticklabels(row_labels)
     ax.get_yticklabels()[-1].set_fontweight("bold")
-    ax.set_xlabel("Value category", fontsize=9)
-    ax.set_ylabel("Model configuration", fontsize=9)
+    ax.set_xlabel("")
+    ax.set_ylabel("")
 
     ax.axhline(n_models - 0.5, color="white", linewidth=2.0)
     ax.axhline(n_models - 0.5, color="0.25", linewidth=0.8)
@@ -2115,27 +2211,9 @@ def fig7d_within_ladder_category_heatmap(
         if prev_base != this_base:
             ax.axhline(i - 0.5, color="white", linewidth=0.7, alpha=0.85)
 
-    for i in range(M_display.shape[0]):
-        for j in range(M_display.shape[1]):
-            val = M_display[i, j]
-            if val is None or (isinstance(val, float) and math.isnan(val)):
-                ax.text(
-                    j, i, "—", ha="center", va="center",
-                    fontsize=6, color="0.45",
-                )
-                continue
-            rgba = cmap(norm(val))
-            luminance = 0.299 * rgba[0] + 0.587 * rgba[1] + 0.114 * rgba[2]
-            txt_color = "white" if luminance < 0.55 else "black"
-            weight = "bold" if i == n_models else "normal"
-            ax.text(
-                j, i, f"{val:.0f}", ha="center", va="center",
-                fontsize=7, color=txt_color, fontweight=weight,
-            )
-
-    cbar = fig.colorbar(im, ax=ax, fraction=0.025, pad=0.02)
-    cbar.set_label("Within-ladder accuracy (%)\n(95 = audit threshold)", fontsize=8)
-    fig.subplots_adjust(left=0.22, right=0.95, bottom=0.24, top=0.99)
+    cbar = fig.colorbar(im, ax=ax, orientation="horizontal", fraction=0.035, pad=0.10)
+    cbar.set_label("Within-ladder accuracy (%)")
+    fig.subplots_adjust(left=0.24, right=0.99, bottom=0.24, top=0.98)
     return fig
 
 
@@ -2349,7 +2427,11 @@ def _annotate_macro_avg(ax, avg: float, label: str, *, color: str = "#333333"):
     ax.axhline(avg, color=color, lw=1.2, ls=":", alpha=0.85, zorder=10)
     ax.text(
         0.03, 0.97, label,
-        transform=ax.transAxes, va="top", ha="left", fontsize=7.5, color=color,
+        transform=ax.transAxes,
+        va="top",
+        ha="left",
+        fontsize=PUBLICATION_FONT_SIZE_PT,
+        color=color,
         bbox=dict(boxstyle="round,pad=0.25", fc="white", ec="#cccccc", alpha=0.92),
         zorder=11, clip_on=True,
     )
@@ -2371,7 +2453,7 @@ def _annotate_macro_avg_vertical(
         transform=ax.transAxes,
         va="bottom",
         ha="right",
-        fontsize=7.5,
+        fontsize=PUBLICATION_FONT_SIZE_PT,
         color=color,
         bbox=dict(boxstyle="round,pad=0.25", fc="white", ec="#cccccc", alpha=0.92),
         zorder=11,
@@ -2416,8 +2498,12 @@ def _model_bar_chart(
 
     # A wide canvas suits the AAAI two-column ``figure*`` format and leaves
     # enough horizontal room for both long model labels and the metric scale.
-    fig_h = max(5.8, 0.28 * len(bar_labels) + 1.2)
-    fig, ax = plt.subplots(figsize=(10.5, fig_h), dpi=300)
+    fig_h = max(6.4, 0.28 * len(bar_labels) + 1.15)
+    fig, ax = _column_subplots(height=fig_h)
+    _warn_column_fit(
+        "headline bar chart",
+        "abbreviated reasoning tags to 'on'/'off' and kept horizontal bars",
+    )
 
     ys = np.arange(len(bar_labels))
     bars = ax.barh(
@@ -2435,8 +2521,8 @@ def _model_bar_chart(
             bar.set_edgecolor("white")
 
     ax.set_yticks(ys)
-    ax.set_yticklabels(bar_labels, fontsize=8.2)
-    ax.set_xlabel(ylabel, fontsize=9)
+    ax.set_yticklabels(bar_labels)
+    ax.set_xlabel(ylabel)
     ax.set_xlim(*ylim)
     ax.set_ylim(-0.6, len(bar_labels) - 0.4)
     ax.margins(y=0.02)
@@ -2461,18 +2547,18 @@ def _model_bar_chart(
             fig.legend(
                 handles=legend_handles, loc="upper center",
                 ncol=2,
-                frameon=True, fontsize=8, framealpha=0.92, edgecolor="#dddddd",
+                frameon=True, framealpha=0.92, edgecolor="#dddddd",
                 bbox_to_anchor=(0.5, 0.985),
             )
         else:
             ax.legend(
-                handles=legend_handles, loc=legend_loc, frameon=True, fontsize=7.5,
+                handles=legend_handles, loc=legend_loc, frameon=True,
                 ncol=2, framealpha=0.92, edgecolor="#dddddd",
             )
 
     top = 0.90 if (suptitle or show_legend) else 0.97
     if suptitle:
-        ax.set_title(suptitle, fontsize=10, pad=10)
+        ax.set_title(suptitle, pad=8)
     # Long methodological explanations belong in the LaTeX caption, not in
     # the plotting canvas.  ``subtitle`` remains accepted for API stability.
 
@@ -2480,7 +2566,7 @@ def _model_bar_chart(
     fig.subplots_adjust(
         top=top,
         bottom=0.10,
-        left=0.31,
+        left=0.42,
         right=0.97,
     )
     return fig
@@ -2494,13 +2580,13 @@ def _category_short(name: str) -> str:
         "Global economy": "Global econ.",
         "Global politics and geopolitics": "Global politics",
         "Life and species": "Life/species",
-        "Personal accomplishments": "Personal accom.",
-        "Personal finances": "Personal finance",
-        "Personal freedom and autonomy": "Personal freedom",
+        "Personal accomplishments": "Accomp.",
+        "Personal finances": "Finance",
+        "Personal freedom and autonomy": "Freedom",
         "Religion and spirituality": "Religion",
-        "United States economy": "US economy",
-        "United States politics and policies": "US politics",
-        "Wellbeing of humans": "Human wellbeing",
+        "United States economy": "US econ.",
+        "United States politics and policies": "US pol.",
+        "Wellbeing of humans": "Wellbeing",
     }
     return short.get(name, name[:18])
 
@@ -2570,18 +2656,24 @@ def _draw_binned_trend_panel(
             )
     r = float(np.corrcoef(xs, ys)[0, 1]) if len(xs) >= 2 else float("nan")
     if title:
-        ax.set_title(title, fontsize=10, loc="left", pad=6)
+        ax.set_title(title, loc="left", pad=4)
     ax.text(
         0.03, 0.97, f"$r$ = {r:.2f}, $n$ = {len(xs)}",
-        transform=ax.transAxes, va="top", ha="left", fontsize=8,
+        transform=ax.transAxes, va="top", ha="left",
         bbox=dict(boxstyle="round,pad=0.25", fc="white", ec="#dddddd", alpha=0.9),
     )
     ax.set_xlim(-0.02, 1.02)
     ax.set_ylim(0.72, 1.0)
-    ax.set_xlabel("Monotonicity rate", fontsize=9)
-    ax.set_ylabel("Held-out test AUC", fontsize=9)
+    ax.set_xlabel("Monotonicity rate")
+    ax.set_ylabel("Held-out test AUC")
     ax.grid(True, linestyle="--", linewidth=0.4, alpha=0.3)
-    ax.legend(loc="lower right", frameon=True, fontsize=7, framealpha=0.92, edgecolor="#dddddd")
+    ax.legend(
+        loc="lower right",
+        frameon=True,
+        fontsize=PUBLICATION_FONT_SIZE_PT,
+        framealpha=0.92,
+        edgecolor="#dddddd",
+    )
     style_axes(ax)
 
 
@@ -2600,10 +2692,10 @@ def _draw_tercile_box_panel(ax, xs: np.ndarray, ys: np.ndarray, *, accent: str, 
         whiskerprops=dict(color=accent), capprops=dict(color=accent),
     )
     ax.set_xticks([0, 1, 2])
-    ax.set_xticklabels(["Low", "Mid", "High"], fontsize=9)
+    ax.set_xticklabels(["Low", "Mid", "High"])
     if title:
-        ax.set_title(title, fontsize=10, loc="left", pad=6)
-    ax.set_ylabel("Held-out test AUC", fontsize=9)
+        ax.set_title(title, loc="left", pad=4)
+    ax.set_ylabel("Held-out test AUC")
     ax.set_ylim(0.72, 1.0)
     ax.grid(True, axis="y", linestyle="--", linewidth=0.4, alpha=0.3)
     style_axes(ax)
@@ -2649,11 +2741,11 @@ def fig1_headline_mono(all_data: dict, models: list, n_ladders: int) -> plt.Figu
 def fig2_iso_r2(all_data: dict, models: list, n_ladders: int) -> plt.Figure:
     return _model_bar_chart(
         all_data, models, get_r2,
-        ylabel=r"Isotonic $R^2$ (bidirectional)",
+        ylabel=r"Iso $R^2$ (bi)",
         ylim=(0.5, 1.0),
         macro_fmt="{:.2f}",
         macro_scale=1.0,
-        suptitle=r"Isotonic $R^2$ (bidirectional): coarse monotonic fit",
+        suptitle=r"Isotonic $R^2$ (bidirectional)",
         subtitle=(
             "Measures how well some monotonic function of tier explains win-probability variance. "
             "Allows local wiggles; not equivalent to strict monotonicity (Fig. 1)."
@@ -2698,12 +2790,12 @@ def write_fig1b_metrics_triptych_tex(
     tex_lines = [
         "% Auto-generated by make_fig_table.py — do not edit by hand.",
         "% Requires: \\usepackage{graphicx}",
-        "\\begin{figure}[t]",
+        "\\begin{figure*}[t]",
         "  \\centering",
-        "  \\includegraphics[width=\\linewidth]{figures/fig1b_metrics_triptych.pdf}",
+        "  \\includegraphics[width=\\textwidth]{figures/fig1b_metrics_triptych.pdf}",
         f"  \\caption{{{caption}}}",
         "  \\label{fig:1b_metrics_triptych}",
-        "\\end{figure}",
+        "\\end{figure*}",
         "",
     ]
     out_path.write_text("\n".join(tex_lines), encoding="utf-8")
@@ -2714,7 +2806,7 @@ def write_fig1b_metrics_triptych_tex(
 # Fig 1b: Three-metric comparison (strict mono vs iso R² vs JT)
 # ============================================================
 def fig1b_metrics_triptych(all_data: dict, models: list, n_ladders: int) -> plt.Figure:
-    """Three horizontal metric panels with one shared model-label axis."""
+    """Three compact side-by-side metric panels for scaled column placement."""
     active = [(fk, lbl, fam, r) for fk, lbl, fam, r in models if fk in all_data]
     if not active:
         return plt.figure()
@@ -2723,14 +2815,15 @@ def fig1b_metrics_triptych(all_data: dict, models: list, n_ladders: int) -> plt.
     # panel by its own metric made cross-metric comparison needlessly hard.
     active.sort(key=lambda row: _model_sort_key(row[0]))
     n_models = len(active)
-    fig_h = max(6.4, 0.34 * n_models + 1.25)
+    # Use a wide source canvas so the three panels remain shallow when LaTeX
+    # scales the complete figure to ``\linewidth``.
     fig, axes = plt.subplots(
         1,
         3,
-        figsize=(12.2, fig_h),
+        figsize=(7.0, 3.55),
         dpi=300,
         sharey=True,
-        gridspec_kw={"wspace": 0.13},
+        gridspec_kw={"wspace": 0.16},
     )
     specs = [
         (get_mono, 100.0, (0, 100), "Strict mono. (%)", "{:.1f}%",
@@ -2742,8 +2835,8 @@ def fig1b_metrics_triptych(all_data: dict, models: list, n_ladders: int) -> plt.
     ]
 
     ys = np.arange(n_models)
-    bar_labels = [_compact_bar_label(fk) for fk, _, _, _ in active]
-    for ax_idx, (ax, (fn, scale, xlim, xlabel, fmt, panel_title)) in enumerate(
+    bar_labels = [_heatmap_model_label(fk, stacked=False) for fk, _, _, _ in active]
+    for panel_idx, (ax, (fn, scale, xlim, xlabel, fmt, panel_title)) in enumerate(
         zip(axes, specs)
     ):
         means = []
@@ -2761,20 +2854,22 @@ def fig1b_metrics_triptych(all_data: dict, models: list, n_ladders: int) -> plt.
                 bar.set_edgecolor("white")
 
         ax.set_xlim(*xlim)
-        ax.set_ylim(-0.6, n_models - 0.4)
-        ax.set_xlabel(xlabel, fontsize=8.5)
-        ax.set_title(panel_title, fontsize=9.2, pad=9)
-        _annotate_macro_avg_vertical(
-            ax,
-            float(np.mean(means)),
-            f"Avg {fmt.format(float(np.mean(means)))}",
+        ax.set_ylim(n_models - 0.4, -0.6)
+        ax.set_xlabel(xlabel, fontsize=9)
+        macro = float(np.mean(means))
+        ax.set_title(
+            f"{panel_title}\nMean {fmt.format(macro)}",
+            pad=5,
+            fontsize=9,
         )
+        ax.axvline(macro, color="#333333", lw=0.8, ls=":", alpha=0.8, zorder=4)
         ax.set_yticks(ys)
-        if ax_idx == 0:
-            ax.set_yticklabels(bar_labels, fontsize=7.8)
-            ax.tick_params(axis="y", labelleft=True, pad=4)
+        if panel_idx == 0:
+            ax.set_yticklabels(bar_labels, fontsize=9)
+            ax.tick_params(axis="y", labelleft=True, length=0, pad=2)
         else:
-            ax.tick_params(axis="y", labelleft=False)
+            ax.tick_params(axis="y", labelleft=False, length=0)
+        ax.tick_params(axis="x", labelsize=9)
         ax.grid(axis="x", linestyle="--", linewidth=0.4, alpha=0.22)
         style_axes(ax)
 
@@ -2787,13 +2882,13 @@ def fig1b_metrics_triptych(all_data: dict, models: list, n_ladders: int) -> plt.
         loc="upper center",
         ncol=2,
         frameon=True,
-        fontsize=8,
         framealpha=0.95,
         edgecolor="#dddddd",
-        bbox_to_anchor=(0.5, 0.995),
+        bbox_to_anchor=(0.5, 0.999),
         borderaxespad=0.0,
+        fontsize=9,
     )
-    fig.subplots_adjust(top=0.91, bottom=0.10, left=0.28, right=0.99, wspace=0.13)
+    fig.subplots_adjust(top=0.82, bottom=0.13, left=0.17, right=0.995)
     return fig
 
 
@@ -2801,7 +2896,7 @@ def fig1b_metrics_triptych(all_data: dict, models: list, n_ladders: int) -> plt.
 # Within-ladder gap: direct accuracy vs strict monotonicity
 # ============================================================
 def fig_within_ladder_gap(rows: list[dict]) -> plt.Figure | None:
-    """Grouped bars split into stacked reasoning-off/on panels."""
+    """Grouped bars in compact side-by-side reasoning-off/on panels."""
     plotted_by_mode: dict[str, list[dict]] = {"off": [], "on": []}
     for row in rows:
         model_key = row["file_key"]
@@ -2845,17 +2940,15 @@ def fig_within_ladder_gap(rows: list[dict]) -> plt.Figure | None:
             key=lambda row: (-row["mono_pct"], row["label"])
         )
 
-    total_rows = sum(len(plotted_by_mode[mode]) for mode in modes)
-    fig_h = max(3.2, 0.17 * total_rows + 1.35)
     fig, axes = plt.subplots(
-        len(modes),
         1,
-        figsize=(3.3, fig_h),
+        len(modes),
+        figsize=(7.0, 3.35),
         dpi=300,
         sharex=True,
         gridspec_kw={
-            "height_ratios": [len(plotted_by_mode[mode]) for mode in modes],
-            "hspace": 0.22,
+            "width_ratios": [len(plotted_by_mode[mode]) for mode in modes],
+            "wspace": 0.38,
         },
     )
     if len(modes) == 1:
@@ -2887,23 +2980,14 @@ def fig_within_ladder_gap(rows: list[dict]) -> plt.Figure | None:
             zorder=2,
         )
         for yi, row in zip(y, mode_rows):
-            if row["label"].rstrip("\u2020") == "Opus-4.6":
-                ax.axhspan(
-                    yi - 0.48,
-                    yi + 0.48,
-                    color="#7A3E9D",
-                    alpha=0.08,
-                    zorder=0,
-                )
             ax.text(
-                row["accuracy_pct"] - 0.5,
+                min(row["accuracy_pct"] + 0.65, 106.5),
                 yi - 0.16,
                 f"{row['accuracy_pct']:.1f}",
-                ha="right",
+                ha="left",
                 va="center",
-                fontsize=4.3,
-                color="white",
-                fontweight="bold",
+                color="#333333",
+                fontsize=9,
                 zorder=4,
             )
             ax.text(
@@ -2912,69 +2996,67 @@ def fig_within_ladder_gap(rows: list[dict]) -> plt.Figure | None:
                 f"{row['mono_pct']:.1f}",
                 ha="left",
                 va="center",
-                fontsize=4.3,
                 color="#444444",
+                fontsize=9,
                 zorder=4,
             )
 
-        ax.set_xlim(0, 102)
+        ax.set_xlim(0, 108)
         ax.set_ylim(len(mode_rows) - 0.45, -0.55)
         ax.set_yticks(y)
         ax.set_yticklabels(
-            [row["label"] for row in mode_rows],
-            fontsize=4.9,
+            [_column_model_name(row["label"]) for row in mode_rows],
             color="#111111",
+            fontsize=9,
         )
-        for tick, row in zip(ax.get_yticklabels(), mode_rows):
-            if row["label"].rstrip("\u2020") == "Opus-4.6":
-                tick.set_color("#6F2C7F")
-                tick.set_fontweight("bold")
         ax.tick_params(axis="y", length=0, pad=3)
-        ax.tick_params(axis="x", labelsize=5.2)
+        ax.tick_params(axis="x", labelsize=9)
         ax.set_xticks(np.arange(0, 101, 20))
         ax.grid(axis="x", linestyle="--", linewidth=0.35, alpha=0.25, zorder=0)
-        ax.set_title(f"Reasoning {mode}", fontsize=6.5, loc="left", pad=2)
+        ax.set_title(f"Reasoning {mode}", loc="left", pad=2, fontsize=9)
         style_axes(ax)
 
-    axes[-1].set_xlabel("Percentage (%)", fontsize=6.5, labelpad=2)
     fig.legend(
         handles=[
             Line2D([], [], color=mono_color, linewidth=4,
-                   label="Strict ladder\u2013statement monotonicity"),
+                   label="Strict monotonicity"),
             Line2D([], [], color=accuracy_color, linewidth=4,
-                   label="Direct tier\u2013pair accuracy"),
+                   label="Tier-pair accuracy"),
         ],
         loc="upper center",
-        ncol=1,
+        ncol=2,
         frameon=False,
-        fontsize=4.8,
         borderaxespad=0.0,
         handletextpad=0.5,
         labelspacing=0.25,
+        fontsize=9,
     )
     plotted_rows = [
         row for mode in modes for row in plotted_by_mode[mode]
     ]
     notes = []
-    if any(row["label"].rstrip("\u2020") == "Opus-4.6" for row in plotted_rows):
-        notes.append("Purple shading highlights Opus-4.6.")
     if any(row["partial_coverage"] for row in plotted_rows):
-        notes.append("\u2020 Accuracy uses parseable responses; see CSV coverage columns.")
+        notes.append("\u2020 Parseable-response denominator.")
     if notes:
         fig.text(
             0.5,
-            0.012,
-            "  ".join(notes),
+            0.01,
+            "\n".join(notes),
             ha="center",
             va="bottom",
-            fontsize=4.2,
             color="#666666",
+            fontsize=9,
+            linespacing=1.15,
         )
+    for ax in axes:
+        ax.set_xlabel("Percentage (%)", fontsize=9)
     fig.subplots_adjust(
-        left=0.45,
-        right=0.98,
-        bottom=0.10 if notes else 0.08,
-        top=0.89,
+        # Reserve enough room for 9 pt model labels at the final figure size.
+        # A smaller margin clips longer unabridged names in PDF output.
+        left=0.18,
+        right=0.995,
+        bottom=0.17 if notes else 0.12,
+        top=0.84,
     )
     return fig
 
@@ -3018,7 +3100,7 @@ _REASONING_PAIR_DISPLAY_ORDER = {
     "Opus-4.6": 6,
     "Nemotron-3-Super": 7,
     "GLM-4.5-Hybrid": 8,
-    "Qwen3.7 Flash": 9,
+    "Qwen-3.7 Flash": 9,
 }
 
 
@@ -3049,8 +3131,12 @@ def fig3_reasoning_lift(all_data: dict, models: list) -> plt.Figure:
         })
     pair_rows.sort(key=lambda r: _reasoning_pair_order_key(r["off_label"]))
 
-    fig_w = max(7.5, 0.86 * len(pair_rows) + 2.8)
-    fig, ax = plt.subplots(figsize=(fig_w, 4.4), dpi=300)
+    fig_h = max(3.8, 0.22 * len(pair_rows) + 1.6)
+    fig, ax = _column_subplots(height=fig_h)
+    _warn_column_fit(
+        "fig3_reasoning_lift",
+        "rotated x tick labels 45 degrees",
+    )
     width = 0.35
     xs = np.arange(len(pair_rows))
 
@@ -3070,16 +3156,15 @@ def fig3_reasoning_lift(all_data: dict, models: list) -> plt.Figure:
         lift = on - off
         sign = "+" if lift >= 0 else ""
         ax.annotate(f"{sign}{lift:.1f}", xy=(i + width/2, on + on_errs[i] + 1),
-                    ha="center", fontsize=8, color="black")
+                    ha="center", color="black")
 
     pair_labels = [r["off_label"] for r in pair_rows]
     ax.set_xticks(xs)
-    rotation = 32 if len(pair_rows) >= 8 else 25
-    ax.set_xticklabels(pair_labels, rotation=rotation, ha="right", fontsize=8.5)
-    ax.tick_params(axis="x", pad=6)
+    ax.set_xticklabels(pair_labels, rotation=45, ha="right")
+    ax.tick_params(axis="x", pad=4)
     ax.set_ylabel("Monotonicity rate (%)")
     ax.set_ylim(0, 100)
-    ax.legend(loc="upper left", frameon=False, fontsize=9)
+    ax.legend(loc="upper left", frameon=False)
     style_axes(ax)
     fig.tight_layout(pad=0.8)
     return fig
@@ -3096,8 +3181,12 @@ def fig4_set_scatter(all_data: dict, models: list) -> plt.Figure:
     n = len(active)
     ncols = 2 if n > 1 else 1
     nrows = int(math.ceil(n / ncols))
-    fig, axes = plt.subplots(
-        nrows, ncols, figsize=(8.8, 3.8 * nrows), dpi=300, sharex=True, sharey=True
+    fig, axes = _column_subplots(
+        nrows, ncols, height=max(2.2, 1.55 * nrows + 0.55), sharex=True, sharey=True
+    )
+    _warn_column_fit(
+        "fig4_set_scatter",
+        "kept a 2-column grid and abbreviated panel titles",
     )
     axes = np.atleast_1d(axes).reshape(nrows, ncols)
     axes_flat = axes.ravel()
@@ -3120,7 +3209,7 @@ def fig4_set_scatter(all_data: dict, models: list) -> plt.Figure:
         ax.axvline(mx, color=color, lw=0.8, ls="--", alpha=0.45)
         ax.axhline(my, color=color, lw=0.8, ls="--", alpha=0.45)
 
-        ax.set_title(paper_model_panel_title(file_key, reasoning), fontsize=9)
+        ax.set_title(_compact_bar_label(file_key))
         ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.22)
         ax.set_xlim(0, 1)
         ax.set_ylim(0.3, 1.02)
@@ -3148,7 +3237,11 @@ def fig4b_centroid_scatter(all_data: dict, models: list) -> plt.Figure:
     if not active:
         return plt.figure()
 
-    fig, ax = plt.subplots(figsize=(6.8, 5.2), dpi=300)
+    fig, ax = _column_subplots(height=5.8)
+    _warn_column_fit(
+        "fig4b_centroid_scatter",
+        "moved the model legend below the plot",
+    )
     centroids = []
     for file_key, label, family, reasoning in active:
         x = np.asarray([get_mono(rec) for rec in all_data[file_key]], dtype=float)
@@ -3165,8 +3258,8 @@ def fig4b_centroid_scatter(all_data: dict, models: list) -> plt.Figure:
             edgecolor="black", linewidth=0.6, zorder=4,
         )
 
-    ax.set_xlabel("Strict preference monotonicity (model mean)", fontsize=9)
-    ax.set_ylabel(r"Isotonic $R^2$ bidirectional (model mean)", fontsize=9)
+    ax.set_xlabel("Strict preference monotonicity (model mean)")
+    ax.set_ylabel(r"Isotonic $R^2$ bidirectional (model mean)")
     ax.set_xlim(0, 0.88)
     ax.set_ylim(0.82, 1.0)
     ax.grid(True, linestyle="--", linewidth=0.4, alpha=0.28)
@@ -3179,19 +3272,21 @@ def fig4b_centroid_scatter(all_data: dict, models: list) -> plt.Figure:
     ax.text(
         0.03, 0.97,
         f"Macro avg: mono = {mx*100:.0f}%,  iso $R^2$ = {my:.2f}",
-        transform=ax.transAxes, va="top", ha="left", fontsize=8,
+        transform=ax.transAxes, va="top", ha="left",
         bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="#cccccc", alpha=0.92),
     )
 
     legend_pts = [{"color": c["color"], "reasoning": c["reasoning"], "short": c["short"]} for c in centroids]
     ax.legend(
         handles=_model_legend_handles(legend_pts),
-        loc="center left", bbox_to_anchor=(1.02, 0.5),
-        frameon=True, fontsize=7, framealpha=0.95, edgecolor="#dddddd",
-        title="Model", title_fontsize=8,
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.18),
+        ncol=2,
+        frameon=True, framealpha=0.95, edgecolor="#dddddd",
+        title="Model",
     )
     style_axes(ax)
-    fig.subplots_adjust(right=0.72)
+    fig.subplots_adjust(bottom=0.32, left=0.16, right=0.97, top=0.97)
     return fig
 
 
@@ -3205,7 +3300,7 @@ def fig5_incoherence(all_data: dict, models: list, n_ladders: int) -> plt.Figure
             continue
         rates = [get_mono(rec) for rec in all_data[file_key]]
         rows.append({
-            "label": paper_model_panel_title(file_key, reasoning),
+            "label": _compact_bar_label(file_key),
             "rates": rates,
             "color": get_color(family, reasoning, file_key),
             "mean": float(np.mean(rates)),
@@ -3216,14 +3311,16 @@ def fig5_incoherence(all_data: dict, models: list, n_ladders: int) -> plt.Figure
     data_lists = [r["rates"] for r in rows]
     colors = [r["color"] for r in rows]
 
-    fig_h = max(6.2, 0.35 * len(labels) + 1.4)
-    fig, (axL, axR) = plt.subplots(
-        1,
+    fig_h = max(8.6, 0.28 * len(labels) * 2 + 1.8)
+    fig, (axL, axR) = _column_subplots(
         2,
-        figsize=(11.2, fig_h),
-        dpi=300,
-        sharey=True,
-        gridspec_kw={"width_ratios": [1.6, 1], "wspace": 0.08},
+        1,
+        height=fig_h,
+        gridspec_kw={"hspace": 0.28},
+    )
+    _warn_column_fit(
+        "fig5_incoherence",
+        "stacked the boxplot above the 'ladders below 0.5' bars and abbreviated model names",
     )
     positions = np.arange(1, len(labels) + 1)
 
@@ -3240,9 +3337,9 @@ def fig5_incoherence(all_data: dict, models: list, n_ladders: int) -> plt.Figure
         patch.set_edgecolor("white")
 
     axL.set_yticks(positions)
-    axL.set_yticklabels(labels, fontsize=7.8)
+    axL.set_yticklabels(labels)
     axL.set_xlim(0, 1)
-    axL.set_xlabel("Per-ladder monotonicity rate", fontsize=9)
+    axL.set_xlabel("Per-ladder monotonicity rate")
     axL.axvline(0.5, color="red", lw=0.7, ls="--", alpha=0.4)
     axL.grid(axis="x", linestyle="--", linewidth=0.4, alpha=0.22)
     axL.invert_yaxis()
@@ -3250,14 +3347,16 @@ def fig5_incoherence(all_data: dict, models: list, n_ladders: int) -> plt.Figure
 
     n_below = [sum(1 for v in dl if v < 0.5) for dl in data_lists]
     axR.barh(positions, n_below, color=colors, edgecolor="white", height=0.65)
-    axR.set_xlabel(f"Ladders below 0.5 (of {n_ladders})", fontsize=9)
-    axR.tick_params(axis="y", labelleft=False)
+    axR.set_yticks(positions)
+    axR.set_yticklabels(labels)
+    axR.set_xlabel(f"Ladders below 0.5 (of {n_ladders})")
     axR.set_xlim(0, max(n_below, default=0) + 10)
     axR.grid(axis="x", linestyle="--", linewidth=0.4, alpha=0.22)
+    axR.invert_yaxis()
     for yi, n in zip(positions, n_below):
-        axR.text(n + 0.8, yi, str(n), va="center", ha="left", fontsize=7.5)
+        axR.text(n + 0.8, yi, str(n), va="center", ha="left")
     style_axes(axR)
-    fig.subplots_adjust(left=0.31, right=0.98, bottom=0.09, top=0.98, wspace=0.08)
+    fig.subplots_adjust(left=0.40, right=0.97, bottom=0.06, top=0.98)
     return fig
 
 
@@ -3279,20 +3378,31 @@ def fig6_heatmap(all_data: dict, models: list) -> plt.Figure:
     M = M[order]
     sorted_ids = [set_ids[i] for i in order]
 
-    fig, ax = plt.subplots(figsize=(10.2, 14), dpi=300)
+    fig, ax = _column_subplots(height=11.2)
+    _warn_column_fit(
+        "fig6_coherence_heatmap",
+        "abbreviated model names, rotated x ticks 90 degrees, "
+        "thinned y-axis ladder labels, and moved the colorbar above the heatmap",
+    )
     im = ax.imshow(M, aspect="auto", cmap="RdYlGn", vmin=0, vmax=1)
     ax.set_xticks(range(len(active)))
-    model_labels = [
-        f"{base_model_label(fk)}\n{'on' if r == 'on' else 'off'}"
-        for fk, _, _, r in active
-    ]
-    ax.set_xticklabels(model_labels, rotation=48, ha="right", fontsize=6.7)
-    ax.set_yticks(range(0, len(sorted_ids), 5))
-    ax.set_yticklabels([sorted_ids[i][:28] for i in range(0, len(sorted_ids), 5)], fontsize=5)
-    ax.set_ylabel("Valence ladders (sorted by cross-model mean)")
-    cbar = fig.colorbar(im, ax=ax, fraction=0.03, pad=0.02)
+    model_labels = []
+    for fk, _, _, _ in active:
+        base = base_model_label(fk).replace(" (baseline)", "")
+        short = _HEATMAP_MODEL_ABBREV.get(base, base)
+        tag = "on" if infer_reasoning(fk) == "on" else "off"
+        model_labels.append(f"{short} {tag}")
+    ax.set_xticklabels(model_labels, rotation=90, ha="center", va="top")
+    ax.tick_params(axis="x", pad=2)
+    y_step = 10 if len(sorted_ids) > 40 else 5
+    ax.set_yticks(range(0, len(sorted_ids), y_step))
+    ax.set_yticklabels([sorted_ids[i].replace("_", " ")[:16] for i in range(0, len(sorted_ids), y_step)])
+    ax.set_ylabel("")
+    cbar = fig.colorbar(
+        im, ax=ax, orientation="horizontal", fraction=0.025, pad=0.04, location="top",
+    )
     cbar.set_label("Monotonicity rate")
-    fig.subplots_adjust(left=0.20, right=0.92, bottom=0.18, top=0.99)
+    fig.subplots_adjust(left=0.22, right=0.99, bottom=0.24, top=0.90)
     return fig
 
 
@@ -3332,47 +3442,70 @@ def _draw_category_heatmap(
 
     first_fk = models_subset[0][0]
     categories = sorted(set(rec["category"] for rec in all_data[first_fk]))
-    cat_labels = [_category_short(c) for c in categories]
-    row_labels = [paper_model_panel_title(fk, r) for fk, _, _, r in models_subset]
+    category_counts = {
+        category: sum(1 for rec in all_data[first_fk] if rec["category"] == category)
+        for category in categories
+    }
+    cat_labels = [
+        f"{_category_short(category)} ($n$={category_counts[category]})"
+        for category in categories
+    ]
+    # The category figure has enough horizontal room for publication names;
+    # avoid ambiguous abbreviations such as ``Mistral-S``.
+    row_labels = [
+        base_model_label(fk).replace(" (baseline)", "")
+        for fk, _, _, _ in models_subset
+    ]
     M = _build_category_matrix(all_data, models_subset, categories)
     col_means = np.mean(M, axis=0)
     M_display = np.vstack([M, col_means.reshape(1, -1)])
 
     n_model_rows = len(models_subset)
     n_display_rows = n_model_rows + 1
-    fig_h = max(4.0, 0.34 * n_display_rows + 1.8)
-    fig, ax = plt.subplots(figsize=(11.2, fig_h), dpi=300)
+    # Scale the height with the number of models so 9 pt row labels and cell
+    # values remain readable in the final two-column figure.
+    fig_height = max(3.65, 0.25 * n_display_rows + 0.70)
+    fig, ax = plt.subplots(figsize=(7.0, fig_height), dpi=300)
 
     im = ax.imshow(
         M_display, aspect="auto", cmap=CATEGORY_HEATMAP_CMAP,
         vmin=CATEGORY_HEATMAP_VMIN, vmax=CATEGORY_HEATMAP_VMAX,
     )
     ax.set_xticks(range(len(categories)))
-    ax.set_xticklabels(cat_labels, rotation=45, ha="right", fontsize=8)
+    ax.set_xticklabels(cat_labels, rotation=42, ha="right", rotation_mode="anchor")
     ax.set_yticks(range(n_display_rows))
-    ax.set_yticklabels(row_labels + ["Column mean"], fontsize=8)
+    ax.set_yticklabels(row_labels + ["Column mean"])
     ax.get_yticklabels()[-1].set_fontweight("bold")
-    ax.set_xlabel("Category", fontsize=9)
-    ax.set_ylabel(ylabel, fontsize=9)
+    ax.set_xlabel("")
+    ax.set_ylabel("")
+    ax.set_title(ylabel, pad=4)
 
     ax.axhline(n_model_rows - 0.5, color="white", linewidth=2.0)
     ax.axhline(n_model_rows - 0.5, color="0.25", linewidth=0.8)
 
-    for i in range(M_display.shape[0]):
-        for j in range(M_display.shape[1]):
-            val = M_display[i, j]
-            txt_color = "white" if val < 35 or val > 75 else "black"
-            weight = "bold" if i == n_model_rows else "normal"
+    # Print the actual percentage in every cell.  White is reserved for the
+    # darkest red/green cells; mid-range cells use dark text for contrast.
+    for row_index in range(n_display_rows):
+        for col_index in range(len(categories)):
+            value = float(M_display[row_index, col_index])
+            text_color = "white" if value <= 22.0 or value >= 82.0 else "#222222"
             ax.text(
-                j, i, f"{val:.0f}", ha="center", va="center",
-                fontsize=7, color=txt_color, fontweight=weight,
+                col_index,
+                row_index,
+                f"{value:.0f}",
+                ha="center",
+                va="center",
+                color=text_color,
+                fontsize=PUBLICATION_FONT_SIZE_PT,
+                fontweight="bold" if row_index == n_model_rows else "normal",
             )
 
-    cbar = fig.colorbar(im, ax=ax, fraction=0.025, pad=0.02)
-    cbar.set_label("Strict monotonicity (%)", fontsize=8)
-    # Reserve explicit room for the longest model/category labels.  This also
-    # keeps the colorbar clear when the PDF is reduced to paper width.
-    fig.subplots_adjust(left=0.23, right=0.94, bottom=0.28, top=0.98)
+    # A vertical colorbar avoids adding another horizontal band below the
+    # already angled category labels.
+    fig.subplots_adjust(left=0.245, right=0.925, bottom=0.31, top=0.91)
+    cax = fig.add_axes([0.945, 0.31, 0.014, 0.60])
+    cbar = fig.colorbar(im, cax=cax, orientation="vertical")
+    cbar.set_label("Strict monotonicity (%)")
     return fig
 
 
@@ -3381,7 +3514,7 @@ def fig7_category_breakdown_off(all_data: dict, models: list) -> plt.Figure:
     models_off = [(fk, lbl, fam, r) for fk, lbl, fam, r in models
                   if r == "off" and fk in all_data]
     return _draw_category_heatmap(
-        all_data, models_off, ylabel="Model (reasoning off)",
+        all_data, models_off, ylabel="Reasoning off",
     )
 
 
@@ -3390,7 +3523,7 @@ def fig7b_category_breakdown_on(all_data: dict, models: list) -> plt.Figure:
     models_on = [(fk, lbl, fam, r) for fk, lbl, fam, r in models
                  if r == "on" and fk in all_data]
     return _draw_category_heatmap(
-        all_data, models_on, ylabel="Model (reasoning on)",
+        all_data, models_on, ylabel="Reasoning on",
     )
 
 
@@ -3431,9 +3564,15 @@ def fig8_ladder_shapes(all_data: dict, models: list, results_dir: pathlib.Path) 
     ]
     active.sort(key=lambda row: _model_sort_key(row[0]))
     n = len(active)
-    ncols = min(4, n) if n else 4
+    ncols = 2 if n > 1 else 1
     nrows = max(1, math.ceil(n / ncols))
-    fig, axes = plt.subplots(nrows, ncols, figsize=(13, 3.2 * nrows), dpi=300, sharey=True)
+    fig, axes = _column_subplots(
+        nrows, ncols, height=max(2.6, 1.38 * nrows), sharey=True
+    )
+    _warn_column_fit(
+        "fig8_ladder_shapes",
+        "used a 2-column grid and abbreviated panel titles",
+    )
     if nrows == 1 and ncols == 1:
         axes = np.array([[axes]])
     elif nrows == 1:
@@ -3484,9 +3623,8 @@ def fig8_ladder_shapes(all_data: dict, models: list, results_dir: pathlib.Path) 
 
         if not tier_probs_all:
             ax.set_title(
-                f"{paper_model_panel_title(file_key, reasoning)} (no data)",
-                fontsize=8,
-                pad=5,
+                f"{_compact_bar_label(file_key)} (no data)",
+                pad=4,
             )
             continue
 
@@ -3497,14 +3635,9 @@ def fig8_ladder_shapes(all_data: dict, models: list, results_dir: pathlib.Path) 
         ax.fill_between(x, means - sds, means + sds, color=color, alpha=0.2)
         ax.plot(x, means, color=color, lw=2, marker="o", markersize=4)
         ax.set_xticks(x)
-        ax.set_xticklabels([f"T{i}" for i in x], fontsize=7)
+        ax.set_xticklabels([f"T{i}" for i in x])
         ax.set_ylim(0, 1)
-        title_fs = 8 if n >= 20 else 9
-        ax.set_title(
-            paper_model_panel_title(file_key, reasoning),
-            fontsize=title_fs,
-            pad=5,
-        )
+        ax.set_title(_compact_bar_label(file_key), pad=4)
         style_axes(ax)
         if idx % ncols == 0:
             ax.set_ylabel("P(prefer tier)")
@@ -3630,7 +3763,7 @@ def fig9_pred_util_coherence_scatter(
         reasoning = infer_reasoning(key)
         points.append({
             "key": key,
-            "short": paper_model_label(key),
+            "short": _compact_bar_label(key),
             "family": family,
             "reasoning": reasoning,
             "color": get_color(family, reasoning, key),
@@ -3641,9 +3774,11 @@ def fig9_pred_util_coherence_scatter(
     if not points:
         return None
 
-    legend_cols = 2 if len(points) > 12 else 1
-    fig_w = 10.2 if legend_cols == 2 else 6.6
-    fig, ax = plt.subplots(figsize=(fig_w, 5.4), dpi=300)
+    fig, ax = _column_subplots(height=6.4)
+    _warn_column_fit(
+        "fig9_pred_util_vs_coherence",
+        "moved the model legend below the plot and abbreviated labels",
+    )
     for pt in points:
         marker = "^" if pt["reasoning"] == "on" else "o"
         ax.scatter(
@@ -3660,7 +3795,6 @@ def fig9_pred_util_coherence_scatter(
                 xy=(pt["mono"] * 100, pt["auc"]),
                 xytext=(14, 10),
                 textcoords="offset points",
-                fontsize=7.5,
                 ha="left",
                 arrowprops=dict(arrowstyle="-", color="#555555", lw=0.9),
                 bbox=dict(boxstyle="round,pad=0.25", fc="white", ec="#cccccc", alpha=0.92),
@@ -3674,12 +3808,12 @@ def fig9_pred_util_coherence_scatter(
         r = float(np.corrcoef(xs, ys)[0, 1])
         ax.text(
             0.03, 0.03, f"$r$ = {r:.2f}  ($n$ = {len(points)} models)",
-            transform=ax.transAxes, va="bottom", ha="left", fontsize=8,
+            transform=ax.transAxes, va="bottom", ha="left",
             bbox=dict(boxstyle="round,pad=0.25", fc="white", ec="#dddddd", alpha=0.92),
         )
 
-    ax.set_xlabel("Strict monotonicity (model mean, %)", fontsize=9)
-    ax.set_ylabel("Predictive utility: mean held-out AUC", fontsize=9)
+    ax.set_xlabel("Strict monotonicity (model mean, %)")
+    ax.set_ylabel("Predictive utility: mean held-out AUC")
     ax.set_xlim(0, 88)
     ax.set_ylim(0.76, 0.98)
     ax.grid(True, linestyle="--", linewidth=0.4, alpha=0.28)
@@ -3687,17 +3821,14 @@ def fig9_pred_util_coherence_scatter(
 
     ax.legend(
         handles=_reasoning_marker_legend_handles() + _model_legend_handles(points),
-        loc="center left", bbox_to_anchor=(1.02, 0.5),
-        ncol=legend_cols, columnspacing=0.8, handletextpad=0.45,
-        frameon=True, fontsize=7, framealpha=0.95, edgecolor="#dddddd",
-        title="Model ($\\triangle$ = reasoning on)", title_fontsize=8,
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.18),
+        ncol=2,
+        columnspacing=0.8, handletextpad=0.45,
+        frameon=True, framealpha=0.95, edgecolor="#dddddd",
+        title="Model ($\\triangle$ = reasoning on)",
     )
-    fig.subplots_adjust(
-        left=0.10,
-        right=0.56 if legend_cols == 2 else 0.68,
-        bottom=0.14,
-        top=0.97,
-    )
+    fig.subplots_adjust(left=0.16, right=0.97, bottom=0.36, top=0.97)
     return fig
 
 
@@ -3722,8 +3853,12 @@ def fig10_pred_util_reasoning_lift(pred_util: dict[str, dict]) -> plt.Figure | N
         })
     pair_rows.sort(key=lambda r: _reasoning_pair_order_key(base_model_label(r["off_key"])))
 
-    fig_w = max(7.5, 0.86 * len(pair_rows) + 2.8)
-    fig, ax = plt.subplots(figsize=(fig_w, 4.4), dpi=300)
+    fig_h = max(3.8, 0.22 * len(pair_rows) + 1.7)
+    fig, ax = _column_subplots(height=fig_h)
+    _warn_column_fit(
+        "fig10_pred_util_reasoning_lift",
+        "rotated x tick labels 45 degrees",
+    )
     width = 0.35
     xs = np.arange(len(pair_rows))
 
@@ -3744,17 +3879,16 @@ def fig10_pred_util_reasoning_lift(pred_util: dict[str, dict]) -> plt.Figure | N
         ax.annotate(
             f"{sign}{lift_pp:.1f}pp",
             xy=(i + width / 2, ymax + 0.008),
-            ha="center", fontsize=8, color="black",
+            ha="center", color="black",
         )
 
     pair_labels = [base_model_label(r["off_key"]) for r in pair_rows]
     ax.set_xticks(xs)
-    rotation = 32 if len(pair_rows) >= 8 else 25
-    ax.set_xticklabels(pair_labels, rotation=rotation, ha="right", fontsize=8.5)
-    ax.tick_params(axis="x", pad=6)
+    ax.set_xticklabels(pair_labels, rotation=45, ha="right")
+    ax.tick_params(axis="x", pad=4)
     ax.set_ylabel("Mean held-out test AUC")
     ax.set_ylim(0.82, 1.0)
-    ax.legend(loc="upper left", frameon=False, fontsize=9)
+    ax.legend(loc="upper left", frameon=False)
     style_axes(ax)
     fig.tight_layout(pad=0.8)
     return fig
@@ -3809,14 +3943,16 @@ def fig3_reasoning_summary(
 
     rows.sort(key=lambda r: _reasoning_pair_order_key(r["label"]))
     y = np.arange(len(rows))[::-1]
-    fig_h = max(4.6, 0.48 * len(rows) + 1.35)
-    fig, axes = plt.subplots(
-        1,
+    fig_h = max(7.6, 0.42 * len(rows) * 2 + 1.8)
+    fig, axes = _column_subplots(
         2,
-        figsize=(11.0, fig_h),
-        dpi=300,
-        sharey=True,
-        gridspec_kw={"wspace": 0.10},
+        1,
+        height=fig_h,
+        gridspec_kw={"hspace": 0.38},
+    )
+    _warn_column_fit(
+        "fig3_reasoning_summary",
+        "stacked the monotonicity and predictive-utility panels vertically",
     )
 
     def draw_panel(
@@ -3874,7 +4010,6 @@ def fig3_reasoning_summary(
                 f"{delta:+.1f}{delta_suffix}",
                 va="center",
                 ha="left",
-                fontsize=7.3,
                 color="#333333",
             )
 
@@ -3883,10 +4018,9 @@ def fig3_reasoning_summary(
                 separator_y = (y[idx] + y[idx + 1]) / 2.0
                 ax.axhline(separator_y, color="#d9d9d9", lw=0.8, zorder=0)
 
-        ax.set_title(title, fontsize=10, pad=8)
+        ax.set_title(title, pad=6)
         ax.set_xlim(*xlim)
         ax.grid(axis="x", linestyle="--", linewidth=0.45, alpha=0.28)
-        ax.tick_params(axis="both", labelsize=8)
         style_axes(ax)
 
     draw_panel(
@@ -3900,11 +4034,11 @@ def fig3_reasoning_summary(
         off_err_field="mono_off_err",
         on_err_field="mono_on_err",
     )
-    axes[0].set_xlabel("Strict monotonicity rate (%)", fontsize=9)
+    axes[0].set_xlabel("Strict monotonicity rate (%)")
     axes[0].set_xticks(np.arange(0, 101, 20))
     axes[0].set_yticks(y)
-    axes[0].set_yticklabels([row["label"] for row in rows], fontsize=8.5)
-    axes[0].tick_params(axis="y", pad=7)
+    axes[0].set_yticklabels([row["label"] for row in rows])
+    axes[0].tick_params(axis="y", pad=4)
     for tick in axes[0].get_yticklabels():
         tick.set_color("#111111")
 
@@ -3917,8 +4051,10 @@ def fig3_reasoning_summary(
         delta_scale=100.0,
         delta_suffix=" pp",
     )
-    axes[1].set_xlabel("Mean held-out test AUC", fontsize=9)
-    axes[1].tick_params(axis="y", left=False, labelleft=False)
+    axes[1].set_xlabel("Mean held-out test AUC")
+    axes[1].set_yticks(y)
+    axes[1].set_yticklabels([row["label"] for row in rows])
+    axes[1].tick_params(axis="y", pad=4)
 
     mode_legend_handles = [
         Line2D(
@@ -3933,10 +4069,9 @@ def fig3_reasoning_summary(
     fig.legend(
         handles=mode_legend_handles,
         loc="upper center",
-        bbox_to_anchor=(0.59, 0.995),
+        bbox_to_anchor=(0.5, 0.995),
         ncol=2,
         frameon=False,
-        fontsize=8.5,
         handletextpad=0.45,
         columnspacing=1.2,
     )
@@ -3964,14 +4099,13 @@ def fig3_reasoning_summary(
     fig.legend(
         handles=color_legend_handles,
         loc="upper center",
-        bbox_to_anchor=(0.59, 0.947),
-        ncol=5,
+        bbox_to_anchor=(0.5, 0.955),
+        ncol=3,
         frameon=False,
-        fontsize=7.3,
         handletextpad=0.35,
-        columnspacing=0.9,
+        columnspacing=0.8,
     )
-    fig.subplots_adjust(left=0.23, right=0.985, bottom=0.13, top=0.79, wspace=0.10)
+    fig.subplots_adjust(left=0.32, right=0.97, bottom=0.06, top=0.86)
     return fig
 
 
@@ -4068,7 +4202,11 @@ def fig11_pred_util_per_ladder_scatter(
     ys = np.asarray([p["auc"] for p in points], dtype=float)
     n_fail = sum(1 for p in points if not p["sig_bh"])
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4.2), dpi=300)
+    fig, (ax1, ax2) = _column_subplots(2, 1, height=6.4, gridspec_kw={"hspace": 0.38})
+    _warn_column_fit(
+        "fig11_pred_util_per_ladder_scatter",
+        "stacked the trend and tercile panels vertically",
+    )
     _draw_binned_trend_panel(
         ax1, xs, ys, accent="#0072B2", show_bh_fails=True, bh_points=points,
         title=f"All models ($n$ = {len(points)}, BH fail = {n_fail})",
@@ -4077,11 +4215,9 @@ def fig11_pred_util_per_ladder_scatter(
         ax2, xs, ys, accent="#0072B2",
         title="By monotonicity tercile",
     )
-    fig.suptitle(
-        "Coherence and predictive utility align at the ladder level",
-        fontsize=11, y=1.02,
-    )
-    fig.subplots_adjust(top=0.88, wspace=0.28)
+    fig.suptitle("Ladder-level AUC vs monotonicity", y=0.98)
+    ax2.set_ylabel("")
+    fig.subplots_adjust(top=0.90)
     return fig
 
 
@@ -4106,24 +4242,30 @@ def fig12_pred_util_reasoning_split(
     off_auc = float(np.mean(off_y))
     on_auc = float(np.mean(on_y))
 
-    fig, axes = plt.subplots(2, 2, figsize=(10, 7), dpi=300)
-    _draw_binned_trend_panel(
-        axes[0, 0], off_x, off_y, accent="#5C6BC0", show_bh_fails=True, bh_points=off_pts,
-        title=f"reasoning off ($n$ = {len(off_pts)}, BH fail = {off_fail})",
+    fig, axes = _column_subplots(4, 1, height=8.8, sharey=True)
+    _warn_column_fit(
+        "fig12_pred_util_reasoning_split",
+        "stacked the four panels vertically",
     )
     _draw_binned_trend_panel(
-        axes[0, 1], on_x, on_y, accent="#0072B2", show_bh_fails=True, bh_points=on_pts,
-        title=f"reasoning on ($n$ = {len(on_pts)}, BH fail = {on_fail})",
+        axes[0], off_x, off_y, accent="#5C6BC0", show_bh_fails=True, bh_points=off_pts,
+        title=f"off ($n$={len(off_pts)}, BH fail={off_fail})",
     )
-    _draw_tercile_box_panel(axes[1, 0], off_x, off_y, accent="#5C6BC0", title="OFF — tercile")
-    _draw_tercile_box_panel(axes[1, 1], on_x, on_y, accent="#0072B2", title="ON — tercile")
-
+    _draw_binned_trend_panel(
+        axes[1], on_x, on_y, accent="#0072B2", show_bh_fails=True, bh_points=on_pts,
+        title=f"on ($n$={len(on_pts)}, BH fail={on_fail})",
+    )
+    _draw_tercile_box_panel(axes[2], off_x, off_y, accent="#5C6BC0", title="OFF — tercile")
+    _draw_tercile_box_panel(axes[3], on_x, on_y, accent="#0072B2", title="ON — tercile")
+    if axes[1].get_legend() is not None:
+        axes[1].get_legend().remove()
+    for ax in axes[1:]:
+        ax.set_ylabel("")
     fig.suptitle(
-        f"Predictive utility vs coherence: reasoning off vs on  "
-        f"(mean AUC {off_auc:.3f} → {on_auc:.3f})",
-        fontsize=11, y=1.01,
+        f"Off vs on (mean AUC {off_auc:.3f} to {on_auc:.3f})",
+        y=0.995,
     )
-    fig.subplots_adjust(top=0.90, hspace=0.38, wspace=0.28)
+    fig.subplots_adjust(top=0.93, hspace=0.42)
     return fig
 
 
@@ -4327,15 +4469,37 @@ def main():
     else:
         print("\nSkipping fig9–fig12 (no pred_utility_test/ outputs found).")
 
-    print(f"\nGenerating {len(targets)} figures...")
+    print(f"\nGenerating {len(targets)} figures at {COL_WIDTH_IN:.2f} in column width...")
     for name, make_figure in targets:
         fig = make_figure()
         if fig is None:
             continue
-        for ext in ("pdf", "png"):
-            path = out_dir / f"{name}.{ext}"
-            fig.savefig(path, dpi=300, bbox_inches="tight", pad_inches=0.08)
-            print(f"  {path.name} ({path.stat().st_size // 1024}KB)")
+        validate_minimum_figure_font_size(fig)
+        width_in, height_in = fig.get_size_inches()
+        print(f"  {name}: figsize=({width_in:.2f}, {height_in:.2f}) in")
+        if abs(width_in - COL_WIDTH_IN) > 1e-6:
+            print(
+                f"WARNING: {name}: width {width_in:.3f} in "
+                f"!= COL_WIDTH_IN {COL_WIDTH_IN:.2f} in"
+            )
+        save_names = [name]
+        if name == "fig_within_ladder_gap":
+            save_names.append("fig_within_ladder_internal_coherence_bars")
+        for save_name in save_names:
+            for ext in ("pdf", "png"):
+                path = out_dir / f"{save_name}.{ext}"
+                fig.savefig(path, dpi=300, bbox_inches="tight", pad_inches=0.04)
+                print(f"    {path.name} ({path.stat().st_size // 1024}KB)")
+                if ext == "png":
+                    from PIL import Image
+                    with Image.open(path) as im:
+                        saved_w = im.size[0] / 300.0
+                    if saved_w > COL_WIDTH_IN + 0.20:
+                        print(
+                            f"WARNING: {save_name}: saved PNG width "
+                            f"{saved_w:.2f} in exceeds {COL_WIDTH_IN:.2f} in "
+                            f"(bbox_inches='tight' expanded for labels)"
+                        )
         plt.close(fig)
 
     print("\nDone.")

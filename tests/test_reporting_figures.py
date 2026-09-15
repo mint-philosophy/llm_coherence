@@ -21,7 +21,7 @@ from llm_coherence.reporting.make_fig_table import (
 
 
 class WithinLadderGapFigureTests(unittest.TestCase):
-    def test_skips_missing_monotonicity_and_uses_single_column_layout(self) -> None:
+    def test_skips_missing_monotonicity_and_uses_compact_horizontal_layout(self) -> None:
         rows = [
             {
                 "file_key": "gpt-56-sol-thinking",
@@ -47,8 +47,8 @@ class WithinLadderGapFigureTests(unittest.TestCase):
         self.addCleanup(plt.close, figure)
 
         self.assertIsNotNone(figure)
-        self.assertEqual(tuple(figure.get_size_inches()), (3.3, 3.2))
-        self.assertIn("WARNING: skipping Qwen3.7 Flash (on)", stdout.getvalue())
+        self.assertEqual(tuple(figure.get_size_inches()), (7.0, 3.35))
+        self.assertIn("WARNING: skipping Qwen-3.7 Flash (on)", stdout.getvalue())
 
         self.assertEqual(len(figure.axes), 2)
         self.assertEqual(
@@ -71,21 +71,21 @@ class WithinLadderGapFigureTests(unittest.TestCase):
             [text.get_text() for text in figure.axes[1].texts],
             ["98.8", "85.6"],
         )
-        self.assertEqual(figure.axes[0].get_xlim(), (0.0, 102.0))
+        self.assertEqual(figure.axes[0].get_xlim(), (0.0, 108.0))
         self.assertEqual(figure.axes[0].get_xlim(), figure.axes[1].get_xlim())
         self.assertEqual(
             [text.get_text() for text in figure.legends[0].get_texts()],
             [
-                "Strict ladder\u2013statement monotonicity",
-                "Direct tier\u2013pair accuracy",
+                "Strict monotonicity",
+                "Tier-pair accuracy",
             ],
         )
-        self.assertIn(
-            "\u2020 Accuracy uses parseable responses",
-            figure.texts[0].get_text(),
-        )
+        self.assertTrue(any(
+            "\u2020 Parseable-response denominator." in text.get_text()
+            for text in figure.texts
+        ))
 
-    def test_stacked_panels_have_no_vertical_label_overlap(self) -> None:
+    def test_side_by_side_panels_have_no_label_overlap(self) -> None:
         rows = [
             {
                 "file_key": f"example-model-{index:02d}{suffix}",
@@ -101,6 +101,10 @@ class WithinLadderGapFigureTests(unittest.TestCase):
 
         renderer = figure.canvas.get_renderer()
         self.assertEqual(len(figure.axes), 2)
+        self.assertLess(
+            figure.axes[0].get_position().x1,
+            figure.axes[1].get_position().x0,
+        )
         for axis in figure.axes:
             boxes = sorted(
                 (
@@ -150,7 +154,7 @@ class WithinLadderAccuracyFigureTests(unittest.TestCase):
         self.addCleanup(plt.close, figure)
 
         self.assertIsNotNone(figure)
-        self.assertEqual(tuple(figure.get_size_inches()), (10.0, 5.0))
+        self.assertEqual(tuple(figure.get_size_inches()), (3.25, 5.4))
         self.assertEqual(len(figure.axes), 1)
         self.assertEqual(
             [text.get_text() for text in figure.axes[0].get_legend().get_texts()],
