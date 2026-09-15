@@ -55,10 +55,7 @@ The main count progression is:
 
 
 
-
 ## Installation
-
-
 
 ### Required dependencies
 
@@ -114,14 +111,6 @@ api_keys/api_key_openrouter.txt
 
 Keys are loaded through `src/llm_coherence/runtime/api_keys.py`. The repository includes empty provider-key placeholders, but no secret values.
 
-## Verify the Installation
-
-The test suite is offline: it does not submit provider requests or require API keys.
-
-```bash
-PYTHONPATH=src python -m compileall -q src tests
-PYTHONPATH=src python -m unittest discover -s tests -v
-```
 
 ## Cost Preview and Smoke Runs
 
@@ -195,9 +184,7 @@ PYTHONPATH=src python scripts/06_reporting/13_make_fig_table.py \
 
 The reporting command writes each figure as PDF and PNG, including `fig_within_ladder_gap`, without modifying prior stamped directories. For a full model rerun, omit `--smoke` and `--max-variation-sets`, set the desired trial count and run-wide limits, and retain `--resume`.
 
-The dense two-column figures can also be regenerated with a checked 9-point
-minimum font. The paths are command-line inputs rather than date-specific
-paths embedded in the script:
+The dense two-column figures can also be regenerated with a checked 9-point minimum font. The paths are command-line inputs rather than date-specific paths embedded in the script:
 
 ```bash
 PYTHONPATH=src python scripts/06_reporting/regenerate_figures_3_5_9pt.py \
@@ -245,7 +232,6 @@ Build and push the HF Jobs image from the repository root:
 IMAGE=your-dockerhub-user/llm-coherence-vllm:glm-base-YYYYMMDD
 bash scripts/00_repository/01_build_hf_jobs_image.sh "$IMAGE"
 ```
-
 
 
 ### Within-ladder GLM experiment (Instance 1 / Step 10a)
