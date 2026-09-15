@@ -59,6 +59,7 @@ from collections import Counter
 from pathlib import Path
 from datetime import datetime, timezone
 
+from llm_coherence.experiments.hf_helpers import fix_ssl_env
 from llm_coherence.experiments.ladder_statement_pair.experiment_runner_tradeoff import (
     artifact_dir_name_for_test,
     build_prompt,
@@ -508,20 +509,37 @@ def is_complete(results_dir: Path, test_name: str, model_key: str) -> bool:
             return False
         if config.get("infrastructure") == "openai_batch_api":
             return metadata.get("run_status") == "complete"
-        return True
+        return _results_file_is_fully_parsed(path)
 
     # Primary path uses compact artifact dir names to avoid Windows MAX_PATH issues.
     artifact_dir = artifact_dir_name_for_test(test_name)
     compact = results_dir / artifact_dir / "results.json"
-    if valid(compact):
-        return True
-    # Transitional compact naming.
     compact_v1 = results_dir / artifact_dir / f"{artifact_dir}_{model_key}_results.json"
-    if valid(compact_v1):
-        return True
-    # Back-compat for previously written legacy layout.
     legacy = results_dir / test_name / f"{test_name}_{model_key}_results.json"
-    return valid(legacy)
+    return valid(compact) or valid(compact_v1) or valid(legacy)
+
+
+def _results_file_is_fully_parsed(path: Path) -> bool:
+    """True only when every comparison has a full A/B vote count."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    cfg = data.get("config") or {}
+    prefs = data.get("preferences") or []
+    meta = data.get("metadata") or {}
+    if not prefs:
+        return False
+    total = meta.get("total_comparisons")
+    if total is not None and len(prefs) != int(total):
+        return False
+    n_trials = int(cfg.get("num_trials") or 10)
+    include_flipped = bool(cfg.get("include_flipped", True))
+    expected = n_trials * (2 if include_flipped else 1)
+    return all(
+        int(p.get("count_prefer_a") or 0) + int(p.get("count_prefer_b") or 0) >= expected
+        for p in prefs
+    )
 
 
 async def smoke_call(
@@ -572,6 +590,7 @@ async def smoke_call(
             extra_body=extra_body,
         )
     else:
+        fix_ssl_env()
         agent = create_agent(
             model_key,
             temperature=temperature if temperature is not None else 0.0,
@@ -579,6 +598,7 @@ async def smoke_call(
             max_retries=max_retries,
             extra_body=extra_body,
             enable_cache=enable_cache,
+            base_timeout=120,
         )
     msgs = []
     if system_message:

@@ -15,7 +15,6 @@ import re
 from pathlib import Path
 
 from llm_coherence.paths import API_KEYS_DIR
-from llm_coherence.runtime.preflight_check import MODEL_COST_ESTIMATES
 from llm_coherence.runtime.agents import model_name_for_key
 
 HF_CHAT_URL = "https://router.huggingface.co/v1/chat/completions"
@@ -34,11 +33,11 @@ FATAL_TEXT = (
 # Map openrouter model-name (as returned by model_name_for_key) -> HF Hub model id.
 HF_HUB_MODEL_ALIASES: dict[str, str] = {
     "openrouter/moonshotai/kimi-k2-thinking": "moonshotai/Kimi-K2-Thinking",
-    "openrouter/moonshotai/kimi-k2": "moonshotai/Kimi-K2",
+    "openrouter/moonshotai/kimi-k2": "moonshotai/Kimi-K2-Instruct",
     # Also accept the raw provider model name that some pipelines expose
     # (e.g. from MODELS[cfg.model_key][0]).
     "moonshotai/kimi-k2-thinking": "moonshotai/Kimi-K2-Thinking",
-    "moonshotai/kimi-k2": "moonshotai/Kimi-K2",
+    "moonshotai/kimi-k2": "moonshotai/Kimi-K2-Instruct",
 }
 
 
@@ -47,15 +46,16 @@ def fix_ssl_env() -> None:
         cert = os.environ.get(var)
         if cert and not Path(cert).is_file():
             os.environ.pop(var, None)
-    if not os.environ.get("SSL_CERT_FILE"):
-        try:
-            import certifi
+    try:
+        import certifi
 
-            ca = certifi.where()
-            if Path(ca).is_file():
-                os.environ["SSL_CERT_FILE"] = ca
-        except Exception:
-            pass
+        ca = certifi.where()
+    except Exception:
+        ca = ""
+    if ca and Path(ca).is_file():
+        for var in ("SSL_CERT_FILE", "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE"):
+            if not os.environ.get(var):
+                os.environ[var] = ca
 
 
 def load_hf_token() -> str:
@@ -143,3 +143,23 @@ def resolve_hf_router_model(
 ) -> str:
     hub_id = resolve_hf_hub_model_id(model_key, override=hf_model_override)
     return f"{hub_id}:{hf_provider}"
+
+
+# HF Hub ids -> OpenRouter catalog slugs (for live $/M rates when HF usage has no cost).
+_HF_HUB_TO_OPENROUTER_SLUG: dict[str, str] = {
+    "moonshotai/Kimi-K2": "moonshotai/kimi-k2",
+    "moonshotai/Kimi-K2-Instruct": "moonshotai/kimi-k2",
+    "moonshotai/Kimi-K2-Instruct-0905": "moonshotai/kimi-k2",
+    "moonshotai/Kimi-K2-Thinking": "moonshotai/kimi-k2-thinking",
+}
+
+
+def openrouter_slug_for_hf_router_model(router_model: str) -> str:
+    """Map `hub_id:provider` to an OpenRouter model id for live rate lookup."""
+    hub_id = (router_model or "").split(":", 1)[0].strip()
+    if hub_id in _HF_HUB_TO_OPENROUTER_SLUG:
+        return _HF_HUB_TO_OPENROUTER_SLUG[hub_id]
+    for k, v in _HF_HUB_TO_OPENROUTER_SLUG.items():
+        if k.lower() == hub_id.lower():
+            return v
+    return hub_id.lower()
