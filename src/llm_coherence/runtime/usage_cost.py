@@ -86,6 +86,10 @@ def infer_provider(model_id: str | None, explicit: str | None = None) -> str:
     if not model_id:
         return "openai"
     mid = model_id.lower()
+    # HF Inference Providers router ids are ``org/model:provider``.
+    hub, sep, _provider = mid.partition(":")
+    if sep and "/" in hub:
+        return "hf"
     if mid.startswith("openrouter/") or "/" in mid and not mid.startswith("gpt-"):
         return "openrouter"
     if "claude" in mid or "anthropic" in mid:
@@ -124,6 +128,17 @@ def resolve_rates(
         if live:
             return live, f"openrouter_api/models:{slug}"
         return None, f"openrouter_api/models:{slug} (not found)"
+
+    if provider in ("hf", "huggingface"):
+        # HF Inference Providers do not publish a rates catalog here. Map to the
+        # OpenRouter slug when possible so token×rate fallback matches live list prices.
+        from llm_coherence.experiments.hf_helpers import openrouter_slug_for_hf_router_model
+
+        slug = openrouter_slug_for_hf_router_model(model_id)
+        live = fetch_openrouter_rates(slug)
+        if live:
+            return live, f"hf_via_openrouter_api/models:{slug}"
+        return None, f"hf_via_openrouter_api/models:{slug} (not found)"
 
     return None, provider
 
@@ -460,11 +475,13 @@ LEGACY_COST_SUMMARY_NAME = "cost_summary.json"
 
 
 def get_model_pricing(model_key: str) -> dict[str, float] | None:
+    """Live $/Mtok for a paper model key (OpenRouter catalog, not the static table)."""
     try:
-        from llm_coherence.config import canonical_model_key
-        from llm_coherence.runtime.preflight_check import MODEL_COST_ESTIMATES
+        from llm_coherence.runtime.agents import model_name_for_key
 
-        return MODEL_COST_ESTIMATES.get(canonical_model_key(model_key))
+        mid = model_name_for_key(model_key)
+        rates, _src = resolve_rates(infer_provider(mid), mid)
+        return rates
     except Exception:
         return None
 
@@ -568,7 +585,7 @@ def resolve_pricing_source(
             "provider_reported": "provider_api_usage.cost",
             "computed_from_usage": pricing_sources,
         }
-    return "compute_utilities.preflight_check.MODEL_COST_ESTIMATES"
+    return "live_provider_rates"
 
 
 def resolve_cost_source_label(provider_reported_n: int, computed_n: int) -> str | None:
@@ -601,7 +618,7 @@ def build_cost_summary_notes(
         )
         return None, notes
     notes = (
-        "estimated_cost_usd uses MODEL_COST_ESTIMATES ($/1M) and observed token totals. "
+        "estimated_cost_usd uses live provider $/M rates and observed token totals. "
         "actual_cost_usd is null when per-request cost could not be resolved."
     )
     return None, notes
@@ -614,7 +631,7 @@ def build_cost_summary_notes_from_metadata(*, has_actual: bool) -> str:
         )
     return (
         "Modeled after property_ladder_pruning cost artifacts. "
-        "estimated_cost_usd uses MODEL_COST_ESTIMATES and observed token totals."
+        "estimated_cost_usd uses live provider $/M rates and observed token totals."
     )
 
 
