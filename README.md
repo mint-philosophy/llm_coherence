@@ -180,6 +180,16 @@ metadata for quantitative analysis. See
 [`docs/refusal_reasoning_analysis.md`](docs/refusal_reasoning_analysis.md) for
 the annotation schema and interpretation rules.
 
+Compare two completed conditions with paired inference over the shared ladders:
+
+```bash
+PYTHONPATH=src python scripts/05_analysis/11c_compare_model_results.py \
+  --left-model kimi-k2-openrouter \
+  --right-model kimi-k2-openrouter-thinking \
+  --results-dir outputs \
+  --output results/kimi-k2-instruct-vs-thinking.json
+```
+
 Predictive utility and paper reporting require substantially more than a one-ladder smoke sample. Run them against a completed model-run root:
 
 ```bash
@@ -231,6 +241,7 @@ Run scripts from the repository root with `PYTHONPATH=src python <script>`.
 | 10b  | `scripts/04_model_runs/10b_run_7tier_experiment.py`                   | `src/llm_coherence/experiments/ladder_statement_pair/run_7tier_experiment.py` |
 | 11   | `scripts/05_analysis/11_analyze_7tier_coherence.py`                   | `src/llm_coherence/analysis/analyze_7tier_coherence.py`                       |
 | 11b  | `scripts/05_analysis/11b_analyze_refusal_robustness.py`               | `src/llm_coherence/analysis/refusal_robustness.py`                             |
+| 11c  | `scripts/05_analysis/11c_compare_model_results.py`                    | `src/llm_coherence/analysis/compare_model_results.py`                          |
 | 12   | `scripts/05_analysis/12_predictive_utility.py`                        | `src/llm_coherence/analysis/predictive_utility.py`                            |
 | 13   | `scripts/06_reporting/13_make_fig_table.py`                           | `src/llm_coherence/reporting/make_fig_table.py`                               |
 

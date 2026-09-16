@@ -107,3 +107,30 @@ Report the model-wide missing rate separately from rates within affected cells.
 Affected cells were selected because they contain missing responses, so their
 rate is descriptive of the case study and is not an estimate of the model's
 general refusal propensity.
+
+## Compare model conditions statistically
+
+After running the behavioral audit for each condition, compare matched model
+conditions with the same 100 ladders:
+
+```bash
+PYTHONPATH=src python scripts/05_analysis/11c_compare_model_results.py \
+  --left-model kimi-k2-openrouter \
+  --right-model kimi-k2-openrouter-thinking \
+  --results-dir outputs \
+  --output results/kimi-k2-instruct-vs-thinking.json
+```
+
+The comparison uses the ladder as the resampling unit, preserving the pairing
+between models. It reports cluster-bootstrap confidence intervals, paired
+sign-flip randomization tests, paired effect sizes, and Holm-adjusted p-values
+across the overall coherence metrics. A second Holm adjustment covers the three
+designated primary endpoints: monotonicity rate, mean isotonic R-squared, and
+within-ladder accuracy. Within-ladder accuracy is analyzed overall and by
+valence.
+
+Category-level monotonicity comparisons are exploratory. Categories with fewer
+than five paired ladders receive descriptive estimates only. Because the stored
+Kendall and Spearman headline aggregates use Fisher transformations, the paired
+comparison reports both the original headline aggregate and the equal-ladder
+macro mean used for inference.
