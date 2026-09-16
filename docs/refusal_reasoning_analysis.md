@@ -20,14 +20,16 @@ Download or clone the public output artifacts, then run:
 PYTHONPATH=src python scripts/05_analysis/11b_analyze_refusal_robustness.py \
   --model kimi-k2-openrouter \
   --results-dir outputs \
+  --expected-result-files 100 \
+  --expected-comparison-groups 3000 \
   --affected-cells-csv results/kimi-k2-affected-cells.csv
 ```
 
 Repeat with `--model kimi-k2-openrouter-thinking` for the Thinking condition.
 The JSON report contains:
 
-- integrity checks for stored counts, conditional probabilities, and duplicate
-  comparison cells;
+- integrity checks for model identity, expected file coverage, unique ladders,
+  ordered tiers, stored counts, probabilities, and duplicate comparison cells;
 - expected, parseable, and missing trial counts;
 - missingness by variation category, comparison category, tier, and recorded
   failure reason;
@@ -36,23 +38,33 @@ The JSON report contains:
 - `P(A)` when all missing responses are assigned to B or to A;
 - whether the pairwise winner is invariant to either assignment;
 - monotonicity under the complete-case and two extreme-allocation scenarios.
+- the exact minimum and maximum number of monotonic groups over every integer
+  allocation of missing responses to A or B.
 
 The extreme-allocation scenarios are sensitivity checks. They are not formal
 upper and lower bounds on every coherence statistic.
 
 ## Trace-provenance gate
 
-The command also inventories `reasoning_traces.jsonl`. Quantitative
-trial-level analysis is allowed only when:
+The command also inventories provider `reasoning_traces.jsonl` and OpenAI Batch
+`reasoning_summaries.jsonl` sidecars. Quantitative trial-level analysis is
+allowed only when:
 
 - missing-response records contain stable `custom_id` values;
 - trace rows contain the same IDs;
 - every missing trial has a matching trace; and
+- trace content and trial metadata match the stored missing-response record;
+- every linked trial has a visible, substantive rationale; and
 - no trace rows are malformed or lack an ID.
 
 Legacy sidecars containing only `message_idx` cannot be joined safely after
 asynchronous execution, retries, or resumed runs. The report marks these files
 as qualitative-only evidence and blocks annotation-template generation.
+
+The current public Kimi result artifacts contain aggregate missing/unparseable
+counts but no trial-level `missing_responses` or reasoning sidecars. They support
+the behavioral sensitivity analysis, but they do not establish how many missing
+responses were refusals and cannot support quantitative rationale coding.
 
 When linkage passes, generate the coding template:
 
@@ -68,6 +80,10 @@ PYTHONPATH=src python scripts/05_analysis/11b_analyze_refusal_robustness.py \
 Each trial should be coded independently by two researchers. Complete these
 fields using the allowed values below.
 
+The template retains the canonical outcomes, prompt-order A/B text, AB/BA
+direction, tier and comparison metadata, raw response, and visible rationale so
+coders can interpret each choice in its original context.
+
 | Field | Allowed values |
 | --- | --- |
 | `reasoning_conclusion` | `favors_a`, `favors_b`, `equal`, `incomparable`, `no_conclusion`, `unclear` |
@@ -75,8 +91,12 @@ fields using the allowed values below.
 | `final_response` | `A`, `B`, `explicit_refusal`, `both_without_choice`, `malformed_or_incomplete` |
 | `relationship` | `reasoning_and_answer_agree`, `reasoning_favors_a_or_b_but_final_refuses`, `reasoning_and_final_both_abstain`, `reasoning_and_final_disagree`, `unclear` |
 
-Keep one JSON object per line and identify the coder in `coder`. To double-code
-a trial, duplicate its template row and use a different coder name.
+Keep one JSON object per line and identify the coder in `coder`. Use the same
+two independent coder identities for every trial. The summary counts each trial
+once when the two coders agree. Disagreements are listed under
+`trials_requiring_adjudication` and excluded from substantive counts until a
+third consensus row is added with a distinct coder name and
+`"adjudicated": true`.
 
 Analyze completed annotations with:
 
@@ -89,6 +109,8 @@ PYTHONPATH=src python scripts/05_analysis/11b_analyze_refusal_robustness.py \
 
 The report adds category counts, a `reasoning_conclusion -> final_response`
 transition table, percent agreement, and Cohen's kappa for double-coded trials.
+The annotation trial keys must exactly match the linked missing-response set;
+unlinked, partial, or unknown trial sets are rejected.
 
 ## Interpretation
 
@@ -133,4 +155,7 @@ Category-level monotonicity comparisons are exploratory. Categories with fewer
 than five paired ladders receive descriptive estimates only. Because the stored
 Kendall and Spearman headline aggregates use Fisher transformations, the paired
 comparison reports both the original headline aggregate and the equal-ladder
-macro mean used for inference.
+macro mean used for inference. Valence subgroup comparisons are also
+exploratory and their p-values are not multiplicity-adjusted.
+The comparison also requires complete, internally reconciled summary coverage
+and records every input path and SHA-256 hash in its output.

@@ -171,6 +171,8 @@ coherence metrics:
 PYTHONPATH=src python scripts/05_analysis/11b_analyze_refusal_robustness.py \
   --model kimi-k2-openrouter-thinking \
   --results-dir outputs \
+  --expected-result-files 100 \
+  --expected-comparison-groups 3000 \
   --affected-cells-csv results/kimi-k2-thinking-affected-cells.csv
 ```
 

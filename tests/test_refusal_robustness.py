@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 
 from llm_coherence.analysis.refusal_robustness import (
+    _normalize_results_dir,
     analyze_results,
     audit_reasoning_traces,
     summarize_annotations,
@@ -43,7 +44,10 @@ def _preference(tier: int, count_a: int, count_b: int, *, linked: bool = False) 
             preference["missing_responses"] = [
                 {
                     "custom_id": f"c0002-dab-t{index:03d}",
+                    "direction": "AB",
+                    "trial_index": index,
                     "reason": "unparseable",
+                    "raw_response": "I cannot choose.",
                 }
                 for index in range(4 - count_a - count_b)
             ]
@@ -111,6 +115,19 @@ class RefusalRobustnessTests(unittest.TestCase):
                 report["monotonicity_sensitivity"]["all_missing_prefer_a"]["rate"],
                 0.0,
             )
+            self.assertEqual(
+                report["monotonicity_sensitivity"]["formal_assignment_bounds"],
+                {
+                    "minimum_monotonic_groups": 0,
+                    "minimum_rate": 0.0,
+                    "maximum_monotonic_groups": 1,
+                    "maximum_rate": 1.0,
+                    "interpretation": (
+                        "Exact range over every integer allocation of missing A/B "
+                        "votes, computed independently within each seven-tier group."
+                    ),
+                },
+            )
             self.assertFalse(trace_report["quantitative_trial_level_analysis_allowed"])
             self.assertIn(
                 "missing responses do not expose stable custom_id values",
@@ -143,6 +160,173 @@ class RefusalRobustnessTests(unittest.TestCase):
             self.assertTrue(trace_report["quantitative_trial_level_analysis_allowed"])
             self.assertEqual(trace_report["linked_missing_trial_ids"], 2)
             self.assertEqual(len(template.read_text(encoding="utf-8").splitlines()), 2)
+            template_row = json.loads(
+                template.read_text(encoding="utf-8").splitlines()[0]
+            )
+            self.assertEqual(template_row["direction"], "AB")
+            self.assertEqual(template_row["canonical_outcome_a_text"], "Ladder tier 3")
+            self.assertEqual(template_row["prompt_option_b_text"], "Fixed comparison")
+
+    def test_batch_reasoning_summaries_are_linked_and_exported(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            artifact = _write_result(root, linked=True)
+            trace_rows = [
+                {
+                    "custom_id": f"c0002-dab-t{index:03d}",
+                    "content": "I cannot choose.",
+                    "summary": "The outcomes appear incomparable.",
+                }
+                for index in range(2)
+            ]
+            (artifact / "reasoning_summaries.jsonl").write_text(
+                "".join(json.dumps(row) + "\n" for row in trace_rows),
+                encoding="utf-8",
+            )
+
+            report, missing_ids = analyze_results(root, "test-model")
+            trace_report, linked = audit_reasoning_traces(
+                root,
+                missing_ids,
+                report["coverage"]["missing_records_without_custom_id"],
+            )
+            template = root / "annotations.jsonl"
+            write_annotation_template(template, linked)
+            template_rows = [
+                json.loads(line)
+                for line in template.read_text(encoding="utf-8").splitlines()
+            ]
+
+            self.assertTrue(trace_report["quantitative_trial_level_analysis_allowed"])
+            self.assertEqual(
+                template_rows[0]["reasoning"], "The outcomes appear incomparable."
+            )
+
+    def test_mismatched_trace_content_blocks_annotation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            artifact = _write_result(root, linked=True)
+            trace_rows = [
+                {
+                    "custom_id": f"c0002-dab-t{index:03d}",
+                    "content": "A stale response",
+                    "reasoning": "A visible rationale",
+                }
+                for index in range(2)
+            ]
+            (artifact / "reasoning_traces.jsonl").write_text(
+                "".join(json.dumps(row) + "\n" for row in trace_rows),
+                encoding="utf-8",
+            )
+
+            report, missing_trials = analyze_results(root, "test-model")
+            trace_report, _linked = audit_reasoning_traces(
+                root,
+                missing_trials,
+                report["coverage"]["missing_records_without_custom_id"],
+            )
+
+            self.assertFalse(trace_report["quantitative_trial_level_analysis_allowed"])
+            self.assertEqual(trace_report["linked_response_content_mismatches"], 2)
+
+    def test_partial_missing_ids_block_trace_analysis(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            artifact = _write_result(root, linked=True)
+            result_path = artifact / "results.json"
+            result = json.loads(result_path.read_text(encoding="utf-8"))
+            result["preferences"][2]["missing_responses"][1]["custom_id"] = None
+            result_path.write_text(json.dumps(result), encoding="utf-8")
+            (artifact / "reasoning_traces.jsonl").write_text(
+                json.dumps(
+                    {
+                        "custom_id": "c0002-dab-t000",
+                        "attempt": 0,
+                        "content": "I cannot choose.",
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            report, missing_ids = analyze_results(root, "test-model")
+            trace_report, _linked = audit_reasoning_traces(
+                root,
+                missing_ids,
+                report["coverage"]["missing_records_without_custom_id"],
+            )
+
+            self.assertFalse(trace_report["quantitative_trial_level_analysis_allowed"])
+            self.assertEqual(trace_report["missing_trials_without_custom_id"], 1)
+
+    def test_model_root_path_is_normalized(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            model_root = Path(temporary) / "model"
+            expected = model_root / "ladder_vs_comparison_statements"
+            expected.mkdir(parents=True)
+
+            self.assertEqual(
+                _normalize_results_dir(model_root, "test-model"), expected.resolve()
+            )
+
+    def test_audit_rejects_invalid_missing_reason_counts(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            artifact = _write_result(root, linked=True)
+            result_path = artifact / "results.json"
+            result = json.loads(result_path.read_text(encoding="utf-8"))
+            result["preferences"][2]["missing_by_reason"] = {
+                "unparseable": 3,
+                "other": -1,
+            }
+            result_path.write_text(json.dumps(result), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "Invalid missing_by_reason"):
+                analyze_results(root, "test-model")
+
+    def test_audit_rejects_shuffled_tiers(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            artifact = _write_result(root)
+            result_path = artifact / "results.json"
+            result = json.loads(result_path.read_text(encoding="utf-8"))
+            result["preferences"][0], result["preferences"][1] = (
+                result["preferences"][1],
+                result["preferences"][0],
+            )
+            result_path.write_text(json.dumps(result), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "invalid tier sequence"):
+                analyze_results(root, "test-model")
+
+    def test_zero_parseable_cell_is_excluded_from_conditional_rate(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            artifact = _write_result(root)
+            result_path = artifact / "results.json"
+            result = json.loads(result_path.read_text(encoding="utf-8"))
+            cell = result["preferences"][2]
+            cell.update(
+                count_prefer_a=0,
+                count_prefer_b=0,
+                prob_prefer_a=None,
+                prob_prefer_b=None,
+                expected_trials=4,
+                parseable_trials=0,
+                missing_trials=4,
+                missing_by_reason={"unparseable": 4},
+            )
+            result["metadata"]["unparseable_count"] = 4
+            result_path.write_text(json.dumps(result), encoding="utf-8")
+
+            report, _missing = analyze_results(root, "test-model")
+            conditional = report["monotonicity_sensitivity"]["conditional_on_parseable"]
+
+            self.assertEqual(conditional["groups_with_complete_parseable_estimates"], 0)
+            self.assertEqual(
+                conditional["groups_unavailable_due_to_zero_parseable_cell"], 1
+            )
+            self.assertIsNone(conditional["rate"])
 
     def test_annotation_summary_reports_transitions_and_agreement(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -178,14 +362,86 @@ class RefusalRobustnessTests(unittest.TestCase):
 
             self.assertEqual(summary["annotation_rows"], 4)
             self.assertEqual(summary["unique_trials"], 2)
+            self.assertEqual(summary["consensus_trials"], 2)
+            self.assertEqual(summary["trials_requiring_adjudication"], [])
             self.assertEqual(
                 summary["reasoning_to_final_transitions"]["favors_a->explicit_refusal"],
-                2,
+                1,
             )
             self.assertEqual(
                 summary["inter_rater_agreement"]["reasoning_conclusion"]["cohen_kappa"],
                 1.0,
             )
+
+    def test_annotation_disagreement_requires_adjudication(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "coded.jsonl"
+            common = {
+                "trial_key": "ladder:c1",
+                "refusal_reason": "political_or_religious_neutrality",
+                "final_response": "explicit_refusal",
+                "relationship": "reasoning_favors_a_or_b_but_final_refuses",
+            }
+            rows = [
+                {**common, "coder": "coder_1", "reasoning_conclusion": "favors_a"},
+                {
+                    **common,
+                    "coder": "coder_2",
+                    "reasoning_conclusion": "unclear",
+                    "relationship": "unclear",
+                },
+            ]
+            path.write_text(
+                "".join(json.dumps(row) + "\n" for row in rows),
+                encoding="utf-8",
+            )
+
+            summary = summarize_annotations(path)
+
+            self.assertEqual(summary["consensus_trials"], 0)
+            self.assertEqual(summary["trials_requiring_adjudication"], ["ladder:c1"])
+            self.assertEqual(summary["reasoning_to_final_transitions"], {})
+
+            with self.assertRaisesRegex(ValueError, "trial coverage does not match"):
+                summarize_annotations(path, expected_trial_keys={"ladder:other"})
+
+    def test_annotation_requires_two_fixed_independent_coders(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "coded.jsonl"
+            row = {
+                "trial_key": "ladder:c1",
+                "coder": "coder_1",
+                "reasoning_conclusion": "favors_a",
+                "refusal_reason": "none",
+                "final_response": "A",
+                "relationship": "reasoning_and_answer_agree",
+            }
+            path.write_text(json.dumps(row) + "\n", encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "exactly two independent coders"):
+                summarize_annotations(path)
+
+    def test_adjudication_is_used_only_for_disagreement(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "coded.jsonl"
+            common = {
+                "trial_key": "ladder:c1",
+                "reasoning_conclusion": "favors_a",
+                "refusal_reason": "none",
+                "final_response": "A",
+                "relationship": "reasoning_and_answer_agree",
+            }
+            rows = [
+                {**common, "coder": "coder_1"},
+                {**common, "coder": "coder_2"},
+                {**common, "coder": "coder_3", "adjudicated": True},
+            ]
+            path.write_text(
+                "".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8"
+            )
+
+            with self.assertRaisesRegex(ValueError, "despite coder agreement"):
+                summarize_annotations(path)
 
 
 if __name__ == "__main__":

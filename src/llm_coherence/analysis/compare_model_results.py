@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import itertools
 import json
 import math
@@ -34,6 +35,14 @@ PRIMARY_METRICS = {
     "mean_isotonic_r2",
     "within_ladder_accuracy",
 }
+UNIT_INTERVAL_METRICS = {
+    "monotonicity_rate",
+    "erratic_flip_rate",
+    "jt_significant_rate",
+    "mean_isotonic_r2",
+    "mean_bootstrap_mono_prob",
+}
+CORRELATION_METRICS = {"mean_kendall_tau", "mean_spearman_rho"}
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -41,6 +50,26 @@ def _load_json(path: Path) -> dict[str, Any]:
         value = json.load(handle)
     if not isinstance(value, dict):
         raise ValueError(f"Expected a JSON object in {path}")
+    return value
+
+
+def _positive_int(value: Any, field: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise ValueError(f"{field} must be a positive integer")
+    return value
+
+
+def _metric_value(row: dict[str, Any], metric: str, label: str) -> float:
+    try:
+        value = float(row[metric])
+    except (KeyError, TypeError, ValueError) as error:
+        raise ValueError(f"{label} has invalid {metric}") from error
+    if not math.isfinite(value):
+        raise ValueError(f"{label} has non-finite {metric}")
+    if metric in UNIT_INTERVAL_METRICS and not 0.0 <= value <= 1.0:
+        raise ValueError(f"{label} has out-of-range {metric}")
+    if metric in CORRELATION_METRICS and not -1.0 <= value <= 1.0:
+        raise ValueError(f"{label} has out-of-range {metric}")
     return value
 
 
@@ -104,16 +133,19 @@ def paired_ladder_analysis(
 
     left = [float(value) for value in left_values]
     right = [float(value) for value in right_values]
+    if not all(math.isfinite(value) for value in left + right):
+        raise ValueError("Paired analysis requires finite metric values")
     differences = [
         right_value - left_value for left_value, right_value in zip(left, right)
     ]
     n = len(differences)
-    rng = random.Random(seed)
+    bootstrap_rng = random.Random(seed)
+    randomization_rng = random.Random(seed + 1_000_003)
     boot_left: list[float] = []
     boot_right: list[float] = []
     boot_difference: list[float] = []
     for _ in range(bootstrap_samples):
-        indices = [rng.randrange(n) for _ in range(n)]
+        indices = [bootstrap_rng.randrange(n) for _ in range(n)]
         left_mean = sum(left[index] for index in indices) / n
         right_mean = sum(right[index] for index in indices) / n
         boot_left.append(left_mean)
@@ -125,7 +157,7 @@ def paired_ladder_analysis(
     p_value, test_method = _sign_flip_p_value(
         differences,
         samples=randomization_samples,
-        rng=rng,
+        rng=randomization_rng,
     )
     return {
         "n_paired_ladders": n,
@@ -157,6 +189,11 @@ def paired_ladder_analysis(
 
 def holm_adjust(p_values: dict[str, float]) -> dict[str, float]:
     """Return Holm-Bonferroni adjusted p-values keyed like the input."""
+    if any(
+        not math.isfinite(value) or not 0.0 <= value <= 1.0
+        for value in p_values.values()
+    ):
+        raise ValueError("Holm adjustment requires finite p-values in [0, 1]")
     ordered = sorted(p_values.items(), key=lambda item: item[1])
     adjusted: dict[str, float] = {}
     running_max = 0.0
@@ -207,6 +244,83 @@ def _analysis_for_ids(
     )
 
 
+def _validate_coherence_summary(summary: dict[str, Any], label: str) -> None:
+    rows = summary.get("per_variation_set")
+    if not isinstance(rows, list) or not rows:
+        raise ValueError(f"{label} coherence summary has no variation-set rows")
+    overall = summary.get("aggregate", {}).get("overall", {})
+    missing_fields = sorted(
+        {"n_variation_sets", "n_total_comparisons", "n_tiers"}.difference(overall)
+    )
+    if missing_fields:
+        raise ValueError(
+            f"{label} coherence summary is missing aggregate fields {missing_fields}"
+        )
+    reported_ladders = _positive_int(
+        overall["n_variation_sets"], f"{label} aggregate n_variation_sets"
+    )
+    if reported_ladders != len(rows):
+        raise ValueError(
+            f"{label} coherence summary ladder count does not reconcile: "
+            f"reported={reported_ladders}, rows={len(rows)}"
+        )
+    row_comparisons: list[int] = []
+    for row in rows:
+        for metric in COHERENCE_METRICS:
+            _metric_value(row, metric, f"{label} coherence row")
+        value = _positive_int(row.get("n_comparisons"), f"{label} row n_comparisons")
+        row_comparisons.append(value)
+        for count_field, rate_field in (
+            ("n_monotonic", "monotonicity_rate"),
+            ("n_erratic_flips", "erratic_flip_rate"),
+        ):
+            count = row.get(count_field)
+            if not isinstance(count, int) or isinstance(count, bool):
+                raise ValueError(f"{label} coherence summary has invalid {count_field}")
+            if not 0 <= count <= value:
+                raise ValueError(
+                    f"{label} coherence summary has out-of-range {count_field}"
+                )
+            if not math.isclose(
+                float(row[rate_field]), count / value, rel_tol=0.0, abs_tol=1e-12
+            ):
+                raise ValueError(
+                    f"{label} coherence summary has inconsistent {rate_field}"
+                )
+    reported_comparisons = _positive_int(
+        overall["n_total_comparisons"], f"{label} aggregate n_total_comparisons"
+    )
+    if sum(row_comparisons) != reported_comparisons:
+        raise ValueError(
+            f"{label} coherence summary comparison count does not reconcile"
+        )
+    total_comparisons = reported_comparisons
+    for metric in COHERENCE_METRICS:
+        _metric_value(overall, metric, f"{label} coherence aggregate")
+    for count_field, rate_field in (
+        ("n_monotonic", "monotonicity_rate"),
+        ("n_erratic_flips", "erratic_flip_rate"),
+    ):
+        if rate_field in overall:
+            expected_rate = (
+                sum(int(row[count_field]) for row in rows) / total_comparisons
+            )
+            reported_rate = float(overall[rate_field])
+            if not math.isfinite(reported_rate) or not math.isclose(
+                reported_rate, expected_rate, rel_tol=0.0, abs_tol=1e-12
+            ):
+                raise ValueError(
+                    f"{label} coherence aggregate has inconsistent {rate_field}"
+                )
+    top_tiers = summary.get("n_tiers")
+    aggregate_tiers = _positive_int(overall["n_tiers"], f"{label} aggregate n_tiers")
+    if (
+        top_tiers is not None
+        and _positive_int(top_tiers, f"{label} n_tiers") != aggregate_tiers
+    ):
+        raise ValueError(f"{label} coherence summary has conflicting tier counts")
+
+
 def compare_coherence_summaries(
     left_summary: dict[str, Any],
     right_summary: dict[str, Any],
@@ -215,11 +329,22 @@ def compare_coherence_summaries(
     randomization_samples: int,
     seed: int,
 ) -> dict[str, Any]:
+    _validate_coherence_summary(left_summary, "left")
+    _validate_coherence_summary(right_summary, "right")
     ids, left, right = _paired_rows(
         left_summary["per_variation_set"],
         right_summary["per_variation_set"],
         id_field="variation_id",
     )
+    for item in ids:
+        left_n = left[item].get("n_comparisons")
+        right_n = right[item].get("n_comparisons")
+        if left_n is not None or right_n is not None:
+            if left_n != right_n:
+                raise ValueError(
+                    f"Coherence comparison denominator differs for {item}: "
+                    f"left={left_n}, right={right_n}"
+                )
     metrics: dict[str, dict[str, Any]] = {}
     for offset, metric in enumerate(COHERENCE_METRICS):
         analysis = _analysis_for_ids(
@@ -309,11 +434,95 @@ def compare_within_ladder_summaries(
     randomization_samples: int,
     seed: int,
 ) -> dict[str, Any]:
+    for label, summary in (("left", left_summary), ("right", right_summary)):
+        rows = summary.get("per_ladder")
+        if not isinstance(rows, list) or not rows:
+            raise ValueError(f"{label} within-ladder summary has no ladder rows")
+        for field in ("n_ladders", "n_ladders_expected"):
+            if field not in summary:
+                raise ValueError(f"{label} within-ladder summary is missing {field}")
+            value = _positive_int(summary[field], f"{label} {field}")
+            if value != len(rows):
+                raise ValueError(
+                    f"{label} within-ladder summary {field} does not reconcile: "
+                    f"reported={value}, rows={len(rows)}"
+                )
+        row_counts: list[int] = []
+        for row in rows:
+            value = row.get("n")
+            if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+                raise ValueError(
+                    f"{label} within-ladder summary has invalid n={value!r}"
+                )
+            row_counts.append(value)
+            accuracy = float(row.get("accuracy", float("nan")))
+            if not math.isfinite(accuracy) or not 0.0 <= accuracy <= 1.0:
+                raise ValueError(
+                    f"{label} within-ladder summary has invalid accuracy={accuracy!r}"
+                )
+        if "n_total_pairs" not in summary:
+            raise ValueError(f"{label} within-ladder summary is missing n_total_pairs")
+        observed = _positive_int(summary["n_total_pairs"], f"{label} n_total_pairs")
+        expected = summary.get(
+            "n_total_pairs_expected", summary.get("n_requests_expected")
+        )
+        if expected is None:
+            raise ValueError(
+                f"{label} within-ladder summary is missing expected pair coverage"
+            )
+        expected = _positive_int(expected, f"{label} expected pair coverage")
+        if observed != expected:
+            raise ValueError(
+                f"{label} within-ladder summary is incomplete: "
+                f"observed={observed}, expected={expected}"
+            )
+        if "parse_errors" not in summary:
+            raise ValueError(f"{label} within-ladder summary is missing parse_errors")
+        parse_errors = summary["parse_errors"]
+        if (
+            isinstance(parse_errors, bool)
+            or not isinstance(parse_errors, int)
+            or parse_errors < 0
+        ):
+            raise ValueError(f"{label} within-ladder summary has invalid parse_errors")
+        if parse_errors:
+            raise ValueError(
+                f"{label} within-ladder summary has {parse_errors} parse errors"
+            )
+        if sum(row_counts) != observed:
+            raise ValueError(
+                f"{label} within-ladder summary pair count does not reconcile"
+            )
+        if "overall_accuracy" not in summary:
+            raise ValueError(
+                f"{label} within-ladder summary is missing overall_accuracy"
+            )
+        total = sum(row_counts)
+        weighted_accuracy = (
+            sum(float(row["accuracy"]) * int(row["n"]) for row in rows) / total
+        )
+        reported_accuracy_value = float(summary["overall_accuracy"])
+        if not math.isfinite(reported_accuracy_value) or not math.isclose(
+            reported_accuracy_value,
+            weighted_accuracy,
+            rel_tol=0.0,
+            abs_tol=1e-12,
+        ):
+            raise ValueError(
+                f"{label} within-ladder summary overall_accuracy does not reconcile"
+            )
+
     ids, left, right = _paired_rows(
         left_summary["per_ladder"],
         right_summary["per_ladder"],
         id_field="ladder_id",
     )
+    for item in ids:
+        if left[item].get("n") != right[item].get("n"):
+            raise ValueError(
+                f"Within-ladder denominator differs between models for {item}: "
+                f"left={left[item].get('n')}, right={right[item].get('n')}"
+            )
     overall = _analysis_for_ids(
         ids,
         left,
@@ -349,7 +558,13 @@ def compare_within_ladder_summaries(
             seed=seed + offset + 1,
         )
 
-    return {"overall": overall, "by_valence": by_valence}
+    return {
+        "overall": overall,
+        "by_valence": by_valence,
+        "by_valence_inference_note": (
+            "Exploratory subgroup analysis; p-values are not multiplicity-adjusted."
+        ),
+    }
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -382,6 +597,30 @@ def _resolve(path: str | Path) -> Path:
     )
 
 
+def _source_record(path: Path) -> dict[str, str]:
+    return {
+        "path": str(path),
+        "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+    }
+
+
+def _validate_summary_model(
+    summary: dict[str, Any], expected_model: str, path: Path
+) -> None:
+    identities = {
+        str(summary[field])
+        for field in ("model", "model_key")
+        if summary.get(field) is not None
+    }
+    if not identities:
+        raise ValueError(f"Summary has no model identity in {path}")
+    if identities != {expected_model}:
+        raise ValueError(
+            f"Summary model mismatch in {path}: recorded={sorted(identities)!r}, "
+            f"expected={expected_model!r}"
+        )
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     results_dir = _resolve(args.results_dir)
@@ -406,16 +645,25 @@ def main(argv: list[str] | None = None) -> int:
         else model_within_ladder_dir(args.right_model, results_dir) / "summary.json"
     )
 
+    left_coherence = _load_json(left_coherence_path)
+    right_coherence = _load_json(right_coherence_path)
+    left_within = _load_json(left_within_path)
+    right_within = _load_json(right_within_path)
+    _validate_summary_model(left_coherence, args.left_model, left_coherence_path)
+    _validate_summary_model(right_coherence, args.right_model, right_coherence_path)
+    _validate_summary_model(left_within, args.left_model, left_within_path)
+    _validate_summary_model(right_within, args.right_model, right_within_path)
+
     coherence = compare_coherence_summaries(
-        _load_json(left_coherence_path),
-        _load_json(right_coherence_path),
+        left_coherence,
+        right_coherence,
         bootstrap_samples=args.bootstrap_samples,
         randomization_samples=args.randomization_samples,
         seed=args.seed,
     )
     within_ladder = compare_within_ladder_summaries(
-        _load_json(left_within_path),
-        _load_json(right_within_path),
+        left_within,
+        right_within,
         bootstrap_samples=args.bootstrap_samples,
         randomization_samples=args.randomization_samples,
         seed=args.seed + 1_000,
@@ -448,6 +696,12 @@ def main(argv: list[str] | None = None) -> int:
         "left_model": args.left_model,
         "right_model": args.right_model,
         "difference_direction": "right_minus_left",
+        "sources": {
+            "left_coherence": _source_record(left_coherence_path),
+            "right_coherence": _source_record(right_coherence_path),
+            "left_within_ladder": _source_record(left_within_path),
+            "right_within_ladder": _source_record(right_within_path),
+        },
         "inference": {
             "paired_unit": "ladder",
             "bootstrap_samples": args.bootstrap_samples,

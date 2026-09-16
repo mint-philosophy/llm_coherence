@@ -7,6 +7,7 @@ import unittest
 from llm_coherence.analysis.compare_model_results import (
     COHERENCE_METRICS,
     compare_coherence_summaries,
+    compare_within_ladder_summaries,
     holm_adjust,
     paired_ladder_analysis,
 )
@@ -48,16 +49,30 @@ class PairedModelComparisonTests(unittest.TestCase):
             for metric in COHERENCE_METRICS:
                 left_row[metric] = 0.4 + index * 0.01
                 right_row[metric] = 0.5 + index * 0.01
+            left_row.update(
+                n_comparisons=100,
+                n_monotonic=40 + index,
+                n_erratic_flips=40 + index,
+            )
+            right_row.update(
+                n_comparisons=100,
+                n_monotonic=50 + index,
+                n_erratic_flips=50 + index,
+            )
             left_rows.append(left_row)
             right_rows.append(right_row)
+        left_overall = {metric: 0.42 for metric in COHERENCE_METRICS}
+        right_overall = {metric: 0.52 for metric in COHERENCE_METRICS}
+        left_overall.update(n_variation_sets=5, n_total_comparisons=500, n_tiers=7)
+        right_overall.update(n_variation_sets=5, n_total_comparisons=500, n_tiers=7)
 
         result = compare_coherence_summaries(
             {
-                "aggregate": {"overall": {}},
+                "aggregate": {"overall": left_overall},
                 "per_variation_set": left_rows,
             },
             {
-                "aggregate": {"overall": {}},
+                "aggregate": {"overall": right_overall},
                 "per_variation_set": right_rows,
             },
             bootstrap_samples=100,
@@ -75,6 +90,87 @@ class PairedModelComparisonTests(unittest.TestCase):
                 "exploratory_paired_analysis"
             ]
         )
+
+    def test_within_ladder_comparison_rejects_incomplete_coverage(self) -> None:
+        left = {
+            "n_ladders": 1,
+            "n_ladders_expected": 1,
+            "n_total_pairs": 41,
+            "n_requests_expected": 42,
+            "overall_accuracy": 1.0,
+            "parse_errors": 0,
+            "per_ladder": [{"ladder_id": "category_1", "accuracy": 1.0, "n": 41}],
+        }
+        right = {
+            "n_ladders": 1,
+            "n_ladders_expected": 1,
+            "n_total_pairs": 42,
+            "n_requests_expected": 42,
+            "overall_accuracy": 1.0,
+            "parse_errors": 0,
+            "per_ladder": [{"ladder_id": "category_1", "accuracy": 1.0, "n": 42}],
+        }
+
+        with self.assertRaisesRegex(
+            ValueError, "left within-ladder summary is incomplete"
+        ):
+            compare_within_ladder_summaries(
+                left,
+                right,
+                bootstrap_samples=100,
+                randomization_samples=100,
+                seed=1,
+            )
+
+    def test_coherence_comparison_rejects_inconsistent_count_and_rate(self) -> None:
+        row = {
+            "variation_id": "category_1",
+            "category": "category",
+            "n_comparisons": 10,
+            "n_monotonic": 0,
+            "n_erratic_flips": 0,
+            **{metric: 0.0 for metric in COHERENCE_METRICS},
+        }
+        row["monotonicity_rate"] = 1.0
+        summary = {
+            "aggregate": {
+                "overall": {
+                    "n_variation_sets": 1,
+                    "n_total_comparisons": 10,
+                    "n_tiers": 7,
+                }
+            },
+            "per_variation_set": [row],
+        }
+
+        with self.assertRaisesRegex(ValueError, "inconsistent monotonicity_rate"):
+            compare_coherence_summaries(
+                summary,
+                summary,
+                bootstrap_samples=10,
+                randomization_samples=10,
+                seed=1,
+            )
+
+    def test_within_ladder_comparison_rejects_invalid_accuracy(self) -> None:
+        summary = {
+            "n_ladders": 1,
+            "n_ladders_expected": 1,
+            "n_total_pairs": 42,
+            "n_requests_expected": 42,
+            "overall_accuracy": 2.0,
+            "parse_errors": 0,
+            "per_ladder": [{"ladder_id": "category_1", "accuracy": 2.0, "n": 42}],
+        }
+
+        with self.assertRaisesRegex(ValueError, "invalid accuracy"):
+            compare_within_ladder_summaries(
+                summary,
+                summary,
+                bootstrap_samples=10,
+                randomization_samples=10,
+                seed=1,
+            )
 
 
 if __name__ == "__main__":
