@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import unittest
+from copy import deepcopy
 
 from llm_coherence.analysis.compare_model_results import (
     COHERENCE_METRICS,
@@ -14,6 +15,50 @@ from llm_coherence.analysis.compare_model_results import (
 
 
 class PairedModelComparisonTests(unittest.TestCase):
+    @staticmethod
+    def _complete_summary() -> dict:
+        row = {
+            "variation_id": "category_1",
+            "category": "category",
+            "n_comparisons": 10,
+            "n_monotonic": 5,
+            "n_erratic_flips": 5,
+            **{metric: 0.5 for metric in COHERENCE_METRICS},
+        }
+        return {
+            "n_tiers": 7,
+            "aggregate": {
+                "overall": {
+                    "n_variation_sets": 1,
+                    "n_total_comparisons": 10,
+                    "n_tiers": 7,
+                    **{metric: 0.5 for metric in COHERENCE_METRICS},
+                }
+            },
+            "per_variation_set": [row],
+        }
+
+    def test_different_tier_designs_are_rejected(self) -> None:
+        left = self._complete_summary()
+        right = deepcopy(left)
+        right["n_tiers"] = right["aggregate"]["overall"]["n_tiers"] = 3
+        with self.assertRaisesRegex(ValueError, "tier counts differ"):
+            compare_coherence_summaries(
+                left, right, bootstrap_samples=10, randomization_samples=10, seed=1
+            )
+
+    def test_unverifiable_headline_is_not_published(self) -> None:
+        left = self._complete_summary()
+        right = deepcopy(left)
+        right["aggregate"]["overall"]["mean_isotonic_r2"] = 0.0
+        report = compare_coherence_summaries(
+            left, right, bootstrap_samples=10, randomization_samples=10, seed=1
+        )
+        metric = report["metrics"]["mean_isotonic_r2"]
+        self.assertNotIn("right_headline_aggregate", metric)
+        self.assertEqual(metric["right_macro_mean"], 0.5)
+        self.assertIn("omitted", metric["headline_aggregate_note"])
+
     def test_paired_analysis_uses_ladders_as_resampling_units(self) -> None:
         result = paired_ladder_analysis(
             [0.0, 0.0, 0.0, 0.0],

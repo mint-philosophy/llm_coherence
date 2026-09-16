@@ -331,6 +331,11 @@ def compare_coherence_summaries(
 ) -> dict[str, Any]:
     _validate_coherence_summary(left_summary, "left")
     _validate_coherence_summary(right_summary, "right")
+    if (
+        left_summary["aggregate"]["overall"]["n_tiers"]
+        != right_summary["aggregate"]["overall"]["n_tiers"]
+    ):
+        raise ValueError("Coherence tier counts differ between models")
     ids, left, right = _paired_rows(
         left_summary["per_variation_set"],
         right_summary["per_variation_set"],
@@ -356,12 +361,22 @@ def compare_coherence_summaries(
             randomization_samples=randomization_samples,
             seed=seed + offset,
         )
-        analysis["left_headline_aggregate"] = (
-            left_summary.get("aggregate", {}).get("overall", {}).get(metric)
-        )
-        analysis["right_headline_aggregate"] = (
-            right_summary.get("aggregate", {}).get("overall", {}).get(metric)
-        )
+        # Only publish headline values that were reconstructed from counts.
+        # Other aggregates can use Fisher transforms or finite-only denominators
+        # not retained in these summaries; their row-level macro means are the
+        # estimates used by this comparison.
+        if metric in {"monotonicity_rate", "erratic_flip_rate"}:
+            analysis["left_headline_aggregate"] = left_summary["aggregate"]["overall"][
+                metric
+            ]
+            analysis["right_headline_aggregate"] = right_summary["aggregate"][
+                "overall"
+            ][metric]
+        else:
+            analysis["headline_aggregate_note"] = (
+                "Source headline omitted: its aggregation cannot be verified from "
+                "the retained counts. Inference uses the reported ladder macro means."
+            )
         analysis["primary_endpoint"] = metric in PRIMARY_METRICS
         metrics[metric] = analysis
 

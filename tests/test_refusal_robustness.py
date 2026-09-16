@@ -259,6 +259,37 @@ class RefusalRobustnessTests(unittest.TestCase):
             self.assertFalse(trace_report["quantitative_trial_level_analysis_allowed"])
             self.assertEqual(trace_report["missing_trials_without_custom_id"], 1)
 
+    def test_absent_response_text_blocks_trace_linkage(self) -> None:
+        for missing_field in ("raw_response", "content"):
+            with (
+                self.subTest(missing_field=missing_field),
+                tempfile.TemporaryDirectory() as temporary,
+            ):
+                root = Path(temporary)
+                artifact = _write_result(root, linked=True)
+                _report, missing_trials = analyze_results(root, "test-model")
+                trace_rows = []
+                for trial_key, context in missing_trials.items():
+                    trace = {
+                        "custom_id": trial_key.split(":", 1)[1],
+                        "content": "I cannot choose.",
+                        "reasoning": "Both outcomes have merit.",
+                    }
+                    if missing_field == "raw_response":
+                        context.pop("raw_response")
+                    else:
+                        trace.pop("content")
+                    trace_rows.append(trace)
+                (artifact / "reasoning_traces.jsonl").write_text(
+                    "".join(json.dumps(row) + "\n" for row in trace_rows),
+                    encoding="utf-8",
+                )
+                report, _linked = audit_reasoning_traces(root, missing_trials)
+                self.assertFalse(report["quantitative_trial_level_analysis_allowed"])
+                self.assertEqual(
+                    report["linked_trials_without_verifiable_response_content"], 2
+                )
+
     def test_model_root_path_is_normalized(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             model_root = Path(temporary) / "model"

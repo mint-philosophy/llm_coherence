@@ -746,6 +746,7 @@ def audit_reasoning_traces(
     missing_without_trace = missing_trial_keys.difference(selected)
     duplicate_trial_ids = sum(1 for values in trial_rows.values() if len(values) > 1)
     mismatched_response_content = 0
+    unverifiable_response_content = 0
     mismatched_trace_metadata = 0
     missing_visible_rationale = 0
     linked: dict[str, dict[str, Any]] = {}
@@ -754,11 +755,9 @@ def audit_reasoning_traces(
         context = missing_trials_by_key[trial_key]
         raw_response = context.get("raw_response")
         trace_content = trace.get("content")
-        if (
-            raw_response is not None
-            and trace_content is not None
-            and str(raw_response).strip() != str(trace_content).strip()
-        ):
+        if not isinstance(raw_response, str) or not isinstance(trace_content, str):
+            unverifiable_response_content += 1
+        elif raw_response.strip() != trace_content.strip():
             mismatched_response_content += 1
         trace_direction = _trace_direction(trace.get("direction"))
         if trace_direction is not None and trace_direction != context.get("direction"):
@@ -797,6 +796,10 @@ def audit_reasoning_traces(
         reasons.append(
             "one or more linked trace contents do not match the stored raw response"
         )
+    if unverifiable_response_content:
+        reasons.append(
+            "one or more linked trials lack response text needed to verify linkage"
+        )
     if mismatched_trace_metadata:
         reasons.append(
             "one or more linked trace rows disagree with stored direction or trial metadata"
@@ -818,6 +821,7 @@ def audit_reasoning_traces(
         "linked_missing_trial_ids": len(linked_missing),
         "unlinked_missing_trial_ids": len(missing_without_trace),
         "linked_response_content_mismatches": mismatched_response_content,
+        "linked_trials_without_verifiable_response_content": unverifiable_response_content,
         "linked_trace_metadata_mismatches": mismatched_trace_metadata,
         "linked_trials_without_visible_rationale": missing_visible_rationale,
         "quantitative_trial_level_analysis_allowed": eligible,

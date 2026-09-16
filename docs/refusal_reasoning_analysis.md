@@ -53,7 +53,8 @@ allowed only when:
 - missing-response records contain stable `custom_id` values;
 - trace rows contain the same IDs;
 - every missing trial has a matching trace; and
-- trace content and trial metadata match the stored missing-response record;
+- both the trace and missing-response record retain response text, with matching
+  content and trial metadata;
 - every linked trial has a visible, substantive rationale; and
 - no trace rows are malformed or lack an ID.
 
@@ -153,9 +154,11 @@ valence.
 
 Category-level monotonicity comparisons are exploratory. Categories with fewer
 than five paired ladders receive descriptive estimates only. Because the stored
-Kendall and Spearman headline aggregates use Fisher transformations, the paired
-comparison reports both the original headline aggregate and the equal-ladder
-macro mean used for inference. Valence subgroup comparisons are also
+Kendall and Spearman headline aggregates use Fisher transformations, and other
+means can exclude non-finite observations whose denominators are not retained,
+the comparison omits source headline values it cannot verify. It reports the
+equal-ladder macro means used for inference; only count-reconciled monotonicity
+and erratic-flip headline rates are retained. Valence subgroup comparisons are also
 exploratory and their p-values are not multiplicity-adjusted.
 The comparison also requires complete, internally reconciled summary coverage
 and records every input path and SHA-256 hash in its output.
