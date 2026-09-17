@@ -210,6 +210,13 @@ per-class validation metrics. See the [workflow and research basis](docs/trace_a
 Preparation is offline; judge runs require `annotate --execute`. Counts remain
 provisional log-entry counts and do not replace the behavioral audit.
 
+Step 11e also provides offline `compare-parser` reports: the original-format A/B
+parser result is shown beside the semantic labels, retaining missing annotations
+and flagging mixed or disagreeing cases. An unparseable answer is not automatically
+a refusal. See [parser comparison and mixed responses](docs/trace_annotation_validation.md#2a-compare-parser-output-with-the-meaning-of-the-response)
+for the command and how to select the original parser mode. Existing votes and
+annotations remain unchanged.
+
 Compare two completed conditions with paired inference over the shared ladders:
 
 ```bash

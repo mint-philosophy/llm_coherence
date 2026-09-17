@@ -143,6 +143,84 @@ Always inspect coverage.
 Three consecutive invalid annotations also stop the run and write `incomplete.json`,
 preserving usage and failures for debugging instead of spending through the corpus.
 
+## 2a. Compare parser output with the meaning of the response
+
+The experiment parser extracts a label; it does not classify refusals. In the
+ordinary A/B mode, it accepts a bare letter or text containing only one of the
+two standalone option letters. Text containing both letters is unparseable even
+when it ends with a selected option. Conversely, a sentence such as “I cannot
+choose A” can parse as A despite declining to choose. Parsing success or failure
+therefore cannot, by itself, establish expressed choice or refusal.
+
+The offline `compare-parser` command puts parser replay beside the existing
+semantic annotations. It does not call another model or change an annotation.
+For the development pilot, first combine the two disjoint predictions files
+into a new file for the same judge:
+
+```bash
+cat results/judge-pilot/predictions.jsonl results/judge-triage/predictions.jsonl \
+  > results/development-predictions.jsonl
+
+PYTHONPATH=src python scripts/05_analysis/11e_annotate_trace_responses.py compare-parser \
+  --bundle results/trace-annotation \
+  --predictions results/development-predictions.jsonl \
+  --split development --parser-mode forced-choice \
+  --output-dir results/parser-comparison
+```
+
+Each prediction file must contain one distinct judge identity. Combine disjoint
+files from the same judge first; duplicate entries are rejected. Different
+judges may each supply a file and are reported separately.
+
+Choose `--parser-mode` from the original experiment's output format:
+
+- `forced-choice` replays `with_reasoning=false`, the ordinary A/B parser.
+- `answer-marker` replays `with_reasoning=true`, which requires `Answer: A` or
+  `Answer: B` in the final-response text. Whether a model exposes a separate
+  reasoning channel does not determine this setting.
+
+The three Kimi case-study result files record `with_reasoning=false` and commit
+`427c0e24cbb81a70d82bd50b50ffdf8af6bd6fc1`. That revision's parser module matches
+the implementation used for the 40-entry comparison. Other runs require their
+own settings and code-version check. The report records the installed parser
+module hash and selected mode; it does not assert that an entry became a retained
+historical vote. Verified trial and AB/BA linkage is still required for that claim.
+
+Output files are:
+
+- `comparison.csv`: each entry's parser result beside all six semantic labels,
+  annotation availability, and review flags.
+- `entries.jsonl`: the same comparison with original text, unchanged annotation
+  evidence, separate final/reasoning lexical screens, and source hashes/lines.
+- `review_queue.jsonl`: missing annotations and cases flagged by the judge or by
+  discrepancies between parsing, semantic labels, and lexical cues.
+- `report.json`: completion marker, parser settings/source hash, sample scope,
+  per-judge cross-tabs, and coverage. Cross-tabs include a separate
+  `missing_annotation` category; absent labels never become refusals or disappear
+  from the denominator. Parser totals count each log entry once across judges.
+
+`--split development` includes pilot and triage entries only, even if supplied
+prediction files also contain other entries. The report records excluded
+prediction counts. Other explicit scopes are `pilot`, `triage`, `validation`,
+and `all`. Do not inspect validation outputs while developing the rubric.
+
+Interpret mixed cases using the existing rubric, without collapsing dimensions:
+
+| Text pattern | What to retain |
+| --- | --- |
+| Final answer is A; reasoning discusses declining | Final expressed choice A. Assess the reasoning separately. |
+| Final answer explicitly says it cannot choose, with no selected option | No expressed A/B selection and rejection of the comparison, supported by the final text. |
+| No-personal-preference disclaimer followed by a settled A | Retain both expressed choice A and the stated disclaimer. A disclaimer about personal preference alone does not establish rejection of the comparison. |
+| Explicit framing rejection together with a conditional A | Retain conditional choice and the objection; assess `mixed` when the response both carries out and rejects the comparison. Do not label that combination incoherent by default. |
+| Annotation request failed, but the original final answer is A | Parser result A and missing semantic annotation. An annotation-system failure says nothing about whether the original model refused. |
+
+These are applications of rubric 1.2, not a new rubric or retrospective relabeling.
+Review flags identify questions to inspect; they do not resolve them. Lexical rules
+can miss paraphrases or catch negated/quoted wording. The raw evidence and human
+reference step remain necessary. Cross-tabs compare provisional classifications,
+not accuracy against a trusted reference. No corrected votes, refusal rate, or
+preference-incoherence score is produced by this command.
+
 ## 3. Human-check the frozen sample
 
 Two researchers independently copy `validation_human_template.jsonl`, enter their

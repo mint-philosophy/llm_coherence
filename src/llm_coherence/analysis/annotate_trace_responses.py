@@ -264,6 +264,23 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--human", type=Path, nargs=2)
     p.add_argument("--adjudications", type=Path)
     p.add_argument("--output-dir", type=Path, required=True)
+    p = commands.add_parser(
+        "compare-parser", help="Compare parser replay with semantic labels offline"
+    )
+    p.add_argument("--bundle", type=Path, required=True)
+    p.add_argument("--predictions", type=Path, nargs="+", required=True)
+    p.add_argument("--output-dir", type=Path, required=True)
+    p.add_argument(
+        "--split",
+        choices=("development", "pilot", "triage", "validation", "all"),
+        required=True,
+    )
+    p.add_argument(
+        "--parser-mode",
+        choices=("forced-choice", "answer-marker"),
+        required=True,
+        help="Original output format: bare A/B or an explicit Answer: A/B marker; not whether the model exposes reasoning",
+    )
     args = parser.parse_args(argv)
     if args.command == "prepare":
         result = prepare(
@@ -300,6 +317,27 @@ def main(argv: list[str] | None = None) -> int:
         print(
             json.dumps(
                 {k: v for k, v in result.items() if k not in ("entry_ids", "usage")},
+                indent=2,
+            )
+        )
+    elif args.command == "compare-parser":
+        from llm_coherence.analysis.compare_trace_parser import compare_parser
+
+        result = compare_parser(
+            args.bundle,
+            args.predictions,
+            args.output_dir,
+            split=args.split,
+            parser_mode=args.parser_mode,
+        )
+        print(
+            json.dumps(
+                {
+                    "selected_entries": result["selected_entries"],
+                    "parser_counts": result["parser_counts"],
+                    "review_queue_records": result["review_queue_records"],
+                    "report": str(args.output_dir / "report.json"),
+                },
                 indent=2,
             )
         )
