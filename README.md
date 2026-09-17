@@ -194,6 +194,22 @@ PYTHONPATH=src python scripts/05_analysis/11d_screen_trace_responses.py \
 Screening counts log entries, including retries; it does not infer preferences
 from refusal or produce unique-trial refusal rates. The output directory must be new.
 
+For semantic annotation across all available model traces, prepare a versioned
+rubric and a random human-validation sample:
+
+```bash
+PYTHONPATH=src python scripts/05_analysis/11e_annotate_trace_responses.py prepare \
+  --inputs /path/to/outputs --output-dir results/trace-annotation \
+  --pilot-size 20 --validation-size 100 --triage-size 20
+```
+
+Step 11e separately codes expressed choice, comparison acceptance/refusal, and
+stated reasons in final responses and visible reasoning. It supports bounded
+judge runs, exact evidence checks, sampled double-coding, adjudication, and
+per-class validation metrics. See the [workflow and research basis](docs/trace_annotation_validation.md).
+Preparation is offline; judge runs require `annotate --execute`. Counts remain
+provisional log-entry counts and do not replace the behavioral audit.
+
 Compare two completed conditions with paired inference over the shared ladders:
 
 ```bash
@@ -256,6 +272,7 @@ Run scripts from the repository root with `PYTHONPATH=src python <script>`.
 | 11   | `scripts/05_analysis/11_analyze_7tier_coherence.py`                   | `src/llm_coherence/analysis/analyze_7tier_coherence.py`                       |
 | 11b  | `scripts/05_analysis/11b_analyze_refusal_robustness.py`               | `src/llm_coherence/analysis/refusal_robustness.py`                             |
 | 11d  | `scripts/05_analysis/11d_screen_trace_responses.py`                  | `src/llm_coherence/analysis/screen_trace_responses.py`                        |
+| 11e  | `scripts/05_analysis/11e_annotate_trace_responses.py`                | `src/llm_coherence/analysis/annotate_trace_responses.py`                      |
 | 11c  | `scripts/05_analysis/11c_compare_model_results.py`                    | `src/llm_coherence/analysis/compare_model_results.py`                          |
 | 12   | `scripts/05_analysis/12_predictive_utility.py`                        | `src/llm_coherence/analysis/predictive_utility.py`                            |
 | 13   | `scripts/06_reporting/13_make_fig_table.py`                           | `src/llm_coherence/reporting/make_fig_table.py`                               |
