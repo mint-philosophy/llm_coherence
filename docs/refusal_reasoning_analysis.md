@@ -62,10 +62,21 @@ Legacy sidecars containing only `message_idx` cannot be joined safely after
 asynchronous execution, retries, or resumed runs. The report marks these files
 as qualitative-only evidence and blocks annotation-template generation.
 
-The current public Kimi result artifacts contain aggregate missing/unparseable
-counts but no trial-level `missing_responses` or reasoning sidecars. They support
-the behavioral sensitivity analysis, but they do not establish how many missing
-responses were refusals and cannot support quantitative rationale coding.
+The Hugging Face inventory checked on 2026-09-17 at revision
+`f978c15eb328a99f86cbe2057f918a38af25282f` contains 200 Kimi
+`reasoning_traces.jsonl` sidecars, 100 per model. The first 20 records sampled
+from each of Instruct's Religion and spirituality 1357 and Thinking's US politics
+5556 and 1458 files contain `message_idx`, `attempt`, `content`, and `reasoning`,
+but no stable `custom_id`. The previously audited local download contained only
+the result files; its zero-sidecar inventory did not describe the full HF upload.
+
+The downloaded result artifacts contain aggregate missing/unparseable counts
+without trial-level `missing_responses`. They support behavioral sensitivity
+analysis. The available traces support qualitative examination, but quantitative
+coding of unique trials requires verified request/pair/direction and retry
+mapping from the original run records. The current command blocks that coding
+when linkage cannot be established; it does not infer trial IDs from line order
+or treat repeated log entries as independent trials.
 
 When linkage passes, generate the coding template:
 
