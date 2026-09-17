@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """
 Coherence analysis for 7-tier forced-choice monotonicity tests
-with justification extraction from CoT responses.
+with extraction of visible rationales where they were retained.
 
-Extracts reasoning text from raw_responses for non-monotonic pairs.
+Extracts prompted justifications or provider-exposed reasoning text from
+``raw_responses`` for non-monotonic pairs. These texts are observable response
+artifacts; the analysis does not treat them as privileged access to a model's
+internal reasoning.
 
 Usage:
     python -m llm_coherence.analysis.analyze_7tier_coherence \
@@ -1098,7 +1101,9 @@ def print_summary(agg: dict) -> None:
 # ---------------------------------------------------------------------------
 
 def main():
-    parser = argparse.ArgumentParser(description="Phase 6b coherence analysis (7 tiers + CoT)")
+    parser = argparse.ArgumentParser(
+        description="Phase 6b coherence analysis (7 tiers + visible rationales)"
+    )
     parser.add_argument("--data-dir", default=str(COMPARISONS_DIR.relative_to(REPO_ROOT)))
     parser.add_argument(
         "--results-dir",
