@@ -14,6 +14,8 @@ from llm_coherence.analysis.annotate_trace_responses import annotate, judge_mess
 from llm_coherence.analysis.trace_annotation import (
     FIELDS,
     classification_metrics,
+    decode_judge_annotation,
+    evidence_passages,
     evaluate,
     load_bundle,
     prepare,
@@ -37,6 +39,15 @@ def annotation(entry, choice="A"):
                 "comparison_response": {"label": "accepts", "evidence": [text]},
                 "stated_reason": {"label": "none", "evidence": []},
             }
+    return result
+
+
+def wire_annotation(entry, choice="A"):
+    result = annotation(entry, choice)
+    for channel in entry["text"]:
+        for item in result[channel].values():
+            quotes = item.pop("evidence")
+            item["evidence_ids"] = [f"{channel}:0000"] if quotes else []
     return result
 
 
@@ -112,6 +123,57 @@ class AnnotationTests(unittest.TestCase):
                 for e in entries.values()
             )
         )
+
+    def test_judge_input_keeps_literal_channels_separate(self):
+        entry = {
+            "text": {
+                "final_response": "A",
+                "visible_reasoning": 'I prefer "B".\nBut this is tentative.\u2028',
+            }
+        }
+        messages = judge_messages(entry)
+        content = messages[1]["content"]
+        final_block, reasoning_block = content.split(
+            "\n\nChannel: visible_reasoning", 1
+        )
+        self.assertIn("Channel: final_response; characters: 1", final_block)
+        self.assertIn("\nA\nEND_final_response_", final_block)
+        self.assertNotIn("tentative", final_block)
+        self.assertIn(entry["text"]["visible_reasoning"], reasoning_block)
+        self.assertNotIn('\\"B\\"', reasoning_block)
+        self.assertIn("Its stated_reason is none", messages[0]["content"])
+
+    def test_evidence_passages_preserve_all_characters_and_offsets(self):
+        text = ('Quoted "A".\nLiteral \\n. Unicode\u2028separator. ' * 40) + " final"
+        passages = evidence_passages(text, "visible_reasoning")
+        self.assertEqual("".join(p["text"] for p in passages), text)
+        self.assertEqual(len({p["id"] for p in passages}), len(passages))
+        for p in passages:
+            self.assertEqual(text[p["start"] : p["end"]], p["text"])
+            self.assertLessEqual(len(p["text"]), 400)
+
+    def test_judge_ids_resolve_exact_evidence_without_rewriting_quotes(self):
+        entry = {
+            "text": {"final_response": "A", "visible_reasoning": 'I choose "A".\n'}
+        }
+        labels, spans = decode_judge_annotation(wire_annotation(entry), entry)
+        self.assertEqual(
+            labels["visible_reasoning"]["expressed_choice"]["evidence"],
+            ['I choose "A".\n'],
+        )
+        self.assertEqual(
+            spans["final_response"]["expressed_choice"],
+            [{"id": "final_response:0000", "start": 0, "end": 1}],
+        )
+        for bad in ("visible_reasoning:0000", "final_response:9999"):
+            raw = wire_annotation(entry)
+            raw["final_response"]["expressed_choice"]["evidence_ids"] = [bad]
+            with self.assertRaisesRegex(ValueError, "Unknown or cross-channel"):
+                decode_judge_annotation(raw, entry)
+        raw = wire_annotation(entry)
+        raw["final_response"]["expressed_choice"]["evidence_ids"] *= 2
+        with self.assertRaisesRegex(ValueError, "Duplicate"):
+            decode_judge_annotation(raw, entry)
 
     def test_sampling_is_reproducible_blinded_and_text_disjoint(self):
         other = prepare(
@@ -376,7 +438,7 @@ class AnnotationTests(unittest.TestCase):
         sample_entries = [
             self.entries[i] for i in self.manifest["splits"]["validation"]
         ]
-        responses = [json.dumps(annotation(e)) for e in sample_entries]
+        responses = [json.dumps(wire_annotation(e)) for e in sample_entries]
         responses[1] = "I cannot annotate that."
 
         class Agent:
@@ -453,7 +515,9 @@ class AnnotationTests(unittest.TestCase):
 
         ids = self.manifest["splits"]["validation"]
         replies = [('{"final_response":', "length"), ("", "stop")]
-        replies += [(json.dumps(annotation(self.entries[i])), "stop") for i in ids[2:]]
+        replies += [
+            (json.dumps(wire_annotation(self.entries[i])), "stop") for i in ids[2:]
+        ]
 
         async def completion(**kwargs):
             content, finish = replies.pop(0)
@@ -499,6 +563,31 @@ class AnnotationTests(unittest.TestCase):
         self.assertIn("token cap", attempts[0]["validation_error"])
         self.assertEqual(attempts[1]["raw_response"], "")
         self.assertEqual(attempts[1]["provider_outcome"]["status"], "empty_response")
+
+    def test_repeated_invalid_annotations_stop_before_spending_entire_split(self):
+        calls = []
+
+        class Agent:
+            async def async_completions(self, messages, verbose):
+                calls.append(1)
+                return ["not-json"]
+
+        with self.assertRaisesRegex(RuntimeError, "Three consecutive invalid"):
+            asyncio.run(
+                annotate(
+                    self.bundle,
+                    self.root / "invalid-run",
+                    model="test",
+                    split="validation",
+                    max_entries=4,
+                    max_tokens=500,
+                    execute=True,
+                    agent_factory=lambda **kwargs: Agent(),
+                )
+            )
+        self.assertEqual(len(calls), 3)
+        self.assertTrue((self.root / "invalid-run/incomplete.json").exists())
+        self.assertFalse((self.root / "invalid-run/summary.json").exists())
 
 
 if __name__ == "__main__":

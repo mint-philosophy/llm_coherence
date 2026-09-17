@@ -10,30 +10,46 @@ from typing import Any, Callable
 
 from llm_coherence.analysis.trace_annotation import (
     FIELDS,
+    JUDGE_PROTOCOL,
     RUBRIC,
     RUBRIC_SHA256,
     VERSION,
     digest,
+    decode_judge_annotation,
+    evidence_passages,
     evaluate,
     load_bundle,
     prepare,
-    validate_annotation,
     write_json,
 )
 
 
 def judge_messages(entry: dict) -> list[dict]:
     """Hide model/source identities and lexical suggestions from the judge."""
+    blocks = ["Annotate these two separate text channels using the system rubric."]
+    for channel, value in entry["text"].items():
+        text = value or ""
+        boundary = f"{channel}_{digest(text)[:24]}"
+        while boundary in text:
+            boundary += "_"
+        passages = evidence_passages(text, channel)
+        rendered = "\n".join(f"[{p['id']}]\n{p['text']}" for p in passages)
+        blocks.append(
+            f"Channel: {channel}; characters: {len(text)}; "
+            f"present: {bool(text.strip())}\nBEGIN_{boundary}\n{rendered}\nEND_{boundary}"
+        )
     return [
         {
             "role": "system",
-            "content": RUBRIC + "\nAllowed labels:\n" + json.dumps(FIELDS),
+            "content": RUBRIC
+            + "\nAllowed labels:\n"
+            + json.dumps(FIELDS)
+            + "\n\n"
+            + JUDGE_PROTOCOL,
         },
         {
             "role": "user",
-            "content": json.dumps(
-                {"trace_text_to_annotate": entry["text"]}, ensure_ascii=False
-            ),
+            "content": "\n\n".join(blocks),
         },
     ]
 
@@ -72,6 +88,7 @@ async def annotate(
         "temperature": 0.0,
         "max_attempts_per_entry": 3,
         "retry_policy": "transport_only",
+        "max_consecutive_invalid_annotations": 3,
         "unit": "trace_log_entry",
         "unique_trial_verified": False,
         "bundle_manifest_sha256": digest(manifest),
@@ -103,7 +120,7 @@ async def annotate(
     )
     output.mkdir(parents=True, exist_ok=False)
     write_json(output / "run.json", plan)
-    valid, invalid = 0, 0
+    valid, invalid, consecutive_invalid = 0, 0, 0
     try:
         with (
             (output / "predictions.jsonl").open("w", encoding="utf-8") as predictions,
@@ -149,21 +166,39 @@ async def annotate(
                         raise ValueError(
                             "No usable judge response; inspect provider outcome"
                         )
-                    annotation = json.loads(response)
-                    validate_annotation(annotation, entry)
+                    annotation, evidence_spans = decode_judge_annotation(
+                        json.loads(response), entry
+                    )
                 except (ValueError, TypeError) as exc:
                     attempt.update(
                         status="invalid_annotation", validation_error=str(exc)
                     )
                     invalid += 1
+                    consecutive_invalid += 1
                 else:
+                    consecutive_invalid = 0
                     record["annotation"] = annotation
+                    record["evidence_spans"] = evidence_spans
                     predictions.write(json.dumps(record, ensure_ascii=False) + "\n")
                     predictions.flush()
                     attempt["status"] = "valid_annotation"
                     valid += 1
                 attempts.write(json.dumps(attempt, ensure_ascii=False) + "\n")
                 attempts.flush()
+                if consecutive_invalid >= 3:
+                    write_json(
+                        output / "incomplete.json",
+                        {
+                            "reason": "three_consecutive_invalid_annotations",
+                            "attempted": valid + invalid,
+                            "valid": valid,
+                            "invalid": invalid,
+                            "usage": getattr(agent, "usage_log", []),
+                        },
+                    )
+                    raise RuntimeError(
+                        "Three consecutive invalid annotations; inspect attempts before resuming"
+                    )
                 if (
                     response is None
                     and not capped

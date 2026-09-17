@@ -116,6 +116,22 @@ expressed choice or stated reason in present text. `multiple` records several
 reasons with no primary one. Ambiguous/mixed cases require `needs_review: true`.
 The validator checks schema and quotation provenance, not semantic entailment.
 
+Rubric 1.2 presents each channel as numbered literal source passages, each at
+most 400 characters, preserving every character and its original offsets. The
+automatic judge selects channel-scoped `evidence_ids`; the program resolves them
+to exact quotations and records the selected offsets. Unknown, duplicate, or
+cross-channel IDs fail validation. Human coding still uses direct quotations.
+Passage selection establishes source provenance, not whether the evidence
+semantically supports the selected label; human validation remains necessary.
+
+Live development runs of 1.0 and 1.1 produced cross-channel, overescaped, or
+paraphrased quotations, which the validator rejected. These failed outputs are
+method-development evidence, not subject-model refusals or evidence of accuracy.
+Old bundles remain tied to their rubric version and cannot be silently reused
+with 1.2. A previously frozen validation sample may be retained when it has
+never been inspected or used for tuning; re-export templates with the new rubric
+binding and document that its IDs and source text are unchanged.
+
 `run.json` records model, rubric, corpus binding, settings and selected IDs.
 `attempts.jsonl` retains raw judge outputs, runtime outcomes, and validation failures.
 `predictions.jsonl` contains only schema/evidence-valid annotations.
@@ -124,6 +140,8 @@ entries received valid annotations. Capped and empty provider responses remain
 missing annotations and processing continues. Infrastructure/configuration
 failures stop the run, leaving attempts available but no completion summary.
 Always inspect coverage.
+Three consecutive invalid annotations also stop the run and write `incomplete.json`,
+preserving usage and failures for debugging instead of spending through the corpus.
 
 ## 3. Human-check the frozen sample
 
