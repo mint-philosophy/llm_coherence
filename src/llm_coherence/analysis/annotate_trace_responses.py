@@ -115,8 +115,18 @@ async def annotate(
                 if len(responses) != 1:
                     raise ValueError("Runtime returned an unexpected response count")
                 response = responses[0]
-                outcome = getattr(agent, "last_completion_outcomes", [])
-                finish = outcome[0].get("finish_reason") if outcome else None
+                outcomes = getattr(agent, "last_completion_outcomes", [])
+                outcome = outcomes[0] if outcomes else {}
+                finish = outcome.get("finish_reason")
+                provider_status = outcome.get("status")
+                capped = provider_status == "token_capped" or str(
+                    finish
+                ).strip().lower() in (
+                    "length",
+                    "max_tokens",
+                    "max_output_tokens",
+                    "max_completion_tokens",
+                )
                 record = {
                     "entry_id": entry_id,
                     "entry_sha256": entry["entry_sha256"],
@@ -126,21 +136,19 @@ async def annotate(
                 }
                 attempt: dict[str, Any] = {
                     **record,
-                    "raw_response": response,
+                    "raw_response": outcome.get("raw_response", response),
                     "finish_reason": finish,
+                    "provider_outcome": outcome,
                 }
                 try:
+                    if capped:
+                        raise ValueError("Judge response reached token cap")
+                    if provider_status == "empty_response":
+                        raise ValueError("Judge returned empty content")
                     if response is None:
                         raise ValueError(
                             "No usable judge response; inspect provider outcome"
                         )
-                    if finish in (
-                        "length",
-                        "max_tokens",
-                        "max_output_tokens",
-                        "max_completion_tokens",
-                    ):
-                        raise ValueError("Judge response reached token cap")
                     annotation = json.loads(response)
                     validate_annotation(annotation, entry)
                 except (ValueError, TypeError) as exc:
@@ -156,7 +164,11 @@ async def annotate(
                     valid += 1
                 attempts.write(json.dumps(attempt, ensure_ascii=False) + "\n")
                 attempts.flush()
-                if response is None:
+                if (
+                    response is None
+                    and not capped
+                    and provider_status != "empty_response"
+                ):
                     # Stop infrastructure/configuration failures instead of spending
                     # through the rest of the corpus on unusable responses.
                     raise RuntimeError(

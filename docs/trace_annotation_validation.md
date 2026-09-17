@@ -117,11 +117,13 @@ reasons with no primary one. Ambiguous/mixed cases require `needs_review: true`.
 The validator checks schema and quotation provenance, not semantic entailment.
 
 `run.json` records model, rubric, corpus binding, settings and selected IDs.
-`attempts.jsonl` retains raw judge outputs and validation failures.
+`attempts.jsonl` retains raw judge outputs, runtime outcomes, and validation failures.
 `predictions.jsonl` contains only schema/evidence-valid annotations.
 `summary.json` marks execution completion and separately reports whether all
-entries received valid annotations. No response from the runtime stops the run,
-leaving attempts available but no completion summary. Always inspect coverage.
+entries received valid annotations. Capped and empty provider responses remain
+missing annotations and processing continues. Infrastructure/configuration
+failures stop the run, leaving attempts available but no completion summary.
+Always inspect coverage.
 
 ## 3. Human-check the frozen sample
 

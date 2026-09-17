@@ -90,7 +90,9 @@ RUBRIC_SHA256 = digest({"version": VERSION, "rubric": RUBRIC, "fields": FIELDS})
 
 def read_jsonl(path: Path) -> list[dict]:
     rows = []
-    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+    # Unicode paragraph/line separators inside JSON strings are data, not
+    # JSONL record boundaries (str.splitlines() would split them).
+    for number, line in enumerate(path.read_text(encoding="utf-8").split("\n"), 1):
         if not line.strip():
             continue
         try:

@@ -5,7 +5,10 @@ import copy
 import json
 import tempfile
 import unittest
+import sys
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from llm_coherence.analysis.annotate_trace_responses import annotate, judge_messages
 from llm_coherence.analysis.trace_annotation import (
@@ -419,6 +422,83 @@ class AnnotationTests(unittest.TestCase):
             )
         self.assertFalse((self.root / "failed/summary.json").exists())
         self.assertEqual(len(read_jsonl(self.root / "failed/attempts.jsonl")), 1)
+
+    def test_unicode_separators_survive_corpus_and_evidence_roundtrip(self):
+        text = "I\u2028choose\u2029A.\u0085"
+        source = self.save("unicode.jsonl", [{"content": text}])
+        bundle = self.root / "unicode"
+        prepare(
+            [source], bundle, pilot_size=0, validation_size=1, triage_size=0, seed=42
+        )
+        _, entries = load_bundle(bundle)
+        entry = next(iter(entries.values()))
+        self.assertEqual(entry["text"]["final_response"], text)
+        paths = []
+        for kind, name in (("model", "judge"), ("human", "one"), ("human", "two")):
+            row = template(entry, name)
+            row["annotator"]["kind"] = kind
+            row["annotation"] = annotation(entry)
+            paths.append(self.save(f"unicode-{name}.jsonl", [row]))
+        report = evaluate(bundle, paths[:1], self.root / "unicode-report", paths[1:])
+        self.assertEqual(
+            report["judges"][0]["validation_metrics"][
+                "final_response.expressed_choice"
+            ]["accuracy"],
+            1,
+        )
+
+    def test_real_runtime_capped_and_empty_responses_are_preserved_and_continue(self):
+        # Exercise the actual runtime adapter, mocking only the provider call.
+        from llm_coherence.runtime.agents import LiteLLMAgent
+
+        ids = self.manifest["splits"]["validation"]
+        replies = [('{"final_response":', "length"), ("", "stop")]
+        replies += [(json.dumps(annotation(self.entries[i])), "stop") for i in ids[2:]]
+
+        async def completion(**kwargs):
+            content, finish = replies.pop(0)
+            return SimpleNamespace(
+                choices=[
+                    SimpleNamespace(
+                        message=SimpleNamespace(content=content), finish_reason=finish
+                    )
+                ]
+            )
+
+        fake_sdk = SimpleNamespace(
+            acompletion=completion,
+            BadRequestError=type("BadRequestError", (Exception,), {}),
+        )
+
+        def factory(**kwargs):
+            agent = LiteLLMAgent(
+                model="mock/provider", max_retries=1, retry_transport_only=True
+            )
+            agent._log_usage = lambda response: None
+            return agent
+
+        with patch.dict(sys.modules, {"litellm": fake_sdk}):
+            report = asyncio.run(
+                annotate(
+                    self.bundle,
+                    self.root / "runtime",
+                    model="mock",
+                    split="validation",
+                    max_entries=4,
+                    max_tokens=100,
+                    execute=True,
+                    agent_factory=factory,
+                )
+            )
+        self.assertEqual(report["valid_annotations"], 2)
+        self.assertEqual(report["invalid_annotations"], 2)
+        self.assertFalse(replies)
+        attempts = read_jsonl(self.root / "runtime/attempts.jsonl")
+        self.assertEqual(attempts[0]["raw_response"], '{"final_response":')
+        self.assertEqual(attempts[0]["provider_outcome"]["status"], "token_capped")
+        self.assertIn("token cap", attempts[0]["validation_error"])
+        self.assertEqual(attempts[1]["raw_response"], "")
+        self.assertEqual(attempts[1]["provider_outcome"]["status"], "empty_response")
 
 
 if __name__ == "__main__":
