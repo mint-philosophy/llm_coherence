@@ -89,6 +89,18 @@ PYTHONPATH=src python scripts/05_analysis/11b_analyze_refusal_robustness.py \
 
 ## Code the visible rationales
 
+For semantic annotation across models with a frozen random validation sample,
+see [Step 11e: trace annotation and sampled validation](trace_annotation_validation.md).
+That workflow reduces human coding to a reference sample and selected difficult
+cases. It remains separate from the full trial-linked coding route below and
+cannot convert unlinked legacy entries into unique-trial counts.
+
+Step 11e's [offline parser comparison](trace_annotation_validation.md#2a-compare-parser-output-with-the-meaning-of-the-response)
+also checks whether an unparseable final response nevertheless expresses a choice,
+or a parseable response contains an objection. It preserves parser output,
+expressed choice, comparison acceptance/rejection, and stated reason separately.
+It does not turn a parsing failure into a refusal label or revise recorded votes.
+
 ### Automated first-pass screening, including legacy traces
 
 Step 11d runs offline lexical rules on trace files without calling another model:
