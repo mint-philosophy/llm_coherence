@@ -89,6 +89,44 @@ PYTHONPATH=src python scripts/05_analysis/11b_analyze_refusal_robustness.py \
 
 ## Code the visible rationales
 
+### Automated first-pass screening, including legacy traces
+
+Step 11d runs offline lexical rules on trace files without calling another model:
+
+```bash
+PYTHONPATH=src python scripts/05_analysis/11d_screen_trace_responses.py \
+  --traces /path/to/reasoning_traces.jsonl /path/to/another/reasoning_traces.jsonl \
+  --output-dir results/kimi-trace-screen
+```
+
+Use a new output directory each time. The command writes `screened_entries.jsonl`,
+`review.csv`, and a completion `summary.json`. Each entry includes a source path,
+file hash, line number, provisional label, and exact character offsets for its
+matched evidence. Original results are never edited. Malformed records fail the
+command; output without `summary.json` is incomplete and must not be analyzed.
+
+Suggested labels distinguish explicit choice cues, conditional preferences
+inside refusal text, abstention cues with unknown preference, conflicting text,
+and cases needing review. A refusal followed by a letter is flagged as conflicting,
+including a formatted arbitrary answer. The letters refer to the text as written;
+no canonical option or AB/BA mapping is inferred. Refusal without an expressed
+option never receives an imputed choice. Final response and provider-exposed
+reasoning are screened separately; reasoning cues never replace the final answer.
+
+These are **provisional lexical suggestions**, not validated semantic labels.
+Rules can miss paraphrases, quotations, negation, and longer arguments. Every entry
+requires human review. The reasoning screen may identify tentative or abandoned
+statements, not a settled conclusion. Inspect the original trace before coding.
+The CSV's `human_label` and `human_notes` fields are blank for that review.
+
+This screening can be used on legacy traces because its unit is a **log entry**.
+Counts retain repeated attempts and are not unique-trial counts or refusal rates.
+The screening output is deliberately separate from Step 11b's trial-linked,
+double-coded annotations and cannot bypass its provenance requirements. Establish
+trial linkage and validate the coding before using annotations in research claims.
+
+### Human coding of linked trials
+
 Each trial should be coded independently by two researchers. Complete these
 fields using the allowed values below.
 
