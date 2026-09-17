@@ -4,7 +4,7 @@ This analysis separates two questions:
 
 1. **Behavioral robustness:** Do missing or unparseable A/B responses change
    the reported forced-choice result?
-2. **Visible-rationale mechanism:** When a response abstains, does its retained
+2. **Visible-rationale description:** When a response abstains, does its retained
    rationale favor an option, reject the comparison, or fail to reach a
    conclusion?
 
@@ -114,6 +114,9 @@ option never receives an imputed choice. Final response and provider-exposed
 reasoning are screened separately; reasoning cues never replace the final answer.
 
 These are **provisional lexical suggestions**, not validated semantic labels.
+In particular, `conflicting_response` is a review flag for mixed textual cues,
+not a finding of logical contradiction or preference incoherence. Rejecting a
+comparison while stating a conditional choice can be internally consistent.
 Rules can miss paraphrases, quotations, negation, and longer arguments. Every entry
 requires human review. The reasoning screen may identify tentative or abandoned
 statements, not a settled conclusion. Inspect the original trace before coding.
@@ -168,8 +171,9 @@ Use the transition table to distinguish:
 
 - **deliberative abstention:** the rationale itself rejects or cannot resolve
   the comparison;
-- **answer suppression:** the rationale favors A or B but the final response
-  refuses;
+- **expressed-choice/final-refusal pattern:** the rationale expresses support
+  for A or B but the final response refuses; this describes the text and does
+  not establish a hidden preference or causal suppression mechanism;
 - **reasoning-answer disagreement:** the rationale favors one option and the
   final answer selects the other; and
 - **format failure:** the substantive choice is recoverable from the text but
@@ -179,6 +183,34 @@ Report the model-wide missing rate separately from rates within affected cells.
 Affected cells were selected because they contain missing responses, so their
 rate is descriptive of the case study and is not an estimate of the model's
 general refusal propensity.
+
+## Research basis and follow-up annotation
+
+Refusal alone does not establish preference incoherence. Forced-choice and
+open-ended elicitation can produce different expressed opinions
+([Röttger et al., ACL 2024](https://aclanthology.org/2024.acl-long.816/)).
+Visible reasoning is evidence about stated reasons, not guaranteed access to
+the factors that caused an answer
+([Chen et al., 2025](https://arxiv.org/abs/2505.05410)).
+
+A follow-up workflow should code expressed choice, comparison acceptance or
+refusal, and stated reasons separately, retaining exact evidence for final
+responses and reasoning. Mixed responses require more than keyword detection
+([XSTest, NAACL 2024](https://aclanthology.org/2024.naacl-long.301/)).
+Automated labels require task-specific human validation
+([Pangakis and Wolken, ICWSM 2025](https://arxiv.org/abs/2409.09467)).
+Uncertain cases can receive extra human attention
+([CoAnnotating, EMNLP 2023](https://aclanthology.org/2023.emnlp-main.92/)),
+but validation must also sample ordinary cases to detect confident errors.
+Pilot examples used to revise the rubric are not held-out validation data.
+The full double-coding route above remains available; automated screening
+does not require manually coding every log entry unless that route is chosen.
+
+If estimating category prevalence, prediction-powered inference is a possible
+later extension using a probability-sampled human reference set
+([Angelopoulos et al., 2023](https://arxiv.org/abs/2301.09633)). It is not
+implemented here and cannot resolve missing trial/retry provenance. Software
+tests validate implementation behavior, not annotation accuracy.
 
 ## Compare model conditions statistically
 
