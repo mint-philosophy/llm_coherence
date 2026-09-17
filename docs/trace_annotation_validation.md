@@ -65,7 +65,7 @@ copies of its final-response/reasoning pair. If too few distinct texts remain,
 reduce `--pilot-size`, possibly to zero. This avoids exact-text tuning leakage;
 it cannot establish trial independence or remove near-duplicate/retry leakage.
 Do not inspect validation predictions while revising the rubric. Any rubric
-change needs a new version/bundle and a new untouched validation set; do not keep
+change needs a new version/bundle and an untouched validation set; do not keep
 tuning to the same validation errors. Tests and pilot labels are not validation.
 
 The example sample sizes are starting points, **not guarantees of precision**.
