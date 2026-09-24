@@ -194,8 +194,8 @@ PYTHONPATH=src python scripts/05_analysis/11d_screen_trace_responses.py \
 Screening counts log entries, including retries; it does not infer preferences
 from refusal or produce unique-trial refusal rates. The output directory must be new.
 
-For semantic annotation across all available model traces, prepare a versioned
-rubric and a random human-validation sample:
+For optional, automated diagnostics of saved responses, prepare a versioned
+rubric and reserve a sample for possible later validation:
 
 ```bash
 PYTHONPATH=src python scripts/05_analysis/11e_annotate_trace_responses.py prepare \
@@ -203,12 +203,14 @@ PYTHONPATH=src python scripts/05_analysis/11e_annotate_trace_responses.py prepar
   --pilot-size 20 --validation-size 100 --triage-size 20
 ```
 
-Step 11e separately codes expressed choice, comparison acceptance/refusal, and
-stated reasons in final responses and visible reasoning. It supports bounded
-judge runs, exact evidence checks, sampled double-coding, adjudication, and
-per-class validation metrics. See the [workflow and research basis](docs/trace_annotation_validation.md).
-Preparation is offline; judge runs require `annotate --execute`. Counts remain
-provisional log-entry counts and do not replace the behavioral audit.
+Step 11e separately flags expressed choice, comparison acceptance/refusal, and
+stated reasons in final responses and visible reasoning. Preparation is offline;
+judge runs require `annotate --execute`. Run `evaluate` without `--human` for a
+provisional diagnostic report; no human-labeling exercise is required for that
+report or for the numerical coherence analysis. The reserved sample can remain
+untouched. Human validation is an optional follow-up required before claiming
+measured annotation accuracy. See the [workflow](docs/trace_annotation_validation.md).
+Automated flags are not verified refusals and never overwrite experimental votes.
 
 Step 11e also provides offline `compare-parser` reports: the original-format A/B
 parser result is shown beside the semantic labels, retaining missing annotations

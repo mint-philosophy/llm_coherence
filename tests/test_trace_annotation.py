@@ -2,6 +2,8 @@
 
 import asyncio
 import copy
+from contextlib import redirect_stdout
+import io
 import json
 import tempfile
 import unittest
@@ -10,7 +12,11 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from llm_coherence.analysis.annotate_trace_responses import annotate, judge_messages
+from llm_coherence.analysis.annotate_trace_responses import (
+    annotate,
+    judge_messages,
+    main,
+)
 from llm_coherence.analysis.trace_annotation import (
     FIELDS,
     classification_metrics,
@@ -319,8 +325,70 @@ class AnnotationTests(unittest.TestCase):
     def test_no_human_reference_means_no_accuracy_claim(self):
         pred, _, _ = self.files()
         report = evaluate(self.bundle, [pred], self.root / "report")
+        self.assertEqual(report["analysis_mode"], "exploratory_diagnostics")
         self.assertEqual(report["reference_status"], "not_provided")
         self.assertIsNone(report["judges"][0]["validation_metrics"])
+
+    def test_automated_report_cli_needs_no_human_labels_or_api(self):
+        pilot_ids = self.manifest["splits"]["pilot"]
+        pred = self.save(
+            "pilot-predictions.jsonl", self.records("model", "judge", pilot_ids)
+        )
+        paths = [self.traces, pred, *self.bundle.iterdir()]
+        before = {path: path.read_bytes() for path in paths}
+        output = self.root / "automated-report"
+        stdout = io.StringIO()
+        with (
+            patch(
+                "llm_coherence.runtime.agents.create_agent",
+                side_effect=AssertionError("No API"),
+            ),
+            patch(
+                "llm_coherence.runtime.api_keys.load_api_key",
+                side_effect=AssertionError("No credentials"),
+            ),
+            redirect_stdout(stdout),
+        ):
+            result = main(
+                [
+                    "evaluate",
+                    "--bundle",
+                    str(self.bundle),
+                    "--predictions",
+                    str(pred),
+                    "--output-dir",
+                    str(output),
+                ]
+            )
+        self.assertEqual(result, 0)
+        summary = json.loads(stdout.getvalue())
+        self.assertEqual(summary["analysis_mode"], "exploratory_diagnostics")
+        self.assertEqual(summary["reference_status"], "not_provided")
+        report = json.loads((output / "report.json").read_text())
+        self.assertFalse(list(self.root.glob("human*.jsonl")))
+        self.assertEqual(report["pending_adjudication"], [])
+        self.assertEqual(report["human_agreement_before_adjudication"], {})
+        self.assertFalse(report["unique_trial_verified"])
+        self.assertEqual(report["judges"][0]["entries_labeled"], len(pilot_ids))
+        self.assertIsNone(report["judges"][0]["validation_metrics"])
+        self.assertEqual(
+            report["judges"][0]["missing_validation_predictions"], self.sample
+        )
+        self.assertEqual(read_jsonl(output / "adjudication_template.jsonl"), [])
+        self.assertEqual(before, {path: path.read_bytes() for path in paths})
+
+    def test_automated_judge_agreement_without_humans_does_not_validate_accuracy(self):
+        pilot_ids = self.manifest["splits"]["pilot"]
+        predictions = [
+            self.save(f"{name}.jsonl", self.records("model", name, pilot_ids))
+            for name in ("judge-one", "judge-two")
+        ]
+        report = evaluate(self.bundle, predictions, self.root / "agreement")
+        self.assertEqual(report["analysis_mode"], "exploratory_diagnostics")
+        self.assertEqual(report["reference_status"], "not_provided")
+        self.assertEqual(report["review_queue_entries"], 0)
+        self.assertTrue(all(j["validation_metrics"] is None for j in report["judges"]))
+        self.assertEqual(report["human_agreement_before_adjudication"], {})
 
     def test_complete_reference_produces_per_class_metrics(self):
         pred, h1, h2 = self.files()
@@ -330,6 +398,7 @@ class AnnotationTests(unittest.TestCase):
         rows[0]["annotation"]["final_response"]["expressed_choice"]["label"] = "B"
         write_jsonl(pred, rows)
         report = evaluate(self.bundle, [pred], self.root / "report", [h1, h2])
+        self.assertEqual(report["analysis_mode"], "human_reference_validation")
         metric = report["judges"][0]["validation_metrics"][
             "final_response.expressed_choice"
         ]
@@ -344,6 +413,8 @@ class AnnotationTests(unittest.TestCase):
         rows[0]["annotation"]["final_response"]["expressed_choice"]["label"] = "B"
         write_jsonl(h2, rows)
         report = evaluate(self.bundle, [pred], self.root / "pending", [h1, h2])
+        self.assertEqual(report["analysis_mode"], "human_reference_validation")
+        self.assertEqual(report["reference_status"], "pending_adjudication")
         self.assertEqual(report["pending_adjudication"], [self.sample[0]])
         self.assertIsNone(report["judges"][0]["validation_metrics"])
         adjudication = self.records("human", "adjudicator", [self.sample[0]])

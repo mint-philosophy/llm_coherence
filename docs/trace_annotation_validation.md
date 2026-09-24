@@ -1,4 +1,4 @@
-# Trace annotation with sampled human validation
+# Exploratory automated response diagnostics
 
 Step 11e adds a model-independent workflow for describing **expressed choice,
 comparison acceptance/refusal, and stated reasons** in existing trace files.
@@ -7,9 +7,21 @@ It supports provider `reasoning_traces.jsonl` and batch
 not rerun the original preference experiment.
 
 Behavioral audits and paired comparisons remain Steps 11b/11c. Step 11d is
-lexical screening. Step 11e supplies semantic judge prompts, evidence checks,
-blinded human reference templates, a frozen random sample, disagreement
-triage, and annotation-error metrics. None of these stages imputes votes.
+lexical screening. Step 11e adds bounded model-assisted flags, exact source
+evidence checks, parser replay and diagnostic reports. None of these stages
+imputes votes or overwrites the original experiment results.
+
+The main workflow is exploratory and automated: prepare the saved text, optionally
+run a bounded judge, then inspect its provisional report and parser comparison.
+Run `evaluate` without `--human`; human labeling is not a prerequisite for these
+diagnostics or for the numerical coherence analysis. Existing predictions can be
+reported and compared offline without another API call.
+
+Sampled human validation is retained as an **optional follow-up**, not a required
+study or merge condition. Without it, accuracy/precision/recall are unavailable;
+flags and category counts are provisional descriptions of supplied log entries,
+not verified refusals or model-wide refusal rates. Quotation checks and agreement
+between automated judges do not establish semantic accuracy.
 
 ## Research and interpretation
 
@@ -29,9 +41,10 @@ The workflow measures observable text. A conditional A accompanied by rejection
 of the framing can be coherent. A bare A is an expressed selection, not proof
 of personal preference. A rationale/final-answer mismatch is a textual pattern,
 not evidence of a causal mechanism. Exact quotations establish where evidence
-comes from; the human sample tests whether labels correctly interpret it.
+comes from; the optional human-reference study tests whether labels correctly
+interpret it. Do not present automated-only diagnostics as validated findings.
 
-## 1. Prepare all available traces offline
+## 1. Prepare the selected trace files offline
 
 ```bash
 PYTHONPATH=src python scripts/05_analysis/11e_annotate_trace_responses.py prepare \
@@ -44,6 +57,11 @@ Inputs may be directories, individual JSONL files, or a mixture. Directories are
 searched recursively for the two supported sidecar names; repeated input paths
 are loaded once. Counts retain repeated records and retries. No model-specific
 filter is imposed. Files outside the supplied inputs are outside the study scope.
+
+Preparation still reserves the validation sample and writes blank human templates
+for compatibility with existing bundles and a possible future study. It does not
+assign anyone a labeling task. Leave the reserved sample untouched during the
+exploratory workflow; no existing split, rubric or saved result needs to change.
 
 The new output directory contains:
 
@@ -74,7 +92,10 @@ Choose sample size before looking at validation outcomes based on the intended
 claims and acceptable uncertainty. Cases from extra triage can illustrate rare
 patterns, but must not be mixed into the random-sample accuracy denominator.
 
-## 2. Run one or more semantic annotators
+## 2. Optionally run a bounded automated annotator
+
+Skip this step when suitable saved predictions already exist. No annotation run
+is required to run the numerical analyses in Steps 11b/11c.
 
 First plan a bounded run using an API-backed model key from project configuration:
 
@@ -95,10 +116,11 @@ The run preserves invalid outputs and token-cap failures as missing annotations,
 not model refusals, and retries only transport failures (at most three attempts).
 There is no automatic retry to force a different semantic label.
 
-After fixing the rubric on the pilot, run `--split validation` with its corresponding
-entry limit, or `--split all` to obtain provisional labels for the full corpus.
-Use a new directory for each run. A second independently configured judge can
-produce another predictions file for disagreement review; judge agreement alone
+For exploratory work, use `--split pilot` or `--split triage`. Do not run
+`--split validation` or `--split all` while the reserved sample is being kept
+untouched for possible later validation. Those options remain available for a
+separately planned extension after the rubric is fixed. Use a new directory for
+each run. A second judge is optional and can flag disagreements, but agreement
 does not establish accuracy. The runner is sequential and intended to be bounded;
 it does not implement checkpoint resume or automatically merge runs.
 
@@ -144,6 +166,9 @@ Three consecutive invalid annotations also stop the run and write `incomplete.js
 preserving usage and failures for debugging instead of spending through the corpus.
 
 ## 2a. Compare parser output with the meaning of the response
+
+This is an automated diagnostic comparison with provisional annotations, not a
+comparison against verified human labels. It can be run offline on saved outputs.
 
 The experiment parser extracts a label; it does not classify refusals. In the
 ordinary A/B mode, it accepts a bare letter or text containing only one of the
@@ -216,12 +241,38 @@ Interpret mixed cases using the existing rubric, without collapsing dimensions:
 
 These are applications of rubric 1.2, not a new rubric or retrospective relabeling.
 Review flags identify questions to inspect; they do not resolve them. Lexical rules
-can miss paraphrases or catch negated/quoted wording. The raw evidence and human
-reference step remain necessary. Cross-tabs compare provisional classifications,
+can miss paraphrases or catch negated/quoted wording. Retain the raw evidence.
+Human-reference validation is needed for measured accuracy, not for producing
+these exploratory reports. Cross-tabs compare provisional classifications,
 not accuracy against a trusted reference. No corrected votes, refusal rate, or
 preference-incoherence score is produced by this command.
 
-## 3. Human-check the frozen sample
+## 2b. Produce an automated-only report (no human labels)
+
+```bash
+PYTHONPATH=src python scripts/05_analysis/11e_annotate_trace_responses.py evaluate \
+  --bundle results/trace-annotation \
+  --predictions results/judge-pilot/predictions.jsonl \
+  --output-dir results/trace-diagnostics
+```
+
+Do not supply `--human` or `--adjudications`. This command uses existing
+predictions, makes no API call and does not modify source text or original votes.
+The report identifies its mode as `exploratory_diagnostics`, sets
+`reference_status` to `not_provided`, and leaves each judge's
+`validation_metrics` null. It retains provisional counts, coverage and flags;
+an empty review queue or agreement between judges does not establish accuracy.
+
+Coverage is reported against all supplied log entries, including retries. A pilot
+report is not a corpus-wide refusal estimate. Missing predictions for the reserved
+validation sample remain disclosed for a possible later study; they are not a
+requirement to annotate that sample now. Review queues are diagnostic leads, not
+a mandatory human-labeling exercise. No original label or vote is corrected from
+an automated flag.
+
+The automated workflow can stop here. The following sections are optional.
+
+## 3. Optional follow-up: human-check the frozen sample
 
 Two researchers independently copy `validation_human_template.jsonl`, enter their
 own `annotator.id`, and fill each label/evidence field using
@@ -234,7 +285,7 @@ This is sample-based validation, not a requirement to manually annotate every
 trace. The original Step 11b full trial-linked double-coding route remains an
 alternative when unique missing trials can actually be linked.
 
-## 4. Evaluate and resolve disagreements
+## 4. Optional follow-up: validate accuracy and resolve disagreements
 
 ```bash
 PYTHONPATH=src python scripts/05_analysis/11e_annotate_trace_responses.py evaluate \
@@ -244,7 +295,7 @@ PYTHONPATH=src python scripts/05_analysis/11e_annotate_trace_responses.py evalua
   --output-dir results/annotation-validation
 ```
 
-Omit `--human` for descriptive provisional counts only. Multiple `--predictions`
+Omit `--human` for the exploratory report in Section 2b. Multiple `--predictions`
 paths compare distinct judge identities and populate a review queue.
 
 The report contains channel/dimension counts, prediction coverage, per-class

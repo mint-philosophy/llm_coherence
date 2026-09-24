@@ -701,6 +701,9 @@ def evaluate(
     report = {
         "version": VERSION,
         "rubric_sha256": RUBRIC_SHA256,
+        "analysis_mode": "human_reference_validation"
+        if humans
+        else "exploratory_diagnostics",
         "unit": "trace_log_entry",
         "unique_trial_verified": False,
         "corpus_entries": len(entries),

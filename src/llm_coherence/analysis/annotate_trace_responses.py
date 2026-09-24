@@ -1,4 +1,4 @@
-"""Prepare, annotate, and validate visible-response labels across model traces."""
+"""Automated visible-response diagnostics with optional human validation."""
 
 from __future__ import annotations
 
@@ -232,12 +232,18 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
     p = commands.add_parser(
-        "prepare", help="Inventory traces and freeze review samples offline"
+        "prepare",
+        help="Inventory traces and reserve optional validation samples offline",
     )
     p.add_argument("--inputs", type=Path, nargs="+", required=True)
     p.add_argument("--output-dir", type=Path, required=True)
     p.add_argument("--pilot-size", type=int, default=20)
-    p.add_argument("--validation-size", type=int, default=100)
+    p.add_argument(
+        "--validation-size",
+        type=int,
+        default=100,
+        help="Reserve an untouched sample for optional later human validation",
+    )
     p.add_argument("--triage-size", type=int, default=20)
     p.add_argument("--seed", type=int, default=20260917)
     p = commands.add_parser(
@@ -257,11 +263,17 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--max-tokens", type=int, default=4096)
     p.add_argument("--execute", action="store_true")
     p = commands.add_parser(
-        "evaluate", help="Describe predictions and validate against human labels"
+        "evaluate",
+        help="Report provisional diagnostics; human-reference validation is optional",
     )
     p.add_argument("--bundle", type=Path, required=True)
     p.add_argument("--predictions", type=Path, nargs="+", required=True)
-    p.add_argument("--human", type=Path, nargs=2)
+    p.add_argument(
+        "--human",
+        type=Path,
+        nargs=2,
+        help="Optional two-coder reference files; omit for automated-only diagnostics",
+    )
     p.add_argument("--adjudications", type=Path)
     p.add_argument("--output-dir", type=Path, required=True)
     p = commands.add_parser(
@@ -352,6 +364,7 @@ def main(argv: list[str] | None = None) -> int:
         print(
             json.dumps(
                 {
+                    "analysis_mode": result["analysis_mode"],
                     "reference_status": result["reference_status"],
                     "pending_adjudication": len(result["pending_adjudication"]),
                     "review_queue_entries": result["review_queue_entries"],

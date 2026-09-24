@@ -12,6 +12,12 @@ Behavioral results are the primary evidence. Provider-exposed reasoning and
 prompted justifications are observable response artifacts, not privileged
 access to a model's internal chain of thought.
 
+The numerical audit and paired model comparison do not require a human-labeling
+study. The rationale-coding paths below are optional extensions. Step 11e can
+instead produce [exploratory automated diagnostics](trace_annotation_validation.md)
+without human labels; such flags remain provisional and never change original
+votes or establish verified refusal rates.
+
 ## Run the behavioral audit
 
 Download or clone the public output artifacts, then run:
@@ -140,7 +146,7 @@ The screening output is deliberately separate from Step 11b's trial-linked,
 double-coded annotations and cannot bypass its provenance requirements. Establish
 trial linkage and validate the coding before using annotations in research claims.
 
-### Human coding of linked trials
+### Optional human coding of linked trials
 
 Each trial should be coded independently by two researchers. Complete these
 fields using the allowed values below.
@@ -209,14 +215,15 @@ A follow-up workflow should code expressed choice, comparison acceptance or
 refusal, and stated reasons separately, retaining exact evidence for final
 responses and reasoning. Mixed responses require more than keyword detection
 ([XSTest, NAACL 2024](https://aclanthology.org/2024.naacl-long.301/)).
-Automated labels require task-specific human validation
+Claims of measured automated-label accuracy require task-specific human validation
 ([Pangakis and Wolken, ICWSM 2025](https://arxiv.org/abs/2409.09467)).
 Uncertain cases can receive extra human attention
 ([CoAnnotating, EMNLP 2023](https://aclanthology.org/2023.emnlp-main.92/)),
 but validation must also sample ordinary cases to detect confident errors.
 Pilot examples used to revise the rubric are not held-out validation data.
-The full double-coding route above remains available; automated screening
-does not require manually coding every log entry unless that route is chosen.
+The full double-coding route above remains available as an optional follow-up.
+Automated-only diagnostics require neither full-corpus human coding nor completion
+of the reserved validation sample, but cannot establish annotation accuracy.
 
 If estimating category prevalence, prediction-powered inference is a possible
 later extension using a probability-sampled human reference set
