@@ -194,6 +194,31 @@ PYTHONPATH=src python scripts/05_analysis/11d_screen_trace_responses.py \
 Screening counts log entries, including retries; it does not infer preferences
 from refusal or produce unique-trial refusal rates. The output directory must be new.
 
+For optional, automated diagnostics of saved responses, prepare a versioned
+rubric and reserve a sample for possible later validation:
+
+```bash
+PYTHONPATH=src python scripts/05_analysis/11e_annotate_trace_responses.py prepare \
+  --inputs /path/to/outputs --output-dir results/trace-annotation \
+  --pilot-size 20 --validation-size 100 --triage-size 20
+```
+
+Step 11e separately flags expressed choice, comparison acceptance/refusal, and
+stated reasons in final responses and visible reasoning. Preparation is offline;
+judge runs require `annotate --execute`. Run `evaluate` without `--human` for a
+provisional diagnostic report; no human-labeling exercise is required for that
+report or for the numerical coherence analysis. The reserved sample can remain
+untouched. Human validation is an optional follow-up required before claiming
+measured annotation accuracy. See the [workflow](docs/trace_annotation_validation.md).
+Automated flags are not verified refusals and never overwrite experimental votes.
+
+Step 11e also provides offline `compare-parser` reports: the original-format A/B
+parser result is shown beside the semantic labels, retaining missing annotations
+and flagging mixed or disagreeing cases. An unparseable answer is not automatically
+a refusal. See [parser comparison and mixed responses](docs/trace_annotation_validation.md#2a-compare-parser-output-with-the-meaning-of-the-response)
+for the command and how to select the original parser mode. Existing votes and
+annotations remain unchanged.
+
 Compare two completed conditions with paired inference over the shared ladders:
 
 ```bash
@@ -256,6 +281,7 @@ Run scripts from the repository root with `PYTHONPATH=src python <script>`.
 | 11   | `scripts/05_analysis/11_analyze_7tier_coherence.py`                   | `src/llm_coherence/analysis/analyze_7tier_coherence.py`                       |
 | 11b  | `scripts/05_analysis/11b_analyze_refusal_robustness.py`               | `src/llm_coherence/analysis/refusal_robustness.py`                             |
 | 11d  | `scripts/05_analysis/11d_screen_trace_responses.py`                  | `src/llm_coherence/analysis/screen_trace_responses.py`                        |
+| 11e  | `scripts/05_analysis/11e_annotate_trace_responses.py`                | `src/llm_coherence/analysis/annotate_trace_responses.py`                      |
 | 11c  | `scripts/05_analysis/11c_compare_model_results.py`                    | `src/llm_coherence/analysis/compare_model_results.py`                          |
 | 12   | `scripts/05_analysis/12_predictive_utility.py`                        | `src/llm_coherence/analysis/predictive_utility.py`                            |
 | 13   | `scripts/06_reporting/13_make_fig_table.py`                           | `src/llm_coherence/reporting/make_fig_table.py`                               |
