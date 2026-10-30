@@ -1,0 +1,111 @@
+NOISY COHERENT-AGENT VALIDATION AND ORDER REPAIR
+
+This follow-up uses the completed offline analysis described in
+docs/offline_coherence_analyses.txt. It makes no inference/API calls and keeps
+existing calibration outputs immutable.
+
+1. Recover verified individual choices and validate the original response rule.
+
+  PYTHONPATH=src python scripts/05_analysis/11g_validate_noisy_agent.py \
+    --raw-sources /path/to/raw_result_sources.csv \
+    --ladders /path/to/phase6b_variations_pruned_final.json \
+    --reference-sample /path/to/comparison_sample.json \
+    --baseline /path/to/completed-original-analysis \
+    --legacy-root /optional/path/to/legacy/parametric_variations \
+    --output /path/to/new-validation-directory
+
+Omit --legacy-root when that archive is unavailable. Embedded responses,
+current keyed sidecars, linked modern batch archives and optional legacy
+responses are checked. Recovered choices must reproduce saved A/B counts.
+Request identities, original/flipped outcome orientation, source/input hashes
+and matching prompt text prevent mixing unrelated records. Unkeyed traces and
+conflicting duplicate choices never become additional quantitative trials.
+
+2. Fit and test the presentation-order adjustment on a matching complete cohort.
+
+  PYTHONPATH=src python scripts/05_analysis/11h_repair_noisy_agent.py \
+    --raw-sources /path/to/raw_result_sources.csv \
+    --ladders /path/to/phase6b_variations_pruned_final.json \
+    --reference-sample /path/to/comparison_sample.json \
+    --baseline /path/to/completed-original-analysis \
+    --validation /path/to/completed-validation-directory \
+    --output /path/to/new-order-repair-directory
+
+Default settings are three folds, seed 42, 500 conditional score replicates,
+and a minimum 90% verified complete-curve coverage for attempting calibration.
+The coverage threshold does not prove representativeness. --models limits a
+run to explicitly selected model keys. Every output directory must be empty
+or new, and upstream manifests must report status=complete with intact hashes.
+
+The repair reads the verified choices/provenance under validation/models/.
+That cache is distinct from the validation CLI's optional preliminary
+--recovered-trials cache. The repair rechecks the grid, parser hash and exact
+count reconciliation before selecting complete seven-tier curves. Input and
+reader identities use their verified bytes, so another checkout may use the
+same unchanged inputs. Rewriting an input manifest still changes its identity
+and requires a new upstream validation.
+
+3. Generate standalone diagnostic plots from completed numerical outputs.
+
+  PYTHONPATH=src python -m llm_coherence.analysis.noise_validation_plots \
+    --results /path/to/completed-validation-directory \
+    --output /path/to/new-validation-plots
+
+  PYTHONPATH=src python -m llm_coherence.analysis.noise_repair_plots \
+    --results /path/to/completed-order-repair-directory \
+    --output /path/to/new-repair-plots
+
+Each figure is saved as PNG and PDF. Plot manifests bind images to numerical
+inputs and plotting code. These commands do not modify manuscript figures.
+
+Model and evaluation
+The response probabilities refer to the tier outcome in both display orders:
+  tier shown as A: sigmoid(u_tier - u_reference + delta)
+  tier shown as B: sigmoid(u_tier - u_reference - delta)
+
+One jointly fitted delta per evaluated model captures a general A/B-position
+preference. Both rules share ordered tier utilities, common reference utilities,
+identical-outcome equality constraints and the same utility penalty. Fixing
+delta=0 gives the matched-cohort order-neutral comparator.
+
+Whole seven-tier reference curves are held out together, including both orders
+and every repeat. Both rules use identical folds and the same supported test
+curves. Unsupported held-out ladders/references are reported and excluded from
+both metrics. This evaluates new comparisons within the existing design, not
+unseen-ladder or population generalization.
+
+The repair exports coverage.csv, prediction_comparison.csv, repeat_checks.csv,
+monotonicity_sensitivity.csv and per-model predictions, per-order counts,
+calibration parameters and fold diagnostics. Full computational assumptions
+are in each run's METHODS_AND_LIMITATIONS.txt.
+
+Repeat-correlation values 0, 0.5 and 1 are sensitivity assumptions. They are not
+estimated from unanimity or selected to match the observed monotonicity score.
+A global position offset cannot explain all comparison-specific effects;
+residual differences can also reflect utility-model mismatch or dependence.
+The simulator keeps order blocks and cells independent while permitting
+correlated repeats within each block. Its count distributions give exact
+conditional monotonicity probabilities; synthetic score replicates describe
+uncertainty conditional on fitted utilities, excluding calibration uncertainty.
+
+Local evaluation before publication
+The verified archive supports 16 models, 45,400 complete curves and 6,356,000
+responses for the adjusted comparison. All 128 fits converged. Four unsupported
+Opus-thinking curves are excluded from paired held-out errors. The adjusted
+rule reduces held-out per-order RMSE and per-choice log loss numerically for
+all 16 models, with many small changes. These are not significance claims.
+The independent-repeat expectation still underpredicts unanimous ten-response
+blocks by 11.67-33.41 percentage points across these models.
+
+GLM Base's continuous probabilities remain outside finite-trial calibration.
+Six other models lack linked complete curves, and the six-curve Nemotron-thinking
+subset is below the coverage threshold. Known input replacements remain pending.
+The synthetic outputs are conditional sensitivity references; empirical noise
+identification is not established by adding the presentation-order parameter.
+
+Tests exercise response provenance, parser orientation, whole-curve holdouts,
+no held-out answer leakage, exact count-distribution moments, likelihood
+gradients, known-parameter recovery, shared utilities, simulation enumeration,
+and safe reuse of verified bytes from a different checkout.
+
+  PYTHONPATH=src python -m unittest discover -s tests -v
