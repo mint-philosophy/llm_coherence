@@ -4,11 +4,37 @@ from __future__ import annotations
 
 import math
 import os
+import hashlib
+import platform
+from importlib.metadata import PackageNotFoundError, version
 from typing import Any, Mapping
 
 
 class ForcedChoiceScoringError(RuntimeError):
     """Raised when exact A/B probabilities cannot be recovered safely."""
+
+
+def logprob_runtime_binding(model: str) -> dict[str, Any]:
+    """Capture the actual scoring runtime before loading weights or resuming."""
+    from llm_coherence.runtime.logprob_prompts import FEW_SHOT_PROMPT_LOGPROBS
+
+    packages = {}
+    for name in ("torch", "vllm", "transformers", "tokenizers", "huggingface-hub"):
+        try:
+            packages[name] = version(name)
+        except PackageNotFoundError:
+            packages[name] = None
+    revision = os.environ.get("LLM_COHERENCE_VLLM_REVISION")
+    return {
+        "model_source": os.environ.get("LLM_COHERENCE_VLLM_MODEL", model),
+        "model_revision": revision,
+        "tokenizer_revision": os.environ.get("LLM_COHERENCE_TOKENIZER_REVISION", revision),
+        "image_digest": os.environ.get("LLM_COHERENCE_IMAGE_DIGEST"),
+        "load_kwargs": vllm_load_kwargs_from_env(),
+        "few_shot_prompt_sha256": hashlib.sha256(FEW_SHOT_PROMPT_LOGPROBS.encode("utf-8")).hexdigest(),
+        "python": platform.python_version(),
+        "packages": packages,
+    }
 
 
 def vllm_load_kwargs_from_env() -> dict[str, Any]:

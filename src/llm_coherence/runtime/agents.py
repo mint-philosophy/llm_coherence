@@ -6,6 +6,7 @@ import asyncio
 import os
 import random
 import time
+from copy import deepcopy
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any
@@ -14,9 +15,9 @@ from llm_coherence.config import MODEL_CONFIGS, canonical_model_key
 from llm_coherence.runtime.api_keys import API_KEY_ENV_BY_TYPE, ensure_api_key_env
 from llm_coherence.runtime.forced_choice_logprobs import (
     ForcedChoiceScoringError,
+    logprob_runtime_binding,
     normalized_choice_probabilities,
     resolve_choice_token_ids,
-    vllm_load_kwargs_from_env,
 )
 
 
@@ -781,6 +782,7 @@ class VLLMLogprobAgent:
         self._token_id_b: int | None = None
         self._engine_owner: VLLMLogprobAgent | None = None
         self.last_logprob_evidence: list[dict[str, Any]] = []
+        self.runtime_binding = logprob_runtime_binding(model)
 
     def new_session(self) -> VLLMLogprobAgent:
         """Fresh experiment telemetry backed by this run's single lazy engine.
@@ -795,6 +797,7 @@ class VLLMLogprobAgent:
             trust_remote_code=self.trust_remote_code,
         )
         session._engine_owner = self._engine_owner or self
+        session.runtime_binding = deepcopy(self.runtime_binding)
         return session
 
     def _ensure_loaded(self) -> None:
@@ -818,10 +821,11 @@ class VLLMLogprobAgent:
                 "logprob models. Use the HF Jobs image or install the GPU stack."
             ) from exc
 
-        model_source = os.environ.get("LLM_COHERENCE_VLLM_MODEL", self.model)
+        model_source = self.runtime_binding["model_source"]
         cache_dir = os.environ.get("HF_HOME")
         tokenizer = AutoTokenizer.from_pretrained(
             model_source,
+            revision=self.runtime_binding["tokenizer_revision"],
             trust_remote_code=self.trust_remote_code,
             cache_dir=cache_dir,
         )
@@ -833,10 +837,12 @@ class VLLMLogprobAgent:
             "trust_remote_code": self.trust_remote_code,
             "tensor_parallel_size": tensor_parallel_size,
             "enable_prefix_caching": True,
+            "revision": self.runtime_binding["model_revision"],
+            "tokenizer_revision": self.runtime_binding["tokenizer_revision"],
         }
         if cache_dir:
             llm_kwargs["download_dir"] = cache_dir
-        llm_kwargs.update(vllm_load_kwargs_from_env())
+        llm_kwargs.update(self.runtime_binding["load_kwargs"])
         self._llm = LLM(**llm_kwargs)
         self._sampling_params = SamplingParams(
             temperature=0.0,

@@ -16,6 +16,7 @@ from unittest.mock import AsyncMock, Mock, patch
 from llm_coherence.experiments.ladder_statement_pair import experiment_runner_tradeoff as runner
 from llm_coherence.experiments.ladder_statement_pair import run_7tier_experiment as phase6b
 from llm_coherence.runtime.agents import VLLMLogprobAgent, model_name_for_key
+from llm_coherence.runtime.validate_logprob_gpu import validate_gpu, validate_score_evidence
 
 
 MODEL_KEY = "glm-45-base-logprobs"
@@ -120,6 +121,75 @@ class LogprobEngineTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["scoring_calls"], 1)
         self.assertIsNone(result["order_probabilities"]["flipped"])
         self.assertEqual(result["logprob_evidence"]["flipped"], [])
+
+    async def test_runtime_is_frozen_and_revisions_reach_both_loaders(self):
+        with patch.dict(os.environ, {"LLM_COHERENCE_VLLM_REVISION": "a" * 40,
+                                    "LLM_COHERENCE_TOKENIZER_REVISION": "b" * 40,
+                                    "LLM_COHERENCE_MAX_MODEL_LEN": "4096"}):
+            owner = VLLMLogprobAgent(model_name_for_key(MODEL_KEY))
+        session = owner.new_session()
+        await self.compare(session)
+        self.assertEqual(owner._llm.kwargs["revision"], "a" * 40)
+        self.assertEqual(owner._llm.kwargs["tokenizer_revision"], "b" * 40)
+        self.assertEqual(owner._llm.kwargs["max_model_len"], 4096)
+        loader = sys.modules["transformers"].AutoTokenizer.from_pretrained
+        self.assertEqual(loader.call_args.kwargs["revision"], "b" * 40)
+        self.assertEqual(owner.runtime_binding, session.runtime_binding)
+
+    async def test_resume_rejects_a_different_model_revision_before_loading(self):
+        with patch.object(runner, "save_results", side_effect=OSError("disk failure")):
+            with self.assertRaises(OSError):
+                await self.experiment()
+        with patch.dict(os.environ, {"LLM_COHERENCE_VLLM_REVISION": "a" * 40}):
+            self.owner = VLLMLogprobAgent(model_name_for_key(MODEL_KEY))
+            with self.assertRaisesRegex(ValueError, "fingerprint mismatch"):
+                await self.experiment(resume=True)
+        self.factory.assert_called_once()
+
+    async def test_completed_result_requires_matching_input_and_runtime(self):
+        result = await self.experiment()
+        path = self.root / "test_comparisons.json"
+        self.assertTrue(phase6b.is_complete(self.root / "results", "test", MODEL_KEY, comparison_path=path))
+        with patch.dict(os.environ, {"LLM_COHERENCE_VLLM_REVISION": "a" * 40}):
+            with self.assertRaisesRegex(ValueError, "new results directory"):
+                phase6b.is_complete(self.root / "results", "test", MODEL_KEY, comparison_path=path)
+        path.write_text(path.read_text() + "\n")
+        with self.assertRaisesRegex(ValueError, "new results directory"):
+            phase6b.is_complete(self.root / "results", "test", MODEL_KEY, comparison_path=path)
+        saved = self.root / "results" / runner.artifact_dir_name_for_test("test") / "results.json"
+        self.assertEqual(json.loads(saved.read_text()), result)
+
+    async def test_completed_legacy_result_is_not_silently_skipped(self):
+        result = await self.experiment()
+        del result["config"]["logprob_result_protocol"]
+        saved = self.root / "results" / runner.artifact_dir_name_for_test("test") / "results.json"
+        saved.write_text(json.dumps(result))
+        with self.assertRaisesRegex(ValueError, "new results directory"):
+            phase6b.is_complete(self.root / "results", "test", MODEL_KEY)
+
+    async def test_gpu_validation_runs_two_ladders_through_one_engine(self):
+        path = self.root / "smoke.json"
+        path.write_text(json.dumps({"comparisons": [COMPARISON, COMPARISON]}))
+        cuda = sys.modules["torch"].cuda
+        with patch.dict(os.environ, {"LLM_COHERENCE_VLLM_REVISION": "a" * 40,
+                                    "LLM_COHERENCE_IMAGE_DIGEST": "sha256:" + "b" * 64}), \
+                patch.object(cuda, "get_device_name", lambda i: "Mock H200", create=True), \
+                patch.object(cuda, "get_device_properties", lambda i: SimpleNamespace(total_memory=141 * 1024 ** 3), create=True), \
+                patch.object(cuda, "get_device_capability", lambda i: (9, 0), create=True), \
+                patch.object(sys.modules["torch"], "version", SimpleNamespace(cuda="13.0"), create=True):
+            report = await validate_gpu(MODEL_KEY, path, self.root / "gpu_check", 8)
+        self.factory.assert_called_once()
+        self.assertEqual(report["status"], "passed")
+        self.assertEqual(report["scoring_calls"], 4)
+        self.assertTrue(report["single_engine_reused"])
+        self.assertEqual(len(report["preferences"]), 2)
+
+    async def test_gpu_evidence_validation_rejects_tampered_average(self):
+        result = await self.experiment()
+        validate_score_evidence(result)
+        result["preferences"][0]["prob_prefer_a"] = 0.5
+        with self.assertRaisesRegex(ValueError, "flipped-order average"):
+            validate_score_evidence(result)
 
     async def test_result_reports_scoring_calls_instead_of_sampled_trials(self):
         result = await self.experiment()
