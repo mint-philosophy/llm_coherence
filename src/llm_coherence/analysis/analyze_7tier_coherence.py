@@ -29,6 +29,7 @@ from scipy.stats import kendalltau, spearmanr, norm
 from sklearn.isotonic import IsotonicRegression
 import statsmodels.api as sm
 from collections import Counter as _Counter
+from llm_coherence.runtime.agents import is_local_logprob_model
 
 
 N_TIERS = 7
@@ -200,14 +201,25 @@ def load_results_for_variation(
 # Extract monotonicity groups
 # ---------------------------------------------------------------------------
 
-def extract_groups(preferences: list[dict], valence_correct: bool = False) -> list[dict]:
+def extract_groups(
+    preferences: list[dict], valence_correct: bool = False, *,
+    model_key: str | None = None, result_config: dict | None = None,
+) -> list[dict]:
     """
     Group preferences into (variation_set, comparison_statement) blocks.
     Comparisons are generated in groups of N_TIERS (all tiers vs one comparison stmt).
 
     valence_correct: if True, reverses tier ordering for negatively-valenced sets.
     Should be False for Phase 6b (tiers already preference-ordered) unless needed.
+    Pass model_key or result_config for legacy GLM results whose individual
+    preference records do not label their probability-derived pseudo-counts.
     """
+    config = result_config or {}
+    logprob_run = (
+        is_local_logprob_model(model_key or config.get("model_key", ""))
+        or config.get("scoring_method") == "logprobs"
+        or config.get("count_kind") == "probability_derived_pseudocounts"
+    )
     groups = []
     for i in range(0, len(preferences), N_TIERS):
         block = preferences[i:i + N_TIERS]
@@ -228,11 +240,17 @@ def extract_groups(preferences: list[dict], valence_correct: bool = False) -> li
             )
 
         tier_probs = []
-        tier_counts = []
+        observed_counts = not logprob_run and not any(
+            p.get("scoring_method") == "logprobs"
+            or p.get("count_kind") == "probability_derived_pseudocounts"
+            for p in block
+        )
+        tier_counts = [] if observed_counts else None
         raw_responses = []
         for pref in block:
             tier_probs.append(pref["prob_prefer_a"])
-            tier_counts.append((pref["count_prefer_a"], pref["count_prefer_b"]))
+            if observed_counts:
+                tier_counts.append((pref["count_prefer_a"], pref["count_prefer_b"]))
             if "raw_responses_original" in pref:
                 raw_responses.append({
                     "original": pref["raw_responses_original"],
@@ -246,7 +264,7 @@ def extract_groups(preferences: list[dict], valence_correct: bool = False) -> li
         is_negative = valence_correct and variation_id in NEGATIVE_VALENCE_IDS
         if is_negative:
             tier_probs = tier_probs[::-1]
-            tier_counts = tier_counts[::-1]
+            tier_counts = tier_counts[::-1] if tier_counts is not None else None
             raw_responses = raw_responses[::-1] if raw_responses else []
 
         groups.append({
@@ -687,21 +705,31 @@ def detect_erratic_flips(
 # Combined per-group analysis
 # ---------------------------------------------------------------------------
 
-def analyze_group(tier_probs: list[float], tier_counts: list[tuple[int, int]]) -> dict:
+def analyze_group(tier_probs: list[float], tier_counts: list[tuple[int, int]] | None) -> dict:
     n = len(tier_probs)
     violations = sum(1 for i in range(n - 1) if tier_probs[i] > tier_probs[i + 1])
     violations_dec = sum(1 for i in range(n - 1) if tier_probs[i] < tier_probs[i + 1])
 
     tau, tau_p = compute_kendall_tau(tier_probs)
     rho, rho_p = compute_spearman_rho(tier_probs)
-    jt = jonckheere_terpstra_test(tier_counts)
-    logreg = logistic_regression_slope(tier_counts)
     iso = isotonic_regression_r2(tier_probs)
-    boot = bootstrap_monotonicity_probability(tier_counts)
-    binom = binomial_confidence_intervals(tier_counts)
-    flips = detect_erratic_flips(tier_probs, tier_counts=tier_counts)
+    if tier_counts is not None:
+        jt = jonckheere_terpstra_test(tier_counts)
+        logreg = logistic_regression_slope(tier_counts)
+        boot = bootstrap_monotonicity_probability(tier_counts)
+        binom = binomial_confidence_intervals(tier_counts)
+        flips = detect_erratic_flips(tier_probs, tier_counts=tier_counts)
+    else:
+        reason = "not_applicable_without_observed_trials"
+        jt = {"j_statistic": None, "z_score": None, "p_value": None, "significant": None, "reason": reason}
+        logreg = {"slope": None, "intercept": None, "slope_se": None, "p_value": None, "significant": None, "reason": reason}
+        boot = {"monotonicity_probability": None, "interpretation": reason}
+        binom = {"n_significant_violations": None, "reason": reason}
+        # Do not replace Wilson-based classifications with an arbitrary band.
+        flips = {"has_erratic_flip": None, "flip_pattern": None, "transitions": None, "expected_max_transitions": 1}
 
     return {
+        "count_statistics_available": tier_counts is not None,
         "is_monotonic": violations == 0,
         "is_monotonic_decreasing": violations_dec == 0,
         "is_monotonic_either": (violations == 0) or (violations_dec == 0),
@@ -719,7 +747,7 @@ def analyze_group(tier_probs: list[float], tier_counts: list[tuple[int, int]]) -
         # Direction-agnostic metrics (primary for VALUE_CHARGED sets — direction depends on agent values)
         "kendall_tau_abs": abs(tau) if tau is not None else 0.0,
         "spearman_rho_abs": abs(rho) if rho is not None else 0.0,
-        "logistic_slope_abs": abs(logreg["slope"]),
+        "logistic_slope_abs": abs(logreg["slope"]) if logreg["slope"] is not None else None,
         "isotonic_r2_bidirectional": iso["r_squared_bidirectional"],
         "inferred_direction": iso["inferred_direction"],  # +1 increasing, -1 decreasing, 0 degenerate
         "bootstrap_mono_prob": boot["monotonicity_probability"],
@@ -733,6 +761,27 @@ def analyze_group(tier_probs: list[float], tier_counts: list[tuple[int, int]]) -
 # ---------------------------------------------------------------------------
 # Aggregation
 # ---------------------------------------------------------------------------
+
+def _count_statistics_summary(results: list[dict]) -> dict:
+    """Count-based denominators include only curves with observed trials."""
+    eligible = [r for r in results if r.get("count_statistics_available", True)]
+    n = len(eligible)
+
+    def mean(key):
+        return _nanmean([r[key] for r in eligible]) if n else None
+
+    return {
+        "n_count_based_comparisons": n,
+        "count_statistics_available": n > 0,
+        "n_erratic_flips": sum(bool(r["has_erratic_flip"]) for r in eligible) if n else None,
+        "erratic_flip_rate": sum(bool(r["has_erratic_flip"]) for r in eligible) / n if n else None,
+        "jt_significant_rate": sum(bool(r["jonckheere_terpstra"]["significant"]) for r in eligible) / n if n else None,
+        "mean_logistic_slope": _nanmean([r["logistic_slope"]["slope"] for r in eligible]) if n else None,
+        "logistic_significant_rate": sum(bool(r["logistic_slope"]["significant"]) for r in eligible) / n if n else None,
+        "mean_logistic_slope_abs": mean("logistic_slope_abs"),
+        "mean_bootstrap_mono_prob": mean("bootstrap_mono_prob"),
+        "mean_significant_violations": mean("n_significant_violations"),
+    }
 
 def analyze_variation_set(
     variation_id: str,
@@ -754,7 +803,6 @@ def analyze_variation_set(
     n = len(results)
     n_monotonic = sum(1 for r in results if r["is_monotonic"])
     n_monotonic_dec = sum(1 for r in results if r["is_monotonic_decreasing"])
-    n_erratic = sum(1 for r in results if r["has_erratic_flip"])
 
     # Set-level inferred direction: modal of per-pair inferred_direction.
     # +1 if more pairs lean increasing, -1 if more pairs lean decreasing, 0 if
@@ -791,23 +839,16 @@ def analyze_variation_set(
         "set_inferred_direction": set_direction,
         "n_monotonic_inferred_direction": n_monotonic_inferred,
         "monotonicity_rate_inferred_direction": n_monotonic_inferred / n if n else 0.0,
-        "n_erratic_flips": n_erratic,
-        "erratic_flip_rate": n_erratic / n if n else 0.0,
+        **_count_statistics_summary(results),
         "mean_kendall_tau": _fisher_z_mean([r["kendall_tau"] for r in results]),
         "mean_spearman_rho": _fisher_z_mean([r["spearman_rho"] for r in results]),
-        "jt_significant_rate": sum(1 for r in results if r["jonckheere_terpstra"]["significant"]) / n if n else 0,
-        "mean_logistic_slope": _nanmean([r["logistic_slope"]["slope"] for r in results]),
-        "logistic_significant_rate": sum(1 for r in results if r["logistic_slope"]["significant"]) / n if n else 0,
         "mean_isotonic_r2": _nanmean([r["isotonic_r2"] for r in results]),
         # Direction-agnostic / bidirectional aggregates (primary for VALUE_CHARGED analysis)
         "mean_kendall_tau_abs": _nanmean([r["kendall_tau_abs"] for r in results]),
         "mean_spearman_rho_abs": _nanmean([r["spearman_rho_abs"] for r in results]),
-        "mean_logistic_slope_abs": _nanmean([r["logistic_slope_abs"] for r in results]),
         "mean_isotonic_r2_bidirectional": _nanmean([r["isotonic_r2_bidirectional"] for r in results]),
         "frac_inferred_increasing": sum(1 for r in results if r["inferred_direction"] == 1) / n if n else 0,
         "frac_inferred_decreasing": sum(1 for r in results if r["inferred_direction"] == -1) / n if n else 0,
-        "mean_bootstrap_mono_prob": _nanmean([r["bootstrap_mono_prob"] for r in results]),
-        "mean_significant_violations": _nanmean([r["n_significant_violations"] for r in results]),
         "mean_prob_range": _nanmean([r["prob_range"] for r in results]),
         "per_comparison": results,
     }
@@ -833,22 +874,17 @@ def aggregate_results(variation_results: list[dict]) -> dict:
         "n_total_comparisons": n_total,
         "n_tiers": N_TIERS,
         "monotonicity_rate": rate("is_monotonic"),
-        "erratic_flip_rate": rate("has_erratic_flip"),
+        **_count_statistics_summary(all_comps),
         # Signed metrics (primary for CLEAN sets)
         "mean_kendall_tau": _fisher_z_mean([c["kendall_tau"] for c in all_comps]),
         "mean_spearman_rho": _fisher_z_mean([c["spearman_rho"] for c in all_comps]),
-        "jt_significant_rate": sum(1 for c in all_comps if c["jonckheere_terpstra"]["significant"]) / n_total,
-        "mean_logistic_slope": _nanmean([c["logistic_slope"]["slope"] for c in all_comps]),
-        "logistic_significant_rate": sum(1 for c in all_comps if c["logistic_slope"]["significant"]) / n_total,
         "mean_isotonic_r2": mean("isotonic_r2"),
         # Direction-agnostic metrics (primary for VALUE_CHARGED sets)
         "mean_kendall_tau_abs": mean("kendall_tau_abs"),
         "mean_spearman_rho_abs": mean("spearman_rho_abs"),
-        "mean_logistic_slope_abs": mean("logistic_slope_abs"),
         "mean_isotonic_r2_bidirectional": mean("isotonic_r2_bidirectional"),
         "frac_inferred_increasing": sum(1 for c in all_comps if c.get("inferred_direction") == 1) / n_total,
         "frac_inferred_decreasing": sum(1 for c in all_comps if c.get("inferred_direction") == -1) / n_total,
-        "mean_bootstrap_mono_prob": mean("bootstrap_mono_prob"),
         "mean_prob_range": mean("prob_range"),
     }
 
@@ -867,11 +903,9 @@ def aggregate_results(variation_results: list[dict]) -> dict:
             "n_variation_sets": len(items),
             "n_comparisons": nc,
             "monotonicity_rate": sum(1 for c in cat_comps if c["is_monotonic"]) / nc if nc else 0,
-            "erratic_flip_rate": sum(1 for c in cat_comps if c["has_erratic_flip"]) / nc if nc else 0,
+            **_count_statistics_summary(cat_comps),
             "mean_kendall_tau": _fisher_z_mean([c["kendall_tau"] for c in cat_comps]),
-            "mean_logistic_slope": _nanmean([c["logistic_slope"]["slope"] for c in cat_comps]),
             "mean_isotonic_r2": _nanmean([c["isotonic_r2"] for c in cat_comps]),
-            "mean_bootstrap_mono_prob": _nanmean([c["bootstrap_mono_prob"] for c in cat_comps]),
         }
 
     # By comparison category
@@ -885,7 +919,7 @@ def aggregate_results(variation_results: list[dict]) -> dict:
         comp_cat_summary[cat] = {
             "n_comparisons": nc,
             "monotonicity_rate": sum(1 for c in comps if c["is_monotonic"]) / nc,
-            "erratic_flip_rate": sum(1 for c in comps if c["has_erratic_flip"]) / nc,
+            **_count_statistics_summary(comps),
             "mean_kendall_tau": _fisher_z_mean([c["kendall_tau"] for c in comps]),
         }
 
@@ -999,7 +1033,8 @@ def analyze_justifications(
             continue
 
         preferences = result["preferences"]
-        groups = extract_groups(preferences, valence_correct=False)
+        groups = extract_groups(preferences, valence_correct=False, model_key=model_key,
+                                result_config=result.get("config"))
 
         for g in groups:
             analysis = analyze_group(g["tier_probs"], g["tier_counts"])
@@ -1062,6 +1097,10 @@ def analyze_justifications(
 # Summary printing
 # ---------------------------------------------------------------------------
 
+def _display_metric(value, spec: str) -> str:
+    return "N/A" if value is None else format(value, spec)
+
+
 def print_summary(agg: dict) -> None:
     o = agg["overall"]
     print("\n" + "=" * 70)
@@ -1072,23 +1111,23 @@ def print_summary(agg: dict) -> None:
     print(f"  Total comparison pairs:          {o['n_total_comparisons']}")
     print(f"  Tiers:                           {o['n_tiers']}")
     print(f"  Monotonicity rate:               {o['monotonicity_rate']:.1%}")
-    print(f"  Erratic flip rate:               {o['erratic_flip_rate']:.1%}")
+    print(f"  Erratic flip rate:               {_display_metric(o['erratic_flip_rate'], '.1%')}")
     print(f"  Mean Kendall's tau-b:            {o['mean_kendall_tau']:.3f}")
     print(f"  Mean Spearman's rho:             {o['mean_spearman_rho']:.3f}")
-    print(f"  J-T significant rate:            {o['jt_significant_rate']:.1%}")
-    print(f"  Mean logistic slope:             {o['mean_logistic_slope']:.3f}")
-    print(f"  Logistic slope significant rate:  {o['logistic_significant_rate']:.1%}")
+    print(f"  J-T significant rate:            {_display_metric(o['jt_significant_rate'], '.1%')}")
+    print(f"  Mean logistic slope:             {_display_metric(o['mean_logistic_slope'], '.3f')}")
+    print(f"  Logistic slope significant rate:  {_display_metric(o['logistic_significant_rate'], '.1%')}")
     print(f"  Mean isotonic R²:                {o['mean_isotonic_r2']:.3f}")
-    print(f"  Mean bootstrap mono probability: {o['mean_bootstrap_mono_prob']:.3f}")
+    print(f"  Mean bootstrap mono probability: {_display_metric(o['mean_bootstrap_mono_prob'], '.3f')}")
 
     print("\n--- By Variation Category ---")
     for cat, s in sorted(agg["by_variation_category"].items(),
                           key=lambda x: x[1]["monotonicity_rate"], reverse=True):
         print(f"  {cat:<40} mono={s['monotonicity_rate']:.0%}  "
               f"tau={s['mean_kendall_tau']:.2f}  "
-              f"slope={s['mean_logistic_slope']:.2f}  "
+              f"slope={_display_metric(s['mean_logistic_slope'], '.2f')}  "
               f"isoR2={s['mean_isotonic_r2']:.2f}  "
-              f"boot={s['mean_bootstrap_mono_prob']:.2f}")
+              f"boot={_display_metric(s['mean_bootstrap_mono_prob'], '.2f')}")
 
     print("\n" + "=" * 70)
 
@@ -1136,7 +1175,8 @@ def main():
             continue
 
         preferences = result["preferences"]
-        groups = extract_groups(preferences, valence_correct=False)
+        groups = extract_groups(preferences, valence_correct=False, model_key=args.model,
+                                result_config=result.get("config"))
 
         if not groups:
             missing += 1
