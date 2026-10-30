@@ -52,6 +52,7 @@ Artifacts:
 import argparse
 import asyncio
 import json
+import hashlib
 import os
 import sys
 import uuid
@@ -101,6 +102,7 @@ from llm_coherence.runtime.agents import (
     model_name_for_key,
 )
 from llm_coherence.runtime.budget_monitor import BudgetMonitor
+from llm_coherence.runtime.forced_choice_logprobs import logprob_runtime_binding
 from llm_coherence.runtime.preflight_check import (
     MODEL_COST_ESTIMATES,
     is_thinking_run,
@@ -496,7 +498,10 @@ def print_phase6b_live_cost_estimate(
     return estimate
 
 
-def is_complete(results_dir: Path, test_name: str, model_key: str) -> bool:
+def is_complete(
+    results_dir: Path, test_name: str, model_key: str, *,
+    comparison_path: Path | None = None, expected_config: dict | None = None,
+) -> bool:
     def valid(path: Path) -> bool:
         if not path.is_file():
             return False
@@ -506,6 +511,25 @@ def is_complete(results_dir: Path, test_name: str, model_key: str) -> bool:
             return False
         config = payload.get("config") or {}
         metadata = payload.get("metadata") or {}
+        if is_local_logprob_model(model_key):
+            preferences = payload.get("preferences") or []
+            matching = (
+                config.get("model_key") == model_key
+                and config.get("logprob_result_protocol") == "per_order_scores_v1"
+                and metadata.get("run_status") == "complete"
+                and bool(preferences)
+                and len(preferences) == metadata.get("total_comparisons")
+                and metadata.get("logprob_runtime") == logprob_runtime_binding(model_name_for_key(model_key))
+                and all(config.get(k) == v for k, v in (expected_config or {}).items())
+            )
+            if comparison_path is not None:
+                matching = matching and metadata.get("comparison_file_sha256") == hashlib.sha256(comparison_path.read_bytes()).hexdigest()
+            if not matching:
+                raise ValueError(
+                    f"Existing logprob result does not match the input/configuration/runtime: {path}. "
+                    "Use a new results directory; archived results will not be overwritten."
+                )
+            return True
         if config.get("model_key") not in (None, model_key):
             return False
         if config.get("infrastructure") == "openai_batch_api":
@@ -719,14 +743,27 @@ async def run_phase6b(
         )
     print()
 
+    def selected_is_complete(item):
+        settings = {
+            "num_trials": num_trials, "max_tokens": max_tokens,
+            "temperature": temperature if temperature is not None else 0.0,
+            "with_reasoning": with_reasoning, "include_flipped": True,
+            "model_variant": model_variant, "reasoning_mode": reasoning_mode,
+            "k_samples": k_samples, "quantization": quantization,
+        } if local_logprobs else None
+        return is_complete(
+            results_dir, item["test_name"], model_key,
+            comparison_path=item["comparison_path"], expected_config=settings,
+        )
+
     completed_sets = sum(
         1 for item in run_items
-        if is_complete(results_dir, item["test_name"], model_key)
+        if selected_is_complete(item)
     )
     pending_items = (
         [
             item for item in run_items
-            if not is_complete(results_dir, item["test_name"], model_key)
+            if not selected_is_complete(item)
         ]
         if resume
         else list(run_items)

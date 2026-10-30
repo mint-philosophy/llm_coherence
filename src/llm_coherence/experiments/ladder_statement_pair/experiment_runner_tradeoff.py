@@ -31,6 +31,7 @@ from llm_coherence.runtime.agents import (
     model_name_for_key,
 )
 from llm_coherence.runtime.preflight_check import MODEL_COST_ESTIMATES, estimate_cost
+from llm_coherence.runtime.forced_choice_logprobs import logprob_runtime_binding
 from llm_coherence.runtime.templates import (
     comparison_prompt_template_default,
     comparison_prompt_template_reasoning_default,
@@ -863,6 +864,17 @@ async def run_experiment(
 
     effective_temperature = temperature if temperature is not None else 0.0
     logprob_mode = is_local_logprob_model(model_key)
+    if shared_logprob_agent is not None and (
+        not logprob_mode or not isinstance(shared_logprob_agent, VLLMLogprobAgent)
+        or shared_logprob_agent.model != _lookup_model_name_full(model_key)
+        or shared_logprob_agent.temperature != effective_temperature
+    ):
+        raise ValueError("Shared logprob engine does not match the experiment model/settings")
+    scoring_runtime = (
+        (shared_logprob_agent.runtime_binding if shared_logprob_agent is not None
+         else logprob_runtime_binding(_lookup_model_name_full(model_key)))
+        if logprob_mode else None
+    )
     agent_concurrency_limit = model_cfg.concurrency_limit if model_cfg else 50
     prompt_template_used = (
         "comparison_prompt_template_reasoning_default"
@@ -906,6 +918,7 @@ async def run_experiment(
         # Old logprob checkpoints lack per-order score evidence and describe
         # pseudo-counts as missing responses. Do not mix their schemas in a run.
         run_config["logprob_result_protocol"] = "per_order_scores_v1"
+        run_config["logprob_runtime"] = scoring_runtime
     run_fingerprint = _run_fingerprint(run_config)
 
     if resume and checkpoint_path.exists():
@@ -946,10 +959,6 @@ async def run_experiment(
                 )
 
     if shared_logprob_agent is not None:
-        if (not isinstance(shared_logprob_agent, VLLMLogprobAgent) or
-                shared_logprob_agent.model != _lookup_model_name_full(model_key) or
-                shared_logprob_agent.temperature != effective_temperature):
-            raise ValueError("Shared logprob engine does not match the experiment model/settings")
         agent = shared_logprob_agent.new_session()
     else:
         agent = create_experiment_agent(
@@ -1065,6 +1074,7 @@ async def run_experiment(
             "model_key": model_key,
             "scoring_method": "logprobs" if logprob_mode else "sampled_choices",
             "count_kind": "probability_derived_pseudocounts" if logprob_mode else "observed_trials",
+            **({"logprob_result_protocol": "per_order_scores_v1"} if logprob_mode else {}),
             "model_variant": model_variant,
             "is_base_model": model_variant == "base",
             "reasoning_mode": reasoning_mode,
@@ -1109,6 +1119,7 @@ async def run_experiment(
             "elapsed_seconds": round(elapsed_seconds, 1),
             "usage_stats": usage_summary,
             "model_name_full": _lookup_model_name_full(model_key),
+            **({"logprob_runtime": scoring_runtime} if logprob_mode else {}),
             "extra_body": agent_extra_body,
             "estimated_cost_usd": _estimate_cost(model_key, total_api_calls, with_reasoning),
             "actual_cost_usd": _actual_cost(model_key, usage_summary),
