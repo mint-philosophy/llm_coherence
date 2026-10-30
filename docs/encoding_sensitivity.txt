@@ -1,0 +1,40 @@
+ENCODING COHORT SENSITIVITY
+
+This offline analysis retains archived responses. It compares the full
+instrument with a common subset that excludes every encoding-affected ladder
+from every model, including models whose own inputs were not corrupted.
+The historical replacement plan supplies the affected ladder IDs only.
+No replacement experiment is launched.
+
+  PYTHONPATH=src python -m llm_coherence.analysis.encoding_sensitivity \
+    --plan /path/to/historical_targeted_replacement_plan.json \
+    --raw-sources /path/to/raw_result_sources.csv \
+    --ladders data/05_ladder_validation/phase6b_variations_pruned_final.json \
+    --reference-sample data/06_forced_choice_inputs/comparison_sample.json \
+    --output /path/to/new_sensitivity_results
+
+The existing verified input loader checks archived raw-result hashes, model
+identities, canonical ladder/reference IDs, probabilities and observed counts.
+Known wording mismatches remain recorded. A sampled curve with any zero-count
+cell is incomplete and excluded; it is not replaced by an artificial 0.5.
+Nonempty cells retain the saved probabilities. All counts and denominators
+are exported. Continuous GLM Base probabilities remain separate from observed
+trial statistics.
+
+Outputs: model_metrics.csv, ladder_metrics.csv, category_metrics.csv,
+summary.json and run_manifest.json. Monotonicity follows the intended
+increasing tier order and permits ties. Headline bidirectional R2 retains
+the existing constant-curve exact-fit convention. The binary J-T statistic
+uses the same tie-corrected formula as the existing trial-enumeration
+implementation, evaluated algebraically and checked against that implementation.
+
+This is a descriptive cohort sensitivity check. Excluding ladders also changes
+category composition; agreement between cohorts does not establish that
+encoding corruption has no effect or identify its causal effect.
+
+Validation on the selected archive: 2,400 raw results verified; 100 full and
+86 subset ladders for all 24 archived configurations. Primary summaries cover
+the 23 API configurations. Of their 69,000 planned curves, 68,790 are complete.
+Full/subset macro monotonicity is 66.88%/68.23%, rank correlation is 0.99086,
+and all nonzero reasoning differences preserve their direction. Qwen Flash's
+full-cohort tie becomes a 0.35 pp reasoning advantage in the subset.
