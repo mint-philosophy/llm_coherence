@@ -514,7 +514,13 @@ def get_color(family, reasoning, model_key=None):
 
 
 def get_mono(rec):
-    return rec.get("monotonicity_rate_inferred_direction", rec.get("monotonicity_rate", 0))
+    """Strict monotonicity in the predefined increasing T1-to-T7 order.
+
+    Inferring direction from the responses changes the metric and disagrees
+    with the fixed-direction aggregate used in the predictive-utility plot.
+    Require the fixed-direction field rather than silently reporting zero.
+    """
+    return rec["monotonicity_rate"]
 
 
 def get_r2(rec):
@@ -3220,7 +3226,7 @@ def fig4_set_scatter(all_data: dict, models: list) -> plt.Figure:
         axes_flat[j].set_visible(False)
 
     # Shared labels.
-    fig.text(0.5, 0.02, "Per-ladder monotonicity rate (set-inferred direction)",
+    fig.text(0.5, 0.02, "Per-ladder monotonicity rate (fixed increasing direction)",
              ha="center")
     fig.text(0.02, 0.5, r"Per-ladder isotonic $R^2$ (bidirectional)",
              va="center", rotation="vertical")
