@@ -12,6 +12,7 @@ import argparse
 import asyncio
 import hashlib
 import json
+import math
 import os
 import socket
 import subprocess
@@ -24,7 +25,9 @@ from typing import Dict, List, Any, Callable, Optional
 from llm_coherence.paths import LADDER_VS_COMPARISON_RUNS_OUTPUT_DIR, REPO_ROOT
 from llm_coherence.runtime.agents import (
     AsyncRequestLimiter,
+    VLLMLogprobAgent,
     create_agent,
+    is_local_logprob_model,
     model_name_for_key,
 )
 from llm_coherence.runtime.preflight_check import MODEL_COST_ESTIMATES, estimate_cost
@@ -607,7 +610,11 @@ async def run_single_comparison(
             raise RuntimeError(
                 f"Logprob agent returned non-dict response: {type(dist_orig)}"
             )
-        p_orig_a = float(dist_orig.get("A", 0.5))
+        dist_orig = validate_logprob_distribution(dist_orig)
+        evidence_original = list(getattr(agent, "last_logprob_evidence", []) or [])
+        p_orig_a = dist_orig["A"]
+        dist_flip = None
+        evidence_flipped = []
 
         if include_flipped:
             prompts_flipped = [
@@ -626,7 +633,9 @@ async def run_single_comparison(
                     f"Logprob agent returned non-dict response: {type(dist_flip)}"
                 )
             # In the flipped prompt, "B" corresponds to outcome_a.
-            p_flip_a = float(dist_flip.get("B", 0.5))
+            dist_flip = validate_logprob_distribution(dist_flip)
+            evidence_flipped = list(getattr(agent, "last_logprob_evidence", []) or [])
+            p_flip_a = dist_flip["B"]
             prob_a = (p_orig_a + p_flip_a) / 2.0
         else:
             prob_a = p_orig_a
@@ -644,6 +653,12 @@ async def run_single_comparison(
             "count_prefer_b": count_b,
             "prob_prefer_a": round(prob_a, 4),
             "prob_prefer_b": round(prob_b, 4),
+            "scoring_method": "logprobs",
+            "count_kind": "probability_derived_pseudocounts",
+            "probability_denominator": "normalized_A_B_token_scores",
+            "scoring_calls": 2 if include_flipped else 1,
+            "order_probabilities": {"original": dist_orig, "flipped": dist_flip},
+            "logprob_evidence": {"original": evidence_original, "flipped": evidence_flipped},
         }
 
     active_trial_state = trial_state if trial_state is not None else {
@@ -750,6 +765,41 @@ async def run_single_comparison(
 
 # Main experiment loop
 
+def validate_logprob_distribution(value: dict) -> dict[str, float]:
+    """Fail closed instead of substituting a half-probability for absent scores."""
+    try:
+        probabilities = {label: float(value[label]) for label in ("A", "B")}
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError("Logprob response requires both numeric A/B probabilities") from exc
+    if (any(not math.isfinite(p) or not 0 <= p <= 1 for p in probabilities.values()) or
+            not math.isclose(sum(probabilities.values()), 1.0, rel_tol=0, abs_tol=1e-8)):
+        raise ValueError("Logprob A/B probabilities must be finite, in [0, 1], and sum to one")
+    return probabilities
+
+
+def create_experiment_agent(
+    model_key: str, *, temperature: float | None, max_tokens: int,
+    k_samples: int = 1, quantization: str | None = None,
+    request_limiter: AsyncRequestLimiter | None = None, max_retries: int = 5,
+):
+    """One configuration path for standalone agents and shared engine owners."""
+    cfg = MODEL_CONFIGS.get(model_key)
+    return create_agent(
+        model_key,
+        temperature=temperature if temperature is not None else 0.0,
+        max_tokens=max_tokens,
+        extra_body=cfg.extra_body if cfg else None,
+        enable_cache=cfg.enable_cache if cfg else False,
+        concurrency_limit=cfg.concurrency_limit if cfg else 50,
+        max_retries=max_retries,
+        request_limiter=request_limiter,
+        k_samples=k_samples,
+        quantization=quantization,
+        # Empty/capped/unparseable results are retained, never resampled.
+        retry_transport_only=True,
+    )
+
+
 async def run_experiment(
     test_name: str,
     model_key: str,
@@ -776,6 +826,7 @@ async def run_experiment(
     quantization: Optional[str] = None,
     request_limiter: AsyncRequestLimiter | None = None,
     max_retries: int = 5,
+    shared_logprob_agent: VLLMLogprobAgent | None = None,
 ) -> Dict[str, Any]:
     base = _PARAMETRIC_ROOT
     data_dir = data_dir or base / "data"
@@ -811,6 +862,7 @@ async def run_experiment(
             system_message = model_cfg.system_message
 
     effective_temperature = temperature if temperature is not None else 0.0
+    logprob_mode = is_local_logprob_model(model_key)
     agent_concurrency_limit = model_cfg.concurrency_limit if model_cfg else 50
     prompt_template_used = (
         "comparison_prompt_template_reasoning_default"
@@ -850,6 +902,10 @@ async def run_experiment(
             request_limiter.requests_per_second if request_limiter else None
         ),
     }
+    if logprob_mode:
+        # Old logprob checkpoints lack per-order score evidence and describe
+        # pseudo-counts as missing responses. Do not mix their schemas in a run.
+        run_config["logprob_result_protocol"] = "per_order_scores_v1"
     run_fingerprint = _run_fingerprint(run_config)
 
     if resume and checkpoint_path.exists():
@@ -889,22 +945,18 @@ async def run_experiment(
                     f"{partial_note}."
                 )
 
-    agent = create_agent(
-        model_key,
-        temperature=effective_temperature,
-        max_tokens=max_tokens,
-        extra_body=extra_body,
-        enable_cache=enable_cache,
-        concurrency_limit=agent_concurrency_limit,
-        max_retries=max_retries,
-        request_limiter=request_limiter,
-        k_samples=k_samples,
-        quantization=quantization,
-        # Experiment policy: retry network transport failures only. Provider
-        # errors, empty/capped outputs, and parse failures remain observed
-        # outcomes and are never selectively regenerated.
-        retry_transport_only=True,
-    )
+    if shared_logprob_agent is not None:
+        if (not isinstance(shared_logprob_agent, VLLMLogprobAgent) or
+                shared_logprob_agent.model != _lookup_model_name_full(model_key) or
+                shared_logprob_agent.temperature != effective_temperature):
+            raise ValueError("Shared logprob engine does not match the experiment model/settings")
+        agent = shared_logprob_agent.new_session()
+    else:
+        agent = create_experiment_agent(
+            model_key, temperature=effective_temperature, max_tokens=max_tokens,
+            max_retries=max_retries, request_limiter=request_limiter,
+            k_samples=k_samples, quantization=quantization,
+        )
     _restore_agent_telemetry(agent, checkpoint_telemetry)
 
     for idx in range(total_comparisons):
@@ -989,14 +1041,15 @@ async def run_experiment(
     end_time = datetime.utcnow().isoformat()
 
     # Compute unparseable stats
-    expected_per_comp = num_trials * (2 if include_flipped else 1)
+    expected_per_comp = (1 if logprob_mode else num_trials) * (2 if include_flipped else 1)
     total_api_calls = total_comparisons * expected_per_comp
     unparseable_count = 0
     missing_by_reason: Counter[str] = Counter()
-    for pref in preferences:
-        actual = pref["count_prefer_a"] + pref["count_prefer_b"]
-        unparseable_count += expected_per_comp - actual
-        missing_by_reason.update(pref.get("missing_by_reason") or {})
+    if not logprob_mode:
+        for pref in preferences:
+            actual = pref["count_prefer_a"] + pref["count_prefer_b"]
+            unparseable_count += expected_per_comp - actual
+            missing_by_reason.update(pref.get("missing_by_reason") or {})
 
     elapsed_seconds = (
         datetime.fromisoformat(end_time) - datetime.fromisoformat(start_time)
@@ -1010,6 +1063,8 @@ async def run_experiment(
         "config": {
             "test_name": test_name,
             "model_key": model_key,
+            "scoring_method": "logprobs" if logprob_mode else "sampled_choices",
+            "count_kind": "probability_derived_pseudocounts" if logprob_mode else "observed_trials",
             "model_variant": model_variant,
             "is_base_model": model_variant == "base",
             "reasoning_mode": reasoning_mode,
@@ -1036,6 +1091,8 @@ async def run_experiment(
             "end_time": end_time,
             "total_comparisons": total_comparisons,
             "total_api_calls": total_api_calls,
+            "total_scoring_calls": total_api_calls,
+            "sampled_trials": 0 if logprob_mode else total_api_calls,
             "unparseable_count": unparseable_count,
             "unparseable_rate": unparseable_count / total_api_calls if total_api_calls else 0.0,
             "missing_response_count": unparseable_count,
