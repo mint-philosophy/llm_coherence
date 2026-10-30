@@ -1,0 +1,115 @@
+OFFLINE COHERENCE ANALYSES
+
+This workflow calculates adjacent-tier accuracy, violation sizes, category
+sample counts, shuffled-tier references, and a noisy coherent-agent reference
+from archived experiment artifacts. It makes no inference/API calls.
+
+Run from the repository root using the environment installed from pyproject.toml:
+
+  PYTHONPATH=src python scripts/05_analysis/11f_rebuttal_analyses.py \
+    --raw-sources /path/to/raw_result_sources.csv \
+    --source-manifest /path/to/source_manifest.json \
+    --ladders data/05_ladder_validation/phase6b_variations_pruned_final.json \
+    --reference-sample data/06_forced_choice_inputs/comparison_sample.json \
+    --output /path/to/new-analysis-directory
+
+The wrapper uses suffix 11f to leave 11e available for the existing semantic
+response-diagnostics workflow in PR #17. It also runs as:
+
+  PYTHONPATH=src python -m llm_coherence.analysis.rebuttal_analysis --help
+
+Input selection is explicit. Download or locate the selected archived results
+first; the program does not silently pick the newest similarly named file.
+Each selected artifact is verified against its recorded SHA-256 before use.
+
+The raw-sources CSV has these columns:
+
+  model_key,ladder_id,path,sha256
+
+Provide exactly one record for each model/ladder combination. Each model must
+cover the canonical ladder IDs. Paths identify the actual archived result JSON
+files on the current machine. Optional resolved_path takes precedence over path.
+Do not change a recorded digest to bypass a failed verification; establish the
+correct input selection and regenerate the manifest deliberately.
+
+The source-manifest JSON is a list of objects with the following required form:
+
+  [{"model_key": "model-key",
+    "within_summary": {"path": "/path/to/within_summary.json",
+                       "sha256": "sha256-of-exact-file-bytes"}}]
+
+Each within-ladder summary must identify model_key and all canonical ladder IDs
+in per_ladder, and contain n_total_pairs plus by_distance counts for distances
+1 through 6. Each distance has integer correct and total counts. The loader
+checks complete ladder coverage, expected pair counts, and total arithmetic.
+
+Default input validation rejects stimulus-text mismatches. For an explicit
+audit of the existing mixed archive, --allow-input-mismatches keeps descriptive
+results marked provisional and reports every mismatch. All affected ladders
+are still excluded from coherent-agent calibration. This option does not
+repair old results or make their inputs equivalent to the current instrument.
+
+Optional controls:
+  --models MODEL [MODEL ...]    Limit the selected model keys.
+  --permutations 499            Tier-permutation replicates, default 499.
+  --simulations 300             Conditional simulation replicates, default 300.
+  --seed 42                     Reproducible random seed.
+  --ridge 1e-5                  Positive utility regularization.
+  --skip-plots                  Write numerical outputs without figures.
+
+Principal outputs:
+  adjacent_accuracy.csv         Adjacent-tier correct/observed/expected counts,
+                                missing pairs, observed accuracy and bounds.
+  within_accuracy_by_distance.csv
+                                The same accounting for all six tier distances.
+  curves.csv                    Adjacent downward-step sizes and curve metrics.
+  violation_size_bins.csv       Model-level violation-size distributions.
+  violation_by_transition.csv   Counts and drop sizes by adjacent tier position.
+  category_counts.csv           Ladder, reference-curve and pair design counts.
+  permutation_baselines.csv     Observed and permuted isotonic/monotonicity scores.
+  noisy_agent_scenarios.csv      Conditional synthetic monotonicity references.
+  models/MODEL/                 Calibration, probability arrays and permutations.
+  run_manifest.json             Parameters, source/code/output hashes and status.
+  METHODS_AND_LIMITATIONS.txt   Interpretation and assumptions.
+
+Use a new output directory for each run. Existing results are never overwritten.
+The manifest must report status=complete before dependent validation proceeds.
+
+Scientific constraints
+The latent utilities are nondecreasing within each ladder; references are shared
+across ladders, and repeated identical outcome texts share a utility. The current
+instrument's duplicate-outcome links form a forest. Unsupported future equality
+cycles fail explicitly rather than assigning different utilities to one outcome.
+
+The finite-choice simulation uses complete observed-count curves. GLM Base's
+continuous log-probability estimates are not binomial trial counts and are
+excluded from this calibration. Zero-parseable comparisons remain missing.
+Tier permutations are shared across reference curves within a ladder.
+
+Monotonicity uses the existing increasing T1-to-T7 order and allows ties. Its
+simulation and permutation intervals are conditional reference distributions;
+they are not empirical confidence intervals or universal ceilings/floors.
+Repeated-response correlation, noise scale and output resolution are explicit
+sensitivity assumptions. The response-validation/order-repair follow-up tests
+these assumptions against verified archived individual choices.
+
+These exports do not implement flatness/saturation restrictions, independent
+alternative utility metrics, or general model/family confidence intervals.
+The permutation calculation uses increasing and decreasing projections to
+construct its existing bidirectional R-squared reference; it does not change
+standalone R-squared reporting.
+
+Local validation of the archived input selection covered 24 models and 72,000
+curve records (71,790 complete probability curves); the count-based reference
+fit 23 models. The current archive still has known input replacements pending.
+The code can be reviewed independently of final-data readiness.
+
+Run the offline tests:
+
+  PYTHONPATH=src python -m unittest discover -s tests -v
+
+The tests compare isotonic projections with scikit-learn, verify analytic
+likelihood gradients and shared-outcome equality constraints, enumerate small
+permutation examples, exercise missing-data/provenance failures, and run the
+CLI against synthetic archived inputs. Full raw responses and local output
+directories are not committed to Git.
