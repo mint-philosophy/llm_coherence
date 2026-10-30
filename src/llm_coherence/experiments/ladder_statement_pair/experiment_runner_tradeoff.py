@@ -254,7 +254,7 @@ def load_comparisons(
     path = comparison_file_path(data_dir, test_name, comparison_path)
     if not path.exists():
         raise FileNotFoundError(f"Comparisons file not found: {path}")
-    with open(path, "r") as f:
+    with open(path, "r", encoding="utf-8") as f:
         data = json.load(f)
     return data["comparisons"]
 
