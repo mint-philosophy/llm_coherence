@@ -38,6 +38,7 @@ class LogprobAnalysisTests(unittest.TestCase):
         configurations = [
             {"model_key": "glm-45-base-logprobs"},
             {"result_config": {"model_key": "glm-45-base-logprobs"}},
+            {"model_key": "legacy-label", "result_config": {"model_key": "glm-45-base-logprobs"}},
             {"result_config": {"scoring_method": "logprobs"}},
             {"result_config": {"count_kind": "probability_derived_pseudocounts"}},
         ]

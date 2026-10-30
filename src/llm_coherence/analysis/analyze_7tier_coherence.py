@@ -216,7 +216,8 @@ def extract_groups(
     """
     config = result_config or {}
     logprob_run = (
-        is_local_logprob_model(model_key or config.get("model_key", ""))
+        is_local_logprob_model(model_key or "")
+        or is_local_logprob_model(config.get("model_key", ""))
         or config.get("scoring_method") == "logprobs"
         or config.get("count_kind") == "probability_derived_pseudocounts"
     )
