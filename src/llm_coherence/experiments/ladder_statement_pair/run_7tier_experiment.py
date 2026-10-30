@@ -52,6 +52,7 @@ Artifacts:
 import argparse
 import asyncio
 import json
+import hashlib
 import os
 import sys
 import uuid
@@ -62,6 +63,7 @@ from datetime import datetime, timezone
 from llm_coherence.experiments.ladder_statement_pair.experiment_runner_tradeoff import (
     artifact_dir_name_for_test,
     build_prompt,
+    create_experiment_agent,
     load_comparisons,
     run_experiment,
 )
@@ -93,11 +95,14 @@ from llm_coherence.paths import (
 )
 from llm_coherence.runtime.agents import (
     AsyncRequestLimiter,
+    VLLMLogprobAgent,
     close_api_async_clients,
     create_agent,
+    is_local_logprob_model,
     model_name_for_key,
 )
 from llm_coherence.runtime.budget_monitor import BudgetMonitor
+from llm_coherence.runtime.forced_choice_logprobs import logprob_runtime_binding
 from llm_coherence.runtime.preflight_check import (
     MODEL_COST_ESTIMATES,
     is_thinking_run,
@@ -493,7 +498,10 @@ def print_phase6b_live_cost_estimate(
     return estimate
 
 
-def is_complete(results_dir: Path, test_name: str, model_key: str) -> bool:
+def is_complete(
+    results_dir: Path, test_name: str, model_key: str, *,
+    comparison_path: Path | None = None, expected_config: dict | None = None,
+) -> bool:
     def valid(path: Path) -> bool:
         if not path.is_file():
             return False
@@ -503,6 +511,25 @@ def is_complete(results_dir: Path, test_name: str, model_key: str) -> bool:
             return False
         config = payload.get("config") or {}
         metadata = payload.get("metadata") or {}
+        if is_local_logprob_model(model_key):
+            preferences = payload.get("preferences") or []
+            matching = (
+                config.get("model_key") == model_key
+                and config.get("logprob_result_protocol") == "per_order_scores_v1"
+                and metadata.get("run_status") == "complete"
+                and bool(preferences)
+                and len(preferences) == metadata.get("total_comparisons")
+                and metadata.get("logprob_runtime") == logprob_runtime_binding(model_name_for_key(model_key))
+                and all(config.get(k) == v for k, v in (expected_config or {}).items())
+            )
+            if comparison_path is not None:
+                matching = matching and metadata.get("comparison_file_sha256") == hashlib.sha256(comparison_path.read_bytes()).hexdigest()
+            if not matching:
+                raise ValueError(
+                    f"Existing logprob result does not match the input/configuration/runtime: {path}. "
+                    "Use a new results directory; archived results will not be overwritten."
+                )
+            return True
         if config.get("model_key") not in (None, model_key):
             return False
         if config.get("infrastructure") == "openai_batch_api":
@@ -602,6 +629,7 @@ async def run_single(
     system_message: str = "You are a helpful assistant.",
     request_limiter: AsyncRequestLimiter | None = None,
     max_retries: int = 5,
+    shared_logprob_agent: VLLMLogprobAgent | None = None,
 ) -> dict | None:
     try:
         result = await run_experiment(
@@ -628,6 +656,7 @@ async def run_single(
             system_message=system_message,
             request_limiter=request_limiter,
             max_retries=max_retries,
+            shared_logprob_agent=shared_logprob_agent,
         )
         return result
     except Exception as e:
@@ -666,6 +695,13 @@ async def run_phase6b(
     requests_per_second: float | None = None,
     max_retries: int = 5,
 ) -> None:
+    if max_concurrent < 1:
+        raise ValueError("max_concurrent must be at least one")
+    local_logprobs = is_local_logprob_model(model_key)
+    if local_logprobs and max_concurrent != 1:
+        print("Self-hosted logprob scoring reuses one engine; limiting ladder concurrency to 1.")
+        max_concurrent = 1
+    calls_per_direction = 1 if local_logprobs else num_trials
     manifest = load_manifest(manifest_path)
     run_items = scoped_manifest_items(
         manifest,
@@ -690,7 +726,7 @@ async def run_phase6b(
     print(f"  Comparisons per set: {manifest['n_comparison_samples'] * manifest['n_tiers']}")
     total = len(run_items) * manifest["n_comparison_samples"] * manifest["n_tiers"]
     print(f"  Total comparisons: {total}")
-    print(f"  API calls (with flipped): {total * 2 * num_trials:,}")
+    print(f"  Scoring calls (with flipped): {total * 2 * calls_per_direction:,}")
     print(f"  CoT reasoning: {'ENABLED (max_tokens=' + str(max_tokens) + ')' if with_reasoning else 'DISABLED'}")
     print(f"  Model variant: {model_variant}")
     print(f"  Reasoning mode: {reasoning_mode}")
@@ -707,14 +743,27 @@ async def run_phase6b(
         )
     print()
 
+    def selected_is_complete(item):
+        settings = {
+            "num_trials": num_trials, "max_tokens": max_tokens,
+            "temperature": temperature if temperature is not None else 0.0,
+            "with_reasoning": with_reasoning, "include_flipped": True,
+            "model_variant": model_variant, "reasoning_mode": reasoning_mode,
+            "k_samples": k_samples, "quantization": quantization,
+        } if local_logprobs else None
+        return is_complete(
+            results_dir, item["test_name"], model_key,
+            comparison_path=item["comparison_path"], expected_config=settings,
+        )
+
     completed_sets = sum(
         1 for item in run_items
-        if is_complete(results_dir, item["test_name"], model_key)
+        if selected_is_complete(item)
     )
     pending_items = (
         [
             item for item in run_items
-            if not is_complete(results_dir, item["test_name"], model_key)
+            if not selected_is_complete(item)
         ]
         if resume
         else list(run_items)
@@ -726,20 +775,21 @@ async def run_phase6b(
         * manifest["n_comparison_samples"]
         * manifest["n_tiers"]
         * 2
-        * num_trials
+        * calls_per_direction
     )
     this_run_calls = (
         len(pending_items)
         * manifest["n_comparison_samples"]
         * manifest["n_tiers"]
         * 2
-        * num_trials
+        * calls_per_direction
     )
 
     live_infrastructures = ("openai_api", "anthropic_api", "openrouter")
+    live_api_run = not local_logprobs and infrastructure in live_infrastructures
     request_limiter: AsyncRequestLimiter | None = None
     resolved_request_concurrency: int | None = None
-    if infrastructure in live_infrastructures:
+    if live_api_run:
         try:
             configured_request_concurrency = get_model_config(model_key).concurrency_limit
         except ValueError:
@@ -786,7 +836,7 @@ async def run_phase6b(
             )
         )
         print("  Note: request controls are per Python process, not shared across terminals")
-    print(f"  API calls (this run, flipped × trials): {this_run_calls:,}")
+    print(f"  Scoring calls (this run, both orders): {this_run_calls:,}")
     print(f"  Full manifest equivalent:                {full_slate_calls:,}")
     print("=" * 60 + "\n")
 
@@ -794,7 +844,14 @@ async def run_phase6b(
         print("Nothing to run; all selected variation sets are already complete.")
         return
 
-    if infrastructure in live_infrastructures:
+    shared_logprob_agent = None
+    if local_logprobs:
+        shared_logprob_agent = create_experiment_agent(
+            model_key, temperature=temperature, max_tokens=max_tokens,
+            k_samples=k_samples, quantization=quantization, max_retries=max_retries,
+        )
+
+    if live_api_run:
         print_phase6b_live_cost_estimate(
             model_key,
             run_items=pending_items,
@@ -809,7 +866,7 @@ async def run_phase6b(
 
     # One-call smoke: validates models.yaml + provider (like a focused health check).
     # Scoped to API infras; HF Jobs / base-model runs have their own validation path.
-    if not skip_smoke_test and infrastructure in live_infrastructures:
+    if not skip_smoke_test and live_api_run:
         print("  Running pre-launch smoke test...")
         if not await smoke_call(
             model_key,
@@ -833,7 +890,8 @@ async def run_phase6b(
     print(f"  Running {len(run_items)} variation sets (max {max_concurrent} concurrent)\n")
 
     budget = BudgetMonitor(check_interval=3)
-    await budget.force_check()
+    if not local_logprobs:
+        await budget.force_check()
     if budget.last_usage is not None:
         print(f"  Budget: {budget.summary()}\n")
 
@@ -850,6 +908,9 @@ async def run_phase6b(
             print(f"  Skipping {test_name} (budget limit approaching)")
             return False
         async with semaphore:
+            if local_logprobs and failed:
+                print(f"  Skipping {test_name} after a self-hosted scoring failure; resume after repair")
+                return False
             print(f"[{completed + failed + 1}/{len(run_items)}] Starting {test_name}")
             result = await run_single(
                 test_name, item["comparison_path"], model_key, num_trials, with_reasoning, max_tokens,
@@ -865,6 +926,7 @@ async def run_phase6b(
                 system_message=system_message,
                 request_limiter=request_limiter,
                 max_retries=max_retries,
+                shared_logprob_agent=shared_logprob_agent,
             )
             if result is not None:
                 result_retry_counts = (
@@ -879,7 +941,8 @@ async def run_phase6b(
                 )
                 completed += 1
                 print(f"  Completed {test_name} ({completed}/{len(run_items)})")
-                await budget.on_task_completed()
+                if not local_logprobs:
+                    await budget.on_task_completed()
                 return True
             else:
                 failed += 1

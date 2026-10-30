@@ -1,4 +1,5 @@
-FROM vllm/vllm-openai:cu130-nightly
+# Immutable linux/amd64 CUDA 13 runtime; the matching tag was cu130-nightly.
+FROM vllm/vllm-openai@sha256:c6e88abc61f250e3b0d72489b077107e92fd004c1270577700ef85dd3f41755d
 
 WORKDIR /app
 
@@ -12,6 +13,7 @@ COPY data/ /app/data/
 # in the ordinary local environment, not over the GPU runtime.
 RUN pip install --no-cache-dir --no-deps -e . && \
     python3 -c "import huggingface_hub, torch, transformers, vllm" && \
+    python3 -m llm_coherence.experiments.ladder_statement_pair.run_7tier_experiment --help > /dev/null && \
     pip freeze > /requirements-frozen.txt
 
 ENV PYTHONPATH=/app/src

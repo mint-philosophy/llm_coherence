@@ -6,6 +6,7 @@ import asyncio
 import os
 import random
 import time
+from copy import deepcopy
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any
@@ -14,9 +15,9 @@ from llm_coherence.config import MODEL_CONFIGS, canonical_model_key
 from llm_coherence.runtime.api_keys import API_KEY_ENV_BY_TYPE, ensure_api_key_env
 from llm_coherence.runtime.forced_choice_logprobs import (
     ForcedChoiceScoringError,
+    logprob_runtime_binding,
     normalized_choice_probabilities,
     resolve_choice_token_ids,
-    vllm_load_kwargs_from_env,
 )
 
 
@@ -779,9 +780,35 @@ class VLLMLogprobAgent:
         self._sampling_params = None
         self._token_id_a: int | None = None
         self._token_id_b: int | None = None
+        self._engine_owner: VLLMLogprobAgent | None = None
+        self.last_logprob_evidence: list[dict[str, Any]] = []
+        self.runtime_binding = logprob_runtime_binding(model)
+
+    def new_session(self) -> VLLMLogprobAgent:
+        """Fresh experiment telemetry backed by this run's single lazy engine.
+
+        The Phase 6b runner serializes these sessions. This is deliberately a
+        run-scoped owner rather than a global model cache: a later run may use
+        a different model, tokenizer or runtime configuration.
+        """
+        session = VLLMLogprobAgent(
+            model=self.model,
+            temperature=self.temperature,
+            trust_remote_code=self.trust_remote_code,
+        )
+        session._engine_owner = self._engine_owner or self
+        session.runtime_binding = deepcopy(self.runtime_binding)
+        return session
 
     def _ensure_loaded(self) -> None:
         if self._llm is not None:
+            return
+        if self._engine_owner is not None:
+            owner = self._engine_owner
+            owner._ensure_loaded()
+            self._llm = owner._llm
+            self._sampling_params = owner._sampling_params
+            self._token_id_a, self._token_id_b = owner._token_id_a, owner._token_id_b
             return
 
         try:
@@ -794,10 +821,11 @@ class VLLMLogprobAgent:
                 "logprob models. Use the HF Jobs image or install the GPU stack."
             ) from exc
 
-        model_source = os.environ.get("LLM_COHERENCE_VLLM_MODEL", self.model)
+        model_source = self.runtime_binding["model_source"]
         cache_dir = os.environ.get("HF_HOME")
         tokenizer = AutoTokenizer.from_pretrained(
             model_source,
+            revision=self.runtime_binding["tokenizer_revision"],
             trust_remote_code=self.trust_remote_code,
             cache_dir=cache_dir,
         )
@@ -809,10 +837,12 @@ class VLLMLogprobAgent:
             "trust_remote_code": self.trust_remote_code,
             "tensor_parallel_size": tensor_parallel_size,
             "enable_prefix_caching": True,
+            "revision": self.runtime_binding["model_revision"],
+            "tokenizer_revision": self.runtime_binding["tokenizer_revision"],
         }
         if cache_dir:
             llm_kwargs["download_dir"] = cache_dir
-        llm_kwargs.update(vllm_load_kwargs_from_env())
+        llm_kwargs.update(self.runtime_binding["load_kwargs"])
         self._llm = LLM(**llm_kwargs)
         self._sampling_params = SamplingParams(
             temperature=0.0,
@@ -839,11 +869,20 @@ class VLLMLogprobAgent:
     def _score_from_top_logprobs(self, top_logprobs: dict) -> dict[str, float]:
         assert self._token_id_a is not None
         assert self._token_id_b is not None
-        return normalized_choice_probabilities(
+        probabilities = normalized_choice_probabilities(
             top_logprobs,
             self._token_id_a,
             self._token_id_b,
         )
+        self.last_logprob_evidence.append({
+            "token_ids": {"A": self._token_id_a, "B": self._token_id_b},
+            "logprobs": {
+                label: float(getattr(top_logprobs[token], "logprob", top_logprobs[token]))
+                for label, token in (("A", self._token_id_a), ("B", self._token_id_b))
+            },
+            "probabilities": dict(probabilities),
+        })
+        return probabilities
 
     async def async_completions(
         self,
@@ -868,6 +907,7 @@ class VLLMLogprobAgent:
                 f"vLLM returned {len(outputs)} outputs for {len(prompts)} prompts."
             )
         results: list[dict[str, float] | None] = []
+        self.last_logprob_evidence = []
         for index, output in enumerate(outputs):
             logprobs_per_pos = output.outputs[0].logprobs
             if not logprobs_per_pos or logprobs_per_pos[0] is None:
@@ -876,6 +916,11 @@ class VLLMLogprobAgent:
                 )
             results.append(self._score_from_top_logprobs(logprobs_per_pos[0]))
         return results
+
+
+def is_local_logprob_model(model_key: str) -> bool:
+    spec = MODEL_SPECS.get(canonical_model_key(model_key))
+    return spec is not None and spec.model_type == "vllm_base_model_logprobs"
 
 
 def create_agent(
