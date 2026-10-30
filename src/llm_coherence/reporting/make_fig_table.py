@@ -528,7 +528,13 @@ def get_r2(rec):
 
 
 def get_jt(rec):
-    return rec.get("jt_significant_rate", 0)
+    value = rec.get("jt_significant_rate")
+    return float(value) if value is not None else float("nan")
+
+
+def _finite_mean(values):
+    usable = [float(value) for value in values if value is not None and math.isfinite(float(value))]
+    return float(np.mean(usable)) if usable else float("nan")
 
 
 def load_overall_stats(results_dir: pathlib.Path, model_key: str) -> dict:
@@ -654,7 +660,7 @@ def collect_coherence_metrics(
         per_set = all_data[file_key]
         mono = float(np.mean([get_mono(r) for r in per_set]))
         iso_r2 = float(np.mean([get_r2(r) for r in per_set]))
-        jt = float(np.mean([get_jt(r) for r in per_set]))
+        jt = _finite_mean([get_jt(r) for r in per_set])
         rows.append({
             "file_key": file_key,
             "label": label,
@@ -668,7 +674,8 @@ def collect_coherence_metrics(
     macro = {
         "mono_pct": float(np.mean([r["mono_pct"] for r in rows])),
         "iso_r2": float(np.mean([r["iso_r2"] for r in rows])),
-        "jt_pct": float(np.mean([r["jt_pct"] for r in rows])),
+        "jt_pct": _finite_mean([r["jt_pct"] for r in rows]),
+        "jt_available_models": sum(math.isfinite(r["jt_pct"]) for r in rows),
     }
     return rows, macro
 
@@ -679,12 +686,12 @@ def print_coherence_metrics_table(rows: list[dict], macro: dict) -> None:
     for r in rows:
         print(
             f"  {r['table_name']:<33} {r['mono_pct']:>6.1f}% "
-            f"{r['iso_r2']:>6.3f} {r['jt_pct']:>5.1f}% {r['n_ladders']:>4}"
+            f"{r['iso_r2']:>6.3f} {_format_wl_table_cell(r['jt_pct']):>6} {r['n_ladders']:>4}"
         )
     print("-" * 62)
     print(
         f"  {'MACRO AVG':<33} {macro['mono_pct']:>6.1f}% "
-        f"{macro['iso_r2']:>6.3f} {macro['jt_pct']:>5.1f}%"
+        f"{macro['iso_r2']:>6.3f} {_format_wl_table_cell(macro['jt_pct']):>6}"
     )
 
 
@@ -774,12 +781,12 @@ def write_coherence_metrics_table(
     for r in rows:
         tex_lines.append(
             f"    {r['table_name']} & {r['mono_pct']:.1f} & {r['iso_r2']:.3f} "
-            f"& {r['jt_pct']:.1f} & {r['n_ladders']} \\\\"
+            f"& {_format_wl_table_cell(r['jt_pct'])} & {r['n_ladders']} \\\\"
         )
     tex_lines.extend([
         "    \\midrule",
         f"    Macro avg & {macro['mono_pct']:.1f} & {macro['iso_r2']:.3f} "
-        f"& {macro['jt_pct']:.1f} & --- \\\\",
+        f"& {_format_wl_table_cell(macro['jt_pct'])} & --- \\\\",
         *_paper_table_tex_footer(),
     ])
     tex_path.write_text("\n".join(tex_lines), encoding="utf-8")
@@ -800,7 +807,7 @@ def write_coherence_metrics_table(
                 "reasoning": r.get("reasoning", infer_reasoning(r["file_key"])),
                 "strict_mono_pct": f"{r['mono_pct']:.1f}",
                 "iso_r2_bidirectional": f"{r['iso_r2']:.3f}",
-                "jt_sig_pct": f"{r['jt_pct']:.1f}",
+                "jt_sig_pct": _format_wl_table_cell(r['jt_pct']),
                 "n_ladders": r["n_ladders"],
             })
         writer.writerow({
@@ -809,7 +816,7 @@ def write_coherence_metrics_table(
             "reasoning": "",
             "strict_mono_pct": f"{macro['mono_pct']:.1f}",
             "iso_r2_bidirectional": f"{macro['iso_r2']:.3f}",
-            "jt_sig_pct": f"{macro['jt_pct']:.1f}",
+            "jt_sig_pct": _format_wl_table_cell(macro['jt_pct']),
             "n_ladders": "",
         })
 
@@ -2849,7 +2856,8 @@ def fig1b_metrics_triptych(all_data: dict, models: list, n_ladders: int) -> plt.
         colors = []
         hatches = []
         for fk, _label, family, reasoning in active:
-            means.append(float(np.mean([fn(rec) for rec in all_data[fk]])) * scale)
+            values = [fn(rec) for rec in all_data[fk]]
+            means.append((_finite_mean(values) if fn is get_jt else float(np.mean(values))) * scale)
             colors.append(get_color(family, reasoning, fk))
             hatches.append(REASON_HATCH[reasoning])
 
@@ -2862,13 +2870,20 @@ def fig1b_metrics_triptych(all_data: dict, models: list, n_ladders: int) -> plt.
         ax.set_xlim(*xlim)
         ax.set_ylim(n_models - 0.4, -0.6)
         ax.set_xlabel(xlabel, fontsize=9)
-        macro = float(np.mean(means))
+        macro = _finite_mean(means)
+        available = sum(math.isfinite(value) for value in means)
+        mean_label = fmt.format(macro) if available else "N/A"
         ax.set_title(
-            f"{panel_title}\nMean {fmt.format(macro)}",
+            f"{panel_title}\nMean {mean_label} (n={available})",
             pad=5,
             fontsize=9,
         )
-        ax.axvline(macro, color="#333333", lw=0.8, ls=":", alpha=0.8, zorder=4)
+        if available:
+            ax.axvline(macro, color="#333333", lw=0.8, ls=":", alpha=0.8, zorder=4)
+        for index, value in enumerate(means):
+            if not math.isfinite(value):
+                ax.text(xlim[0] + 0.03 * (xlim[1] - xlim[0]), index, "N/A",
+                        ha="left", va="center", fontsize=8)
         ax.set_yticks(ys)
         if panel_idx == 0:
             ax.set_yticklabels(bar_labels, fontsize=9)
