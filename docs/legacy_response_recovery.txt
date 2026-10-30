@@ -1,0 +1,54 @@
+Recovering historical sequential response logs
+
+Some archived results retain individual answers in reasoning_traces.jsonl with
+message_idx, attempt, content and reasoning, but no explicit comparison/order
+ID. The keyed reader skipped these records, understating response coverage.
+
+The fallback in noise_response_inputs.py is restricted to seven reviewed
+producer commits from the mint-re-engineering history. At these commits:
+- run_experiment awaits each comparison in preference-array order.
+- run_single_comparison awaits ten original-order trials, then ten flipped.
+- generate_responses uses K=1 and preserves message_idx as the trial index.
+- LiteLLMAgent appends exactly one nonempty successful response per trial,
+  after retries. It awaits all trials before returning to the experiment.
+- The final trace file serializes that append-only log without reordering.
+
+Reviewed source paths:
+utility_analysis/compute_utilities/llm_agent.py
+utility_analysis/compute_utilities/utils.py
+utility_analysis/experiments/parametric_variations/phase6b_experiments/experiment_runner_tradeoff.py
+
+Reviewed commits:
+e423488dd19af0a30d20ed3395319d168c15eca5
+2c4a41c1625709f2f8385397845643b6e2ca5489
+d05f92ea7695d311db7de4912649216428c723e4
+6ac27f094e5e090178e2dfadc6e19b9271f3c185
+b10ab73311b3610fd644cc4844e7c1b51618d298
+d5bd729f6635bd9c28b74405c2847407c3ac98a3
+ea17aa08d634f02c84284bb8157d91b27ffabd5e
+
+The five revisions after the first two have byte-identical files at all three
+paths to 2c4a41c. From e423488 to 2c4a41c, the agent and utility files are
+unchanged; runner edits concern artifact filenames and atomic file replacement.
+
+Recovery is deliberately limited to complete logs. Each file must have exactly
+2 * 10 * comparison_count records, each contiguous block must contain trial
+indices 0 through 9 exactly once, and every comparison must reconcile with the
+selected result's saved A/B totals using the production parser and correct
+flipped orientation. Missing/duplicate records, unknown versions, mixed keyed
+schemas, invalid success metadata and count mismatches reject the whole file.
+Recorded unparseable answers remain unparseable, never invented choices. A
+disagreement with an existing verified trial identity raises an error even if
+the aggregate counts agree. Source code 6 identifies this recovery route.
+
+Run validate_noisy_agent into a new directory using the updated reader, then
+run repair_noisy_agent against that completed validation. Old response caches
+carry the old reader hash and must not be relabeled as new validation. Keep the
+same source manifest, baseline, folds, seed and minimum coverage threshold.
+Neither command makes inference calls. No statistics should be updated until
+both output manifests are complete and all fitted models have converged.
+
+The response-recovery tests include arbitrary within-batch completion order,
+retry metadata, flipped choices, incomplete logs, duplicate/invalid indices,
+late count mismatches, unreviewed versions, mixed schemas, unparseable content,
+provenance and conflicting independently saved trial identities.

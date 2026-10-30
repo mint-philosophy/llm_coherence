@@ -1,7 +1,8 @@
 """Recover archived per-order choices without calling any inference service.
 
 Only choices that reconcile to the selected result's A/B totals are exposed.
-Unkeyed traces and conflicting duplicate trials never become additional trials.
+Legacy sequential traces require a reviewed producer version and complete,
+validated batch boundaries. Other unkeyed or conflicting trials remain absent.
 """
 from __future__ import annotations
 
@@ -29,6 +30,20 @@ LEGACY_BATCH_DIRS = {
     "gpt-54-nano-thinking": "batch_processing_neurips_nano_on",
 }
 LEGACY_ID = re.compile(r"(.+)__(\d+)__trial(\d+)__dir([AB])$")
+# Reviewed mint-re-engineering history: run_single_comparison awaits original
+# then flipped order; run_experiment awaits each comparison. LiteLLMAgent logs
+# one nonempty successful response per message_idx and serializes append order.
+# The six later revisions have identical agent/utils code; the runner change
+# from e423488 only alters artifact paths/atomic writes. See the recovery note.
+LEGACY_SEQUENTIAL_COMMITS = frozenset({
+    "e423488dd19af0a30d20ed3395319d168c15eca5",
+    "2c4a41c1625709f2f8385397845643b6e2ca5489",
+    "d05f92ea7695d311db7de4912649216428c723e4",
+    "6ac27f094e5e090178e2dfadc6e19b9271f3c185",
+    "b10ab73311b3610fd644cc4844e7c1b51618d298",
+    "d5bd729f6635bd9c28b74405c2847407c3ac98a3",
+    "ea17aa08d634f02c84284bb8157d91b27ffabd5e",
+})
 
 
 def parse_labels(texts, with_reasoning, direction):
@@ -86,6 +101,53 @@ def keyed_sidecar(path, raw, provenance):
         value = parse_labels([row["content"]], raw["config"]["with_reasoning"], direction)[0]
         merge_trial(slots, key, value)
     return slots, dict(skipped)
+
+
+def legacy_sequential_sidecar(path, raw, provenance):
+    """Recover a complete legacy log using documented sequential batch order.
+
+    Within a batch, asynchronous completion order is arbitrary: message_idx
+    identifies the trial. Across batches, the reviewed runner awaits all ten
+    calls before starting the next direction/comparison. Never infer a missing
+    boundary, pad a partial log, or accept only the count-matching part of a log.
+    The selected result hash is verified by recover_trials before this function.
+    """
+    count, trials = len(raw["preferences"]), raw["config"]["num_trials"]
+    absent = np.full((count, 2, trials), ABSENT, dtype=np.int8)
+
+    def reject(reason):
+        return absent, {"legacy_sequential_rejected_" + reason: 1}
+
+    if raw.get("metadata", {}).get("git_commit_sha") not in LEGACY_SEQUENTIAL_COMMITS:
+        return reject("unreviewed_commit")
+    if trials != 10 or raw["config"].get("include_flipped") is not True or not count:
+        return reject("unsupported_protocol")
+    rows = list(iter_hashed_jsonl(path, provenance))
+    if len(rows) != count * 2 * trials:
+        return reject("incomplete_or_extra_rows")
+    # Explicitly keyed/mixed logs belong to keyed_sidecar, even if row counts fit.
+    if any(any(key in row for key in ("custom_id", "pair_idx", "trial", "direction"))
+           for row in rows):
+        return reject("mixed_schema")
+    slots = absent.copy()
+    for pi, preference in enumerate(raw["preferences"]):
+        for direction in range(2):
+            start = (2 * pi + direction) * trials
+            block = rows[start:start + trials]
+            indices = [row.get("message_idx") for row in block]
+            if (not all(type(index) is int for index in indices) or
+                    sorted(indices) != list(range(trials))):
+                return reject("invalid_block_indices")
+            if any(not isinstance(row.get("content"), str) or not row["content"] or
+                   type(row.get("attempt")) is not int or row["attempt"] < 0 for row in block):
+                return reject("invalid_success_record")
+            ordered = sorted(block, key=lambda row: row["message_idx"])
+            slots[pi, direction] = parse_labels([row["content"] for row in ordered],
+                                                raw["config"]["with_reasoning"], direction)
+        if not reconcile(slots[pi], preference):
+            return reject("saved_count_mismatch")
+    return slots, {"legacy_sequential_complete_logs": 1,
+                   "legacy_sequential_recovered_rows": len(rows)}
 
 
 def modern_batch_slots(run_dir, raws, provenance):
@@ -269,6 +331,16 @@ def recover_trials(panel, sources, *, legacy_root=None):
             slots, skipped = keyed_sidecar(trace, raw, provenance)
             audit.update(skipped)
             accept(li, slots, 5)
+            if skipped.get("unkeyed_rows") and not source_codes[li].all():
+                slots, recovery = legacy_sequential_sidecar(trace, raw, provenance)
+                audit.update(recovery)
+                # Embedded and sequential records for the same trial must agree;
+                # counts alone cannot validate a different order-specific split.
+                for pi, key in enumerate(coordinates[li]):
+                    if (source_codes[key] and reconcile(slots[pi], raw["preferences"][pi])
+                            and not np.array_equal(labels[key], slots[pi])):
+                        raise ValueError("Sequential trace conflicts with verified response identity")
+                accept(li, slots, 6)
     run_dirs = {}
     for li, raw in raws.items():
         run_id = raw.get("metadata", {}).get("batch_run_id")
@@ -296,4 +368,5 @@ def recover_trials(panel, sources, *, legacy_root=None):
                                   "source_files": provenance,
                                   "source_codes": {1: "embedded responses", 2: "legacy response sidecar with exact result hash",
                                                    3: "modern batch run with manifest", 4: "legacy batch with matching prompts and totals",
-                                                   5: "keyed trace sidecar"}}
+                                                   5: "keyed trace sidecar",
+                                                   6: "complete sequential trace from reviewed historical producer"}}

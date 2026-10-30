@@ -195,7 +195,12 @@ sidecars require a byte-identical copy of the selected results. Modern batches
 are linked by run ID, manifest, comparison text/order, and input-file hashes.
 Legacy bulk batches require matching model IDs and displayed outcome text,
 then aggregate reconciliation. Duplicate choices collapse; conflicting choices
-are marked ambiguous. Unkeyed trace rows never supply quantitative trials.
+are marked ambiguous. Complete legacy sequential logs are accepted only from
+reviewed producer commits, with exactly ten unique trial indices per awaited
+direction batch and exact count reconciliation for every comparison. Partial
+logs, unknown producer versions, and mixed schemas are rejected in full. Other
+unkeyed trace rows never supply quantitative trials. Legacy recovery uses the
+recorded execution order; it does not infer a grouping from matching counts.
 Missing responses are not imputed from aggregate counts. Every reported
 response-process statistic uses complete recovered cells within the same
 eligible-curve cohort used to calibrate the original simulation. Coverage may
