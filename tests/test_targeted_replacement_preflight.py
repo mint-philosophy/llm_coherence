@@ -6,11 +6,12 @@ import io
 import json
 from pathlib import Path
 import sys
+import shutil
 import tempfile
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from llm_coherence.analysis.prepare_targeted_replacements import prepare_bundle
+from llm_coherence.analysis.prepare_targeted_replacements import prepare_bundle, verified_run_argv
 from llm_coherence.config import MODEL_CONFIGS
 from llm_coherence.experiments.ladder_statement_pair import run_7tier_experiment as runner
 from llm_coherence.runtime.agents import model_name_for_key
@@ -38,7 +39,7 @@ class ReplacementPreflightTests(unittest.TestCase):
                 {"outcome_a": {"text": "A child’s wellbeing improves—at home.",
                                "tier": tier, "variation_id": "Wellbeing_1"},
                  "outcome_b": {"text": "Another outcome.", "comparison_id": comparison}}
-                for tier in (1, 2) for comparison in (0, 1)
+                for comparison in (0, 1) for tier in (1, 2)
             ],
         }
         path.write_text(json.dumps(inputs, ensure_ascii=False), encoding="utf-8")
@@ -84,7 +85,7 @@ class ReplacementPreflightTests(unittest.TestCase):
             self.assertEqual(len(items), 1)
             self.assertEqual(items[0]["comparison_path"].read_bytes(), Path(task["canonical_input_path"]).read_bytes())
             self.assertEqual(manifest["replacement_sources"], [task])
-            argv = report["models"][task["model_key"]]["argv"]
+            argv = verified_run_argv(self.output, task["model_key"])
             self.assertEqual(Path(argv[argv.index("--results-dir") + 1]), (root / "results").resolve())
             self.assertNotIn("--submit-hf-job", argv)
             self.assertFalse((root / "results").exists())
@@ -92,7 +93,7 @@ class ReplacementPreflightTests(unittest.TestCase):
     def test_generated_arguments_parse_and_preserve_original_settings(self):
         report = self.prepare()
         for model_key, entry in report["models"].items():
-            argv = entry["argv"]
+            argv = verified_run_argv(self.output, model_key)
             with self.subTest(model=model_key), redirect_stdout(io.StringIO()), \
                     patch.object(sys, "argv", [argv[2]] + argv[3:]), \
                     patch.object(runner, "run_phase6b_with_client_cleanup", new_callable=AsyncMock) as launch:
@@ -102,6 +103,48 @@ class ReplacementPreflightTests(unittest.TestCase):
             for field in ("num_trials", "max_tokens", "temperature", "with_reasoning", "model_variant"):
                 self.assertEqual(kwargs[field], entry["settings"][field])
             self.assertEqual(kwargs["max_concurrent"], 1 if model_key == "glm-45-base-logprobs" else 3)
+            self.assertTrue(kwargs["resume"])
+
+    def test_bundle_relocates_without_the_original_files(self):
+        report = self.prepare()
+        relocated = self.root / "new_machine" / "bundle"
+        shutil.copytree(self.output, relocated)
+        shutil.rmtree(self.output)
+        for path in {task[key] for task in self.tasks for key in ("canonical_input_path", "original_result_path")}:
+            Path(path).unlink()
+        for model_key, entry in report["models"].items():
+            argv = verified_run_argv(relocated, model_key)
+            self.assertEqual(argv[argv.index("--data-dir") + 1], str((relocated / model_key).resolve()))
+            self.assertIn("--resume", argv)
+            self.assertNotIn(str(self.output), " ".join(argv))
+            self.assertEqual(entry["argv"][0], "python3")
+            self.assertEqual(entry["argv"][2], "llm_coherence.analysis.prepare_targeted_replacements")
+
+    def test_changed_bundle_input_is_rejected_before_launch(self):
+        self.prepare()
+        key = self.tasks[0]["model_key"]
+        path = next((self.output / key / "inputs").glob("*.json"))
+        path.write_text(path.read_text() + "\n")
+        with self.assertRaisesRegex(ValueError, "Bundled input hash mismatch"):
+            verified_run_argv(self.output, key)
+
+    def test_changed_bundle_settings_are_rejected_before_launch(self):
+        self.prepare()
+        key = self.tasks[0]["model_key"]
+        path = self.output / key / "run_arguments.json"
+        entry = json.loads(path.read_text())
+        entry["settings"]["temperature"] = 0.5
+        path.write_text(json.dumps(entry))
+        with self.assertRaisesRegex(ValueError, "run settings changed"):
+            verified_run_argv(self.output, key)
+
+    def test_changed_provider_settings_are_rechecked_at_launch(self):
+        self.prepare()
+        key = self.tasks[0]["model_key"]
+        replacement = type("Config", (), {"extra_body": {"new_setting": True}, "system_message": None})()
+        with patch.dict(MODEL_CONFIGS, {key: replacement}):
+            with self.assertRaisesRegex(ValueError, "configuration changed"):
+                verified_run_argv(self.output, key)
 
     def test_modified_source_or_input_fails_before_creating_bundle(self):
         for prefix in ("canonical_input", "original_result"):
@@ -142,6 +185,17 @@ class ReplacementPreflightTests(unittest.TestCase):
     def test_inconsistent_plan_calls_are_rejected(self):
         self.tasks[0]["expected_scoring_calls"] = 80
         with self.assertRaisesRegex(ValueError, "Planned call count differs"):
+            self.prepare()
+        self.assertFalse(self.output.exists())
+
+    def test_shuffled_complete_grid_is_rejected_before_writing(self):
+        path = Path(self.tasks[0]["canonical_input_path"])
+        data = json.loads(path.read_text())
+        data["comparisons"][0], data["comparisons"][1] = data["comparisons"][1], data["comparisons"][0]
+        path.write_text(json.dumps(data))
+        for task in self.tasks:
+            task["canonical_input_sha256"] = digest(path)
+        with self.assertRaisesRegex(ValueError, "group ascending tiers by comparator"):
             self.prepare()
         self.assertFalse(self.output.exists())
 

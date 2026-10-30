@@ -4,7 +4,9 @@ The plan's ``reruns`` records bind a model/ladder pair to the canonical input
 and the original result, including SHA-256 hashes and original configuration.
 This command validates those bindings and current model settings, copies exact
 input bytes, and writes one scoped manifest and argument list per model.
-It never instantiates an agent, submits a job, or changes existing results.
+Preparation never instantiates an agent or changes existing results. The
+separate --bundle mode revalidates the bundle and invokes the experiment
+runner; add --check-only to inspect its arguments without model inference.
 
 Usage::
 
@@ -20,6 +22,7 @@ import hashlib
 import json
 from pathlib import Path
 import sys
+import subprocess
 
 from llm_coherence.analysis.rebuttal_inputs import normalize_id
 from llm_coherence.config import MODEL_CONFIGS
@@ -107,6 +110,12 @@ def _validate_task(task: dict) -> dict:
                 for comparator in range(n_comparison_samples)}
     if set(pairs) != expected or any(n != 1 for n in pairs.values()):
         raise ValueError(f"Input has missing, duplicate, or unexpected tier/comparator pairs: {input_path}")
+    ordered_pairs = [(c["outcome_a"]["tier"], c["outcome_b"]["comparison_id"])
+                     for c in comparisons]
+    expected_order = [(tier, comparator) for comparator in range(n_comparison_samples)
+                      for tier in range(1, n_tiers + 1)]
+    if ordered_pairs != expected_order:
+        raise ValueError(f"Input must group ascending tiers by comparator for analysis: {input_path}")
     if inputs["num_comparisons"] != len(comparisons):
         raise ValueError(f"Input comparison count is inconsistent: {input_path}")
     logprob_mode = is_local_logprob_model(model_key)
@@ -162,6 +171,9 @@ def prepare_bundle(plan_path: Path, output_dir: Path) -> dict:
             "n_tiers": items[0]["n_tiers"],
             "n_comparison_samples": items[0]["n_comparison_samples"],
             "variation_files": [], "replacement_sources": [],
+            "run_settings": settings,
+            "extra_body": MODEL_CONFIGS[model_key].extra_body,
+            "provider_model": model_name_for_key(model_key),
         }
         for item in items:
             relative = Path("inputs") / item["input_path"].name
@@ -169,29 +181,14 @@ def prepare_bundle(plan_path: Path, output_dir: Path) -> dict:
             manifest["variation_files"].append(relative.as_posix())
             manifest["replacement_sources"].append(item["task"])
         (root / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
-        argv = [
-            sys.executable, "-m", "llm_coherence.experiments.ladder_statement_pair.run_7tier_experiment",
-            "--model", model_key, "--manifest", str(root / "manifest.json"),
-            "--data-dir", str(root), "--results-dir", str(root / "results"),
-            "--checkpoints-dir", str(root / "checkpoints"),
-            "--trials", str(settings["num_trials"]),
-            "--max-tokens", str(settings["max_tokens"]),
-            "--k-samples", str(settings["k_samples"]),
-            "--system-message", settings["system_message"],
-            "--max-concurrent", "1" if local else "3",
-            "--max-retries", "5",
-        ]
-        for field in ("model_variant", "reasoning_mode", "temperature", "infrastructure",
-                      "gpu_type", "gpu_count", "quantization"):
-            if settings[field] is not None:
-                argv.extend(["--" + field.replace("_", "-"), str(settings[field])])
-        if settings["with_reasoning"]:
-            argv.append("--with-reasoning")
         calls = sum(item["scoring_calls"] for item in items)
         entry = {
             "ladders": len(items), "scoring_calls_before_retries": calls,
             "scoring_method": "logprobs" if local else "sampled_choices",
-            "settings": settings, "argv": argv,
+            "settings": settings,
+            "argv": ["python3", "-m", "llm_coherence.analysis.prepare_targeted_replacements",
+                     "--bundle", ".", "--model", model_key],
+            "argv_working_directory": "bundle_root",
             "extra_body": MODEL_CONFIGS[model_key].extra_body,
             "provider_model": model_name_for_key(model_key),
         }
@@ -202,11 +199,74 @@ def prepare_bundle(plan_path: Path, output_dir: Path) -> dict:
     return report
 
 
+def verified_run_argv(bundle_dir: Path, model_key: str) -> list[str]:
+    """Resolve portable paths and recheck hashes/configuration before inference."""
+    if model_key not in MODEL_CONFIGS:
+        raise ValueError(f"Unknown model key: {model_key}")
+    root = bundle_dir.resolve() / model_key
+    entry = json.loads((root / "run_arguments.json").read_text(encoding="utf-8"))
+    manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+    settings = entry["settings"]
+    if settings != manifest.get("run_settings"):
+        raise ValueError("Bundle run settings changed; prepare a new verified bundle")
+    cfg = MODEL_CONFIGS[model_key]
+    if (entry["provider_model"] != manifest.get("provider_model")
+            or _provider_model(entry["provider_model"]) != _provider_model(model_name_for_key(model_key))
+            or entry["extra_body"] != manifest.get("extra_body")
+            or entry["extra_body"] != cfg.extra_body
+            or (cfg.system_message is not None and cfg.system_message != settings["system_message"])):
+        raise ValueError("Provider/model configuration changed after bundle preparation")
+    files, sources = manifest["variation_files"], manifest["replacement_sources"]
+    if (len(files) != entry["ladders"] or len(sources) != len(files)
+            or len(set(files)) != len(files)):
+        raise ValueError("Replacement scope changed after bundle preparation")
+    for relative, source in zip(files, sources):
+        path = (root / relative).resolve()
+        if not path.is_relative_to(root / "inputs"):
+            raise ValueError("Replacement input must be inside the bundle inputs directory")
+        if source["model_key"] != model_key or path.name != Path(source["canonical_input_path"]).name:
+            raise ValueError("Replacement source mapping does not match the selected model/input")
+        if _sha256(path.read_bytes()) != source["canonical_input_sha256"]:
+            raise ValueError(f"Bundled input hash mismatch: {path}")
+    local = is_local_logprob_model(model_key)
+    argv = [
+        sys.executable, "-m", "llm_coherence.experiments.ladder_statement_pair.run_7tier_experiment",
+        "--model", model_key, "--manifest", str(root / "manifest.json"),
+        "--data-dir", str(root), "--results-dir", str(root / "results"),
+        "--checkpoints-dir", str(root / "checkpoints"), "--resume",
+        "--trials", str(settings["num_trials"]), "--max-tokens", str(settings["max_tokens"]),
+        "--k-samples", str(settings["k_samples"]), "--system-message", settings["system_message"],
+        "--max-concurrent", "1" if local else "3", "--max-retries", "5",
+    ]
+    for field in ("model_variant", "reasoning_mode", "temperature", "infrastructure",
+                  "gpu_type", "gpu_count", "quantization"):
+        if settings[field] is not None:
+            argv.extend(["--" + field.replace("_", "-"), str(settings[field])])
+    if settings["with_reasoning"]:
+        argv.append("--with-reasoning")
+    return argv
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--plan", type=Path, required=True)
-    parser.add_argument("--output-dir", type=Path, required=True)
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--plan", type=Path)
+    mode.add_argument("--bundle", type=Path, help="Validate and run one prepared model bundle")
+    parser.add_argument("--output-dir", type=Path)
+    parser.add_argument("--model")
+    parser.add_argument("--check-only", action="store_true", help="Validate and print arguments without inference")
     args = parser.parse_args()
+    if args.bundle:
+        if not args.model:
+            parser.error("--bundle requires --model")
+        argv = verified_run_argv(args.bundle, args.model)
+        if args.check_only:
+            print(json.dumps({"verified": True, "argv": argv}, indent=2))
+        else:
+            subprocess.run(argv, check=True)
+        return
+    if not args.output_dir:
+        parser.error("--plan requires --output-dir")
     report = prepare_bundle(args.plan, args.output_dir)
     print(json.dumps({k: v for k, v in report.items() if k != "models"}, indent=2))
 
