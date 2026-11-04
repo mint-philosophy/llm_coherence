@@ -27,13 +27,16 @@
   shuffle of the statements across configurations. Exact order match is the
   percentage of valid rankings that reproduce the full intended tier ordering.
   Each bar shows this percentage, with the reasoning setting labeled beside it.
+  ``Enabled'' means we used the model's additional reasoning setting;
+  ``Not enabled'' means we did not enable that setting. The exact settings
+  differed across models.
   A ranking counts as an exact match only if all seven tiers appear in the
   intended order. Scores use the original parser and the number of valid
   rankings for each configuration, ranging from 86 to 100.
   Of 2,300 requested rankings, 2,241 were
   valid under this parser. An additional 33 were recoverable by a separate
-  formatting check and are not included here. On/off denotes the reasoning
-  setting. This task measures agreement with the intended ordering; requesting
+  formatting check and are not included here.
+  This task measures agreement with the intended ordering; requesting
   a single complete ranking does not independently test transitivity.}
   \label{fig:direct_ladder_ranking}
 \end{figure}

@@ -123,7 +123,7 @@ def load_data(data_dir: Path):
 
 def save_figure(fig, output_dir: Path, name: str) -> None:
     fig.savefig(output_dir / f"{name}.pdf", metadata={"CreationDate": None, "ModDate": None})
-    fig.savefig(output_dir / f"{name}.png", dpi=200)
+    fig.savefig(output_dir / f"{name}.png", dpi=300)
     plt.close(fig)
 
 
@@ -160,10 +160,10 @@ def ranking_figure(ranking, provenance, output_dir: Path) -> None:
     for row in ranking.itertuples():
         base = row.model_key.removesuffix("-thinking")
         groups.setdefault(base, {})[row.model_key.endswith("-thinking")] = row
-    fig = plt.figure(figsize=(6.3, 4.8))
-    names = fig.add_axes([0.015, 0.145, 0.245, 0.76])
-    modes = fig.add_axes([0.275, 0.145, 0.09, 0.76], sharey=names)
-    bars = fig.add_axes([0.395, 0.145, 0.585, 0.76], sharey=names)
+    fig = plt.figure(figsize=(6.3, 5.2))
+    names = fig.add_axes([0.015, 0.17, 0.25, 0.75])
+    modes = fig.add_axes([0.28, 0.17, 0.18, 0.75], sharey=names)
+    bars = fig.add_axes([0.49, 0.17, 0.49, 0.75], sharey=names)
     axes = (names, modes, bars)
     for ax in axes:
         ax.set_ylim(len(groups) - 0.4, -0.6)
@@ -173,31 +173,33 @@ def ranking_figure(ranking, provenance, output_dir: Path) -> None:
     for y, (base, settings) in enumerate(groups.items()):
         name, family = MODEL_LABELS[base]
         color = to_rgb(provenance["family_colors"][family])
-        names.text(0.01, y, name, va="center")
+        names.text(0.01, y, name, va="center", fontsize=10)
         for on, row in sorted(settings.items()):
             position = y + (0.24 if on else -0.24) if len(settings) == 2 else y
             percent = 100 * row.exact_match_count / row.n_valid_rankings
             setting_color = tuple(min(1., x * 1.15) for x in color) if on else color
-            modes.text(0.5, position, "On" if on else "Off", ha="center", va="center",
-                       color="0.25")
+            modes.text(0.5, position, "Enabled" if on else "Not enabled",
+                       ha="center", va="center", color="0.2", fontsize=10)
             bars.barh(position, percent, height=0.37, color=setting_color,
                       edgecolor="white", linewidth=0.4, hatch="//" if on else None,
                       zorder=2)
-            bars.text(percent + 1.5, position, f"{percent:.1f}%", va="center")
+            bars.text(percent + 1.5, position, f"{percent:.1f}%", va="center", fontsize=10)
     names.set(xlim=(0, 1))
     modes.set(xlim=(0, 1))
     names.set_axis_off()
     modes.set_axis_off()
-    names.set_title("Model", loc="left", weight="bold", pad=12)
-    modes.set_title("Reasoning", weight="bold", pad=12)
+    names.set_title("Model", loc="left", weight="bold", pad=12, fontsize=10)
+    modes.set_title("Reasoning mode", weight="bold", pad=12, fontsize=10)
     bars.set_title("All seven tiers in the intended order", loc="left", weight="bold", pad=12)
     bars.set(xlim=(0, 100), xticks=[0, 25, 50, 75, 100],
-             xlabel="Valid rankings matching the intended order (%)")
+             xlabel="Valid rankings matching all seven tiers (%)")
+    bars.tick_params(axis="x", labelsize=10)
     bars.spines["left"].set_visible(False)
     bars.grid(axis="x", color="0.87", linewidth=0.5, zorder=1)
     bars.set_axisbelow(True)
-    fig.text(0.015, 0.035, "100 ladders per configuration; percentages use successfully parsed rankings.",
-             color="0.35")
+    fig.text(0.015, 0.070, "Enabled = the model's additional reasoning setting was used.", color="0.3")
+    fig.text(0.015, 0.030, "100 ladders per configuration; percentages use successfully parsed rankings.",
+             color="0.3")
     save_figure(fig, output_dir, "full_ladder_ranking")
 
 
@@ -208,7 +210,7 @@ def export_ranking_details(ranking, destination: Path) -> None:
         base = row.model_key.removesuffix("-thinking")
         rows.append({
             "Model": MODEL_LABELS[base][0],
-            "Reasoning": "On" if row.model_key.endswith("-thinking") else "Off",
+            "Reasoning mode": "Enabled" if row.model_key.endswith("-thinking") else "Not enabled",
             "Requested rankings": row.n_planned,
             "Valid rankings (original parser)": row.n_valid_rankings,
             "Exact order matches": row.exact_match_count,
@@ -251,13 +253,16 @@ CAPTIONS = r"""% Upload the two PDFs to the figures/ folder in your EXISTING Ove
   shuffle of the statements across configurations. Exact order match is the
   percentage of valid rankings that reproduce the full intended tier ordering.
   Each bar shows this percentage, with the reasoning setting labeled beside it.
+  ``Enabled'' means we used the model's additional reasoning setting;
+  ``Not enabled'' means we did not enable that setting. The exact settings
+  differed across models.
   A ranking counts as an exact match only if all seven tiers appear in the
   intended order. Scores use the original parser and the number of valid
   rankings for each configuration, ranging from 86 to 100.
   Of 2,300 requested rankings, 2,241 were
   valid under this parser. An additional 33 were recoverable by a separate
-  formatting check and are not included here. On/off denotes the reasoning
-  setting. This task measures agreement with the intended ordering; requesting
+  formatting check and are not included here.
+  This task measures agreement with the intended ordering; requesting
   a single complete ranking does not independently test transitivity.}
   \label{fig:direct_ladder_ranking}
 \end{figure}

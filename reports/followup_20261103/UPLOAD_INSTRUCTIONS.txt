@@ -11,10 +11,15 @@ Files:
   captions.tex
 
 The original arXiv family colors are preserved. The exports are 6.3 inches wide
-(temperature: 2.5 inches high; ranking: 4.8 inches high), with 9-point labels.
+(temperature: 2.5 inches high; ranking: 5.2 inches high). The ranking figure uses
+10-point model names, reasoning-mode labels and percentages; notes use 9-point
+text. PNG previews are exported at 300 dpi;
+the PDFs remain vector graphics for sharp text in Overleaf.
 The ranking figure groups all 23 configurations into 13 model rows. Each bar
 shows the percentage of valid rankings that put all seven tiers in the intended
 order. The reasoning setting and percentage are printed beside each bar.
+"Enabled" means the model's additional reasoning setting was used; "Not enabled"
+means that setting was not enabled. Exact settings differed across models.
 For exact denominators, formatting recoveries and mean Kendall tau, see the
 separate ranking_details.csv table. The underlying source data are in data/.
 The supplied snippets use the available text width. Check readability if you
@@ -30,7 +35,7 @@ The 12 ladders and three shared comparison statements are a descriptive pilot.
 
 Direct ranking: 23 primary API configurations, 100 canonical ladders each.
 Scores use 2,241 valid rankings out of 2,300 logical requests under the original
-parser. Per-model valid denominators are printed in the figure. The source CSV
+parser. Per-model valid denominators are in ranking_details.csv. The source CSV
 also reports a separate sensitivity check recovering 33 formatting-only cases;
 those cases are not silently added to the plotted primary results.
 This is agreement with the intended ordering, not an independent transitivity test.
