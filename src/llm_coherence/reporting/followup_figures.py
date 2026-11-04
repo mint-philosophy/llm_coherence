@@ -16,7 +16,6 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.colors import to_rgb
-from matplotlib.lines import Line2D
 import numpy as np
 import pandas as pd
 
@@ -161,12 +160,11 @@ def ranking_figure(ranking, provenance, output_dir: Path) -> None:
     for row in ranking.itertuples():
         base = row.model_key.removesuffix("-thinking")
         groups.setdefault(base, {})[row.model_key.endswith("-thinking")] = row
-    fig = plt.figure(figsize=(6.3, 3.8))
-    names = fig.add_axes([0.015, 0.18, 0.275, 0.65])
-    left = fig.add_axes([0.31, 0.18, 0.25, 0.65], sharey=names)
-    right = fig.add_axes([0.615, 0.18, 0.22, 0.65], sharey=names)
-    counts = fig.add_axes([0.86, 0.18, 0.13, 0.65], sharey=names)
-    axes = (names, left, right, counts)
+    fig = plt.figure(figsize=(6.3, 4.8))
+    names = fig.add_axes([0.015, 0.145, 0.245, 0.76])
+    modes = fig.add_axes([0.275, 0.145, 0.09, 0.76], sharey=names)
+    bars = fig.add_axes([0.395, 0.145, 0.585, 0.76], sharey=names)
+    axes = (names, modes, bars)
     for ax in axes:
         ax.set_ylim(len(groups) - 0.4, -0.6)
         ax.set_yticks([])
@@ -176,54 +174,52 @@ def ranking_figure(ranking, provenance, output_dir: Path) -> None:
         name, family = MODEL_LABELS[base]
         color = to_rgb(provenance["family_colors"][family])
         names.text(0.01, y, name, va="center")
-        for on, row in settings.items():
-            counts.text(0.76 if on else 0.24, y, str(row.n_valid_rankings),
-                        va="center", ha="center", color="0.3")
-        ys, percents, taus = [], [], []
         for on, row in sorted(settings.items()):
-            position = y + (0.18 if on else -0.18) if len(settings) == 2 else y
-            ys.append(position)
-            percents.append(100 * row.exact_match_count / row.n_valid_rankings)
-            taus.append(row.mean_kendall_tau)
-        if len(settings) == 2:
-            left.plot(percents, ys, color=color, alpha=0.45, linewidth=1, zorder=2)
-            right.plot(taus, ys, color=color, alpha=0.45, linewidth=1, zorder=2)
-        for i, on in enumerate(sorted(settings)):
+            position = y + (0.24 if on else -0.24) if len(settings) == 2 else y
+            percent = 100 * row.exact_match_count / row.n_valid_rankings
             setting_color = tuple(min(1., x * 1.15) for x in color) if on else color
-            style = {"marker": "^" if on else "o", "markersize": 5.3,
-                     "markerfacecolor": setting_color if on else "white",
-                     "markeredgecolor": setting_color, "markeredgewidth": 1.0,
-                     "linestyle": "none", "zorder": 3}
-            left.plot(percents[i], ys[i], **style)
-            right.plot(taus[i], ys[i], **style)
+            modes.text(0.5, position, "On" if on else "Off", ha="center", va="center",
+                       color="0.25")
+            bars.barh(position, percent, height=0.37, color=setting_color,
+                      edgecolor="white", linewidth=0.4, hatch="//" if on else None,
+                      zorder=2)
+            bars.text(percent + 1.5, position, f"{percent:.1f}%", va="center")
     names.set(xlim=(0, 1))
-    counts.set(xlim=(0, 1))
+    modes.set(xlim=(0, 1))
     names.set_axis_off()
-    counts.set_axis_off()
+    modes.set_axis_off()
     names.set_title("Model", loc="left", weight="bold", pad=12)
-    counts.set_title("Valid / 100", weight="bold", pad=24)
-    for x, label in ((0.24, "Off"), (0.76, "On")):
-        counts.text(x, 1.035, label, transform=counts.transAxes,
-                    ha="center", va="bottom", color="0.3")
-    left.set_title("(a) Exact order match", loc="left", weight="bold", pad=12)
-    right.set_title("(b) Rank agreement", loc="left", weight="bold", pad=12)
-    left.set(xlim=(0, 100), xticks=[0, 25, 50, 75, 100], xlabel="Valid rankings (%)")
-    # A dot plot need not start at zero; make the focused range explicit in
-    # ticks and the caption instead of spreading all positive scores over [-1, 1].
-    right.set(xlim=(0.60, 1.0), xticks=[0.6, 0.7, 0.8, 0.9, 1.0], xlabel=r"Mean Kendall $\tau$")
-    for ax in (left, right):
-        ax.spines["left"].set_visible(False)
-        ax.grid(axis="x", color="0.87", linewidth=0.5, zorder=1)
-        ax.set_axisbelow(True)
-    handles = [Line2D([], [], marker="o", markerfacecolor="white", markeredgecolor="0.25",
-                      markersize=5.3, linestyle="none", label="Reasoning off"),
-               Line2D([], [], marker="^", color="0.25", markersize=5.3,
-                      linestyle="none", label="Reasoning on")]
-    fig.legend(handles=handles, loc="upper center", bbox_to_anchor=(0.50, 1.0),
-               ncol=2, frameon=False, handletextpad=0.4, columnspacing=1.8)
-    fig.text(0.015, 0.035, "Counts are out of 100; blank cells indicate a setting not evaluated.",
+    modes.set_title("Reasoning", weight="bold", pad=12)
+    bars.set_title("All seven tiers in the intended order", loc="left", weight="bold", pad=12)
+    bars.set(xlim=(0, 100), xticks=[0, 25, 50, 75, 100],
+             xlabel="Valid rankings matching the intended order (%)")
+    bars.spines["left"].set_visible(False)
+    bars.grid(axis="x", color="0.87", linewidth=0.5, zorder=1)
+    bars.set_axisbelow(True)
+    fig.text(0.015, 0.035, "100 ladders per configuration; percentages use successfully parsed rankings.",
              color="0.35")
     save_figure(fig, output_dir, "full_ladder_ranking")
+
+
+def export_ranking_details(ranking, destination: Path) -> None:
+    """Keep the denominators and secondary agreement metric outside the main plot."""
+    rows = []
+    for row in ranking.itertuples():
+        base = row.model_key.removesuffix("-thinking")
+        rows.append({
+            "Model": MODEL_LABELS[base][0],
+            "Reasoning": "On" if row.model_key.endswith("-thinking") else "Off",
+            "Requested rankings": row.n_planned,
+            "Valid rankings (original parser)": row.n_valid_rankings,
+            "Exact order matches": row.exact_match_count,
+            "Exact order match (% of valid rankings)":
+                100 * row.exact_match_count / row.n_valid_rankings,
+            "Mean Kendall tau": row.mean_kendall_tau,
+            "Failed or unparsed": row.n_invalid_or_failed,
+            "Formatting-only recoveries (separate check)": row.formatting_only_recovered_count,
+            "Valid rankings including formatting recovery": row.valid_including_formatting_recovery,
+        })
+    pd.DataFrame(rows).to_csv(destination, index=False, lineterminator="\n")
 
 
 CAPTIONS = r"""% Upload the two PDFs to the figures/ folder in your EXISTING Overleaf project.
@@ -254,13 +250,10 @@ CAPTIONS = r"""% Upload the two PDFs to the figures/ folder in your EXISTING Ove
   Each configuration received one request per ladder, with the same seeded
   shuffle of the statements across configurations. Exact order match is the
   percentage of valid rankings that reproduce the full intended tier ordering.
-  Kendall's $\tau$ measures agreement with that ordering ($-1$ means reversed,
-  $0$ means equal numbers of agreeing and disagreeing pairs, and $1$ means
-  full agreement). Panel (b) displays the range 0.6--1.0. Open circles show
-  reasoning off and filled triangles show reasoning on; connecting lines pair
-  settings of the same model and are not uncertainty intervals. The right-hand
-  columns give valid rankings out of 100 for each setting; blank cells indicate
-  settings not evaluated. Scores use these denominators and the original parser.
+  Each bar shows this percentage, with the reasoning setting labeled beside it.
+  A ranking counts as an exact match only if all seven tiers appear in the
+  intended order. Scores use the original parser and the number of valid
+  rankings for each configuration, ranging from 86 to 100.
   Of 2,300 requested rankings, 2,241 were
   valid under this parser. An additional 33 were recoverable by a separate
   formatting check and are not included here. On/off denotes the reasoning
@@ -291,6 +284,7 @@ def main(argv=None) -> None:
         temperature_figure(temperature, provenance, args.output_dir)
         ranking_figure(ranking, provenance, args.output_dir)
     (args.output_dir.parent / "captions.tex").write_text(CAPTIONS)
+    export_ranking_details(ranking, args.output_dir.parent / "ranking_details.csv")
     print(f"Validated 23 model summaries and 35 common curves at each temperature.\n"
           f"Wrote two PDF/PNG figures to {args.output_dir}")
 
