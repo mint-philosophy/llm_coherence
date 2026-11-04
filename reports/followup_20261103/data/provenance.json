@@ -109,5 +109,14 @@
     "gpt-56-sol": "#D98E04"
   },
   "reasoning_color_treatment": "The on setting uses a 1.15 RGB tint of its model's base color, with white diagonal hatching; off uses the base color without hatching.",
+  "ranking_figure_typography": {
+    "reference": "FAccT_2027_Integrated_2026-10-30/scripts/build_results_figures.py: isotonic_permutation and noisy_coherent_agent",
+    "font_family": "DejaVu Sans",
+    "font_size_pt": 8,
+    "font_weight": "normal",
+    "width_inches": 6.3,
+    "height_inches": 3.95,
+    "explanatory_notes": "Kept in the LaTeX caption, outside the plot artwork."
+  },
   "raw_api_responses_included": false
 }

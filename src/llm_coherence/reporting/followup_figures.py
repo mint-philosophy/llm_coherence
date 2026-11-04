@@ -160,47 +160,40 @@ def ranking_figure(ranking, provenance, output_dir: Path) -> None:
     for row in ranking.itertuples():
         base = row.model_key.removesuffix("-thinking")
         groups.setdefault(base, {})[row.model_key.endswith("-thinking")] = row
-    fig = plt.figure(figsize=(6.3, 5.2))
-    names = fig.add_axes([0.015, 0.17, 0.25, 0.75])
-    modes = fig.add_axes([0.28, 0.17, 0.18, 0.75], sharey=names)
-    bars = fig.add_axes([0.49, 0.17, 0.49, 0.75], sharey=names)
+    fig = plt.figure(figsize=(6.3, 3.95))
+    names = fig.add_axes([0.015, 0.14, 0.245, 0.79])
+    modes = fig.add_axes([0.267, 0.14, 0.14, 0.79], sharey=names)
+    bars = fig.add_axes([0.44, 0.14, 0.54, 0.79], sharey=names)
     axes = (names, modes, bars)
     for ax in axes:
         ax.set_ylim(len(groups) - 0.4, -0.6)
         ax.set_yticks([])
-        for y in range(0, len(groups), 2):
-            ax.axhspan(y - 0.5, y + 0.5, color="0.965", zorder=0, linewidth=0)
     for y, (base, settings) in enumerate(groups.items()):
         name, family = MODEL_LABELS[base]
         color = to_rgb(provenance.get("model_color_overrides", {}).get(
             base, provenance["family_colors"][family]))
-        names.text(0.01, y, name, va="center", fontsize=10)
+        names.text(0.01, y, name, va="center")
         for on, row in sorted(settings.items()):
-            position = y + (0.24 if on else -0.24) if len(settings) == 2 else y
+            position = y + (0.25 if on else -0.25) if len(settings) == 2 else y
             percent = 100 * row.exact_match_count / row.n_valid_rankings
             setting_color = tuple(min(1., x * 1.15) for x in color) if on else color
             modes.text(0.5, position, "On" if on else "Off",
-                       ha="center", va="center", color="0.2", fontsize=10)
-            bars.barh(position, percent, height=0.37, color=setting_color,
+                       ha="center", va="center")
+            bars.barh(position, percent, height=0.36, color=setting_color,
                       edgecolor="white", linewidth=0.4, hatch="//" if on else None,
                       zorder=2)
-            bars.text(percent + 1.5, position, f"{percent:.1f}%", va="center", fontsize=10)
+            bars.text(percent + 1.5, position, f"{percent:.1f}%", va="center")
     names.set(xlim=(0, 1))
     modes.set(xlim=(0, 1))
     names.set_axis_off()
     modes.set_axis_off()
-    names.set_title("Model", loc="left", weight="bold", pad=12, fontsize=10)
-    modes.set_title("Reasoning mode", weight="bold", pad=12, fontsize=10)
-    bars.set_title("All seven tiers in the intended order", loc="left", weight="bold", pad=12)
+    names.set_title("Model", loc="left", pad=8)
+    modes.set_title("Reasoning mode", pad=8)
     bars.set(xlim=(0, 100), xticks=[0, 25, 50, 75, 100],
              xlabel="Valid rankings matching all seven tiers (%)")
-    bars.tick_params(axis="x", labelsize=10)
     bars.spines["left"].set_visible(False)
-    bars.grid(axis="x", color="0.87", linewidth=0.5, zorder=1)
+    bars.grid(axis="x", color="0.85", alpha=0.55, linewidth=0.5, zorder=1)
     bars.set_axisbelow(True)
-    fig.text(0.015, 0.070, "On = the model's additional reasoning setting was used. Stripes indicate On.", color="0.3")
-    fig.text(0.015, 0.030, "100 ladders per configuration; percentages use successfully parsed rankings.",
-             color="0.3")
     save_figure(fig, output_dir, "full_ladder_ranking")
 
 
@@ -289,7 +282,16 @@ def main(argv=None) -> None:
                          "axes.spines.top": False, "axes.spines.right": False,
                          "pdf.fonttype": 42, "ps.fonttype": 42}):
         temperature_figure(temperature, provenance, args.output_dir)
-        ranking_figure(ranking, provenance, args.output_dir)
+        # Match the manuscript's isotonic-permutation and noisy-agent plots.
+        # Keep explanatory notes in the LaTeX caption, not inside the artwork.
+        with plt.rc_context({"font.size": 8, "font.weight": "normal",
+                             "axes.titlesize": 8, "axes.titleweight": "normal",
+                             "axes.labelsize": 8, "axes.labelweight": "normal",
+                             "xtick.labelsize": 8, "ytick.labelsize": 8,
+                             "text.color": "black", "axes.labelcolor": "black",
+                             "xtick.color": "black", "ytick.color": "black",
+                             "axes.edgecolor": "black", "hatch.linewidth": 0.5}):
+            ranking_figure(ranking, provenance, args.output_dir)
     (args.output_dir.parent / "captions.tex").write_text(CAPTIONS)
     export_ranking_details(ranking, args.output_dir.parent / "ranking_details.csv")
     print(f"Validated 23 model summaries and 35 common curves at each temperature.\n"
