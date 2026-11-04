@@ -172,13 +172,14 @@ def ranking_figure(ranking, provenance, output_dir: Path) -> None:
             ax.axhspan(y - 0.5, y + 0.5, color="0.965", zorder=0, linewidth=0)
     for y, (base, settings) in enumerate(groups.items()):
         name, family = MODEL_LABELS[base]
-        color = to_rgb(provenance["family_colors"][family])
+        color = to_rgb(provenance.get("model_color_overrides", {}).get(
+            base, provenance["family_colors"][family]))
         names.text(0.01, y, name, va="center", fontsize=10)
         for on, row in sorted(settings.items()):
             position = y + (0.24 if on else -0.24) if len(settings) == 2 else y
             percent = 100 * row.exact_match_count / row.n_valid_rankings
             setting_color = tuple(min(1., x * 1.15) for x in color) if on else color
-            modes.text(0.5, position, "Enabled" if on else "Not enabled",
+            modes.text(0.5, position, "On" if on else "Off",
                        ha="center", va="center", color="0.2", fontsize=10)
             bars.barh(position, percent, height=0.37, color=setting_color,
                       edgecolor="white", linewidth=0.4, hatch="//" if on else None,
@@ -197,7 +198,7 @@ def ranking_figure(ranking, provenance, output_dir: Path) -> None:
     bars.spines["left"].set_visible(False)
     bars.grid(axis="x", color="0.87", linewidth=0.5, zorder=1)
     bars.set_axisbelow(True)
-    fig.text(0.015, 0.070, "Enabled = the model's additional reasoning setting was used.", color="0.3")
+    fig.text(0.015, 0.070, "On = the model's additional reasoning setting was used. Stripes indicate On.", color="0.3")
     fig.text(0.015, 0.030, "100 ladders per configuration; percentages use successfully parsed rankings.",
              color="0.3")
     save_figure(fig, output_dir, "full_ladder_ranking")
@@ -210,7 +211,7 @@ def export_ranking_details(ranking, destination: Path) -> None:
         base = row.model_key.removesuffix("-thinking")
         rows.append({
             "Model": MODEL_LABELS[base][0],
-            "Reasoning mode": "Enabled" if row.model_key.endswith("-thinking") else "Not enabled",
+            "Reasoning mode": "On" if row.model_key.endswith("-thinking") else "Off",
             "Requested rankings": row.n_planned,
             "Valid rankings (original parser)": row.n_valid_rankings,
             "Exact order matches": row.exact_match_count,
@@ -253,9 +254,10 @@ CAPTIONS = r"""% Upload the two PDFs to the figures/ folder in your EXISTING Ove
   shuffle of the statements across configurations. Exact order match is the
   percentage of valid rankings that reproduce the full intended tier ordering.
   Each bar shows this percentage, with the reasoning setting labeled beside it.
-  ``Enabled'' means we used the model's additional reasoning setting;
-  ``Not enabled'' means we did not enable that setting. The exact settings
-  differed across models.
+  ``On'' means we used the model's additional reasoning setting;
+  ``Off'' means we did not enable that setting. The exact settings
+  differed across models. Hatched bars indicate reasoning on. GPT variants
+  use distinct base colors, with matching shades for their off/on settings.
   A ranking counts as an exact match only if all seven tiers appear in the
   intended order. Scores use the original parser and the number of valid
   rankings for each configuration, ranging from 86 to 100.

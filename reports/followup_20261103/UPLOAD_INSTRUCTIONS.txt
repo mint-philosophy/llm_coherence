@@ -10,7 +10,11 @@ Files:
   figures/full_ladder_ranking.pdf
   captions.tex
 
-The original arXiv family colors are preserved. The exports are 6.3 inches wide
+GPT variants use the repository's model-specific palette: GPT-5.4 Nano is light
+blue, Mini is medium blue, and full GPT-5.4 is navy; GPT-5.6 Luna is purple,
+Terra is teal, and Sol is gold. Other models retain the original arXiv family
+colors. Matching shades pair each model's Off/On bars; On bars have stripes.
+The exports are 6.3 inches wide
 (temperature: 2.5 inches high; ranking: 5.2 inches high). The ranking figure uses
 10-point model names, reasoning-mode labels and percentages; notes use 9-point
 text. PNG previews are exported at 300 dpi;
@@ -18,8 +22,8 @@ the PDFs remain vector graphics for sharp text in Overleaf.
 The ranking figure groups all 23 configurations into 13 model rows. Each bar
 shows the percentage of valid rankings that put all seven tiers in the intended
 order. The reasoning setting and percentage are printed beside each bar.
-"Enabled" means the model's additional reasoning setting was used; "Not enabled"
-means that setting was not enabled. Exact settings differed across models.
+"On" means the model's additional reasoning setting was used; "Off" means that
+setting was not enabled. Exact settings differed across models.
 For exact denominators, formatting recoveries and mean Kendall tau, see the
 separate ranking_details.csv table. The underlying source data are in data/.
 The supplied snippets use the available text width. Check readability if you

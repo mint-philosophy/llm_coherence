@@ -99,5 +99,15 @@
     "Mistral": "#B8860B",
     "Qwen": "#8C564B"
   },
+  "model_palette_source": "llm_coherence/src/llm_coherence/reporting/make_fig_table.py MODEL_COLOR_OVERRIDES (GPT entries); requested model-specific colors supersede the shared OpenAI blue in this figure.",
+  "model_color_overrides": {
+    "gpt-54-nano": "#56B4E9",
+    "gpt-54-mini": "#0072B2",
+    "gpt-54": "#1B365D",
+    "gpt-56-luna": "#51458A",
+    "gpt-56-terra": "#167C75",
+    "gpt-56-sol": "#D98E04"
+  },
+  "reasoning_color_treatment": "The on setting uses a 1.15 RGB tint of its model's base color, with white diagonal hatching; off uses the base color without hatching.",
   "raw_api_responses_included": false
 }
