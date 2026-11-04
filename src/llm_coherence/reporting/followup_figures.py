@@ -16,6 +16,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.colors import to_rgb
+from matplotlib.lines import Line2D
 import numpy as np
 import pandas as pd
 
@@ -128,59 +129,100 @@ def save_figure(fig, output_dir: Path, name: str) -> None:
 
 
 def temperature_figure(temperature, provenance, output_dir: Path) -> None:
-    fig, ax = plt.subplots(figsize=(6.3, 2.6))
-    fig.subplots_adjust(left=0.12, right=0.97, bottom=0.22, top=0.86)
+    fig, ax = plt.subplots(figsize=(6.3, 2.5))
+    fig.subplots_adjust(left=0.11, right=0.97, bottom=0.23, top=0.83)
     ax.plot(temperature.temperature, temperature.monotonicity_percent,
-            color=provenance["family_colors"]["Mistral"], marker="o", linewidth=1.7, markersize=6)
+            color=provenance["family_colors"]["Mistral"], marker="o", linewidth=1.6,
+            markersize=6, markeredgecolor="white", markeredgewidth=0.8)
     for row in temperature.itertuples():
         n = int(row.common_full_response_curves)
         passed = round(row.monotonicity_percent * n / 100)
-        ax.annotate(f"{row.monotonicity_percent:.1f}% ({passed}/{n})",
-                    (row.temperature, row.monotonicity_percent), xytext=(0, 10),
-                    textcoords="offset points", ha="center")
+        ax.annotate(f"{row.monotonicity_percent:.1f}%",
+                    (row.temperature, row.monotonicity_percent), xytext=(0, 9),
+                    textcoords="offset points", ha="center", weight="bold")
+        ax.annotate(f"{passed}/{n}",
+                    (row.temperature, row.monotonicity_percent), xytext=(0, -15),
+                    textcoords="offset points", ha="center", color="0.35")
     ax.set(xlim=(-0.08, 1.08), ylim=(0, 100), xlabel="Sampling temperature",
            ylabel="Strict monotonicity (%)", xticks=temperature.temperature,
            yticks=[0, 20, 40, 60, 80, 100])
-    ax.set_title("Ministral 3B: comparisons against external statements", pad=12)
-    ax.grid(axis="y", color="0.88", linewidth=0.6)
+    fig.text(0.11, 0.94, "Ministral 3B", weight="bold", va="top")
+    fig.text(0.97, 0.94, "External comparisons · same 35 complete curves",
+             ha="right", va="top", color="0.35")
+    ax.grid(axis="y", color="0.88", linewidth=0.5)
     ax.set_axisbelow(True)
     save_figure(fig, output_dir, "ministral_temperature_monotonicity")
 
 
 def ranking_figure(ranking, provenance, output_dir: Path) -> None:
-    fig, (left, right) = plt.subplots(1, 2, figsize=(6.3, 5.3), sharey=True,
-                                    gridspec_kw={"width_ratios": [1.25, 1]})
-    fig.subplots_adjust(left=0.38, right=0.96, top=0.90, bottom=0.13, wspace=0.45)
-    labels = []
-    for y, row in enumerate(ranking.itertuples()):
-        on = row.model_key.endswith("-thinking")
+    # One row per model makes the paired settings easier to compare. Only
+    # observed configurations are plotted; absent settings are not zero-filled.
+    groups = {}
+    for row in ranking.itertuples():
         base = row.model_key.removesuffix("-thinking")
+        groups.setdefault(base, {})[row.model_key.endswith("-thinking")] = row
+    fig = plt.figure(figsize=(6.3, 3.8))
+    names = fig.add_axes([0.015, 0.18, 0.275, 0.65])
+    left = fig.add_axes([0.31, 0.18, 0.25, 0.65], sharey=names)
+    right = fig.add_axes([0.615, 0.18, 0.22, 0.65], sharey=names)
+    counts = fig.add_axes([0.86, 0.18, 0.13, 0.65], sharey=names)
+    axes = (names, left, right, counts)
+    for ax in axes:
+        ax.set_ylim(len(groups) - 0.4, -0.6)
+        ax.set_yticks([])
+        for y in range(0, len(groups), 2):
+            ax.axhspan(y - 0.5, y + 0.5, color="0.965", zorder=0, linewidth=0)
+    for y, (base, settings) in enumerate(groups.items()):
         name, family = MODEL_LABELS[base]
         color = to_rgb(provenance["family_colors"][family])
-        if on:
-            color = tuple(min(1., x * 1.15) for x in color)
-        labels.append(f"{name} · {'on' if on else 'off'} ({row.n_valid_rankings})")
-        percent = 100 * row.exact_match_count / row.n_valid_rankings
-        left.barh(y, percent, color=color, height=0.70, edgecolor="white",
-                  linewidth=0.4, hatch="//" if on else None)
-        left.text(percent + 2, y, f"{percent:.1f}", va="center")
-        right.scatter(row.mean_kendall_tau, y, color=color, marker="^" if on else "o", s=29)
-        right.text(1.10, y, f"{row.mean_kendall_tau:.3f}", va="center")
-    left.set_yticks(range(len(labels)), labels)
-    left.tick_params(axis="y", length=0)
-    left.set(xlim=(0, 110), xticks=[0, 50, 100], xlabel="Exact order match (%)")
-    right.set(xlim=(-1.08, 1.75), xticks=[-1, 0, 1], xlabel=r"Mean Kendall $\tau$")
-    right.axvline(0, color="0.83", linewidth=0.7, zorder=0)
-    right.tick_params(axis="y", left=False, labelleft=False)
-    right.spines["left"].set_visible(False)
-    left.set_ylim(len(labels) - 0.4, -0.6)
+        names.text(0.01, y, name, va="center")
+        for on, row in settings.items():
+            counts.text(0.76 if on else 0.24, y, str(row.n_valid_rankings),
+                        va="center", ha="center", color="0.3")
+        ys, percents, taus = [], [], []
+        for on, row in sorted(settings.items()):
+            position = y + (0.18 if on else -0.18) if len(settings) == 2 else y
+            ys.append(position)
+            percents.append(100 * row.exact_match_count / row.n_valid_rankings)
+            taus.append(row.mean_kendall_tau)
+        if len(settings) == 2:
+            left.plot(percents, ys, color=color, alpha=0.45, linewidth=1, zorder=2)
+            right.plot(taus, ys, color=color, alpha=0.45, linewidth=1, zorder=2)
+        for i, on in enumerate(sorted(settings)):
+            setting_color = tuple(min(1., x * 1.15) for x in color) if on else color
+            style = {"marker": "^" if on else "o", "markersize": 5.3,
+                     "markerfacecolor": setting_color if on else "white",
+                     "markeredgecolor": setting_color, "markeredgewidth": 1.0,
+                     "linestyle": "none", "zorder": 3}
+            left.plot(percents[i], ys[i], **style)
+            right.plot(taus[i], ys[i], **style)
+    names.set(xlim=(0, 1))
+    counts.set(xlim=(0, 1))
+    names.set_axis_off()
+    counts.set_axis_off()
+    names.set_title("Model", loc="left", weight="bold", pad=12)
+    counts.set_title("Valid / 100", weight="bold", pad=24)
+    for x, label in ((0.24, "Off"), (0.76, "On")):
+        counts.text(x, 1.035, label, transform=counts.transAxes,
+                    ha="center", va="bottom", color="0.3")
+    left.set_title("(a) Exact order match", loc="left", weight="bold", pad=12)
+    right.set_title("(b) Rank agreement", loc="left", weight="bold", pad=12)
+    left.set(xlim=(0, 100), xticks=[0, 25, 50, 75, 100], xlabel="Valid rankings (%)")
+    # A dot plot need not start at zero; make the focused range explicit in
+    # ticks and the caption instead of spreading all positive scores over [-1, 1].
+    right.set(xlim=(0.60, 1.0), xticks=[0.6, 0.7, 0.8, 0.9, 1.0], xlabel=r"Mean Kendall $\tau$")
     for ax in (left, right):
-        ax.grid(axis="x", color="0.9", linewidth=0.6)
+        ax.spines["left"].set_visible(False)
+        ax.grid(axis="x", color="0.87", linewidth=0.5, zorder=1)
         ax.set_axisbelow(True)
-    fig.suptitle("Direct seven-statement ranking: agreement with intended order", y=0.98)
-    fig.text(0.02, 0.935, "Model · reasoning setting (valid rankings out of 100)", fontsize=9)
-    fig.text(0.02, 0.035,
-             "Scores use valid rankings only; plain/circle = off, hatched/triangle = on.", fontsize=9)
+    handles = [Line2D([], [], marker="o", markerfacecolor="white", markeredgecolor="0.25",
+                      markersize=5.3, linestyle="none", label="Reasoning off"),
+               Line2D([], [], marker="^", color="0.25", markersize=5.3,
+                      linestyle="none", label="Reasoning on")]
+    fig.legend(handles=handles, loc="upper center", bbox_to_anchor=(0.50, 1.0),
+               ncol=2, frameon=False, handletextpad=0.4, columnspacing=1.8)
+    fig.text(0.015, 0.035, "Counts are out of 100; blank cells indicate a setting not evaluated.",
+             color="0.35")
     save_figure(fig, output_dir, "full_ladder_ranking")
 
 
@@ -214,8 +256,12 @@ CAPTIONS = r"""% Upload the two PDFs to the figures/ folder in your EXISTING Ove
   percentage of valid rankings that reproduce the full intended tier ordering.
   Kendall's $\tau$ measures agreement with that ordering ($-1$ means reversed,
   $0$ means equal numbers of agreeing and disagreeing pairs, and $1$ means
-  full agreement). Parentheses show valid rankings out of 100; scores use these
-  denominators and the original parser. Of 2,300 requested rankings, 2,241 were
+  full agreement). Panel (b) displays the range 0.6--1.0. Open circles show
+  reasoning off and filled triangles show reasoning on; connecting lines pair
+  settings of the same model and are not uncertainty intervals. The right-hand
+  columns give valid rankings out of 100 for each setting; blank cells indicate
+  settings not evaluated. Scores use these denominators and the original parser.
+  Of 2,300 requested rankings, 2,241 were
   valid under this parser. An additional 33 were recoverable by a separate
   formatting check and are not included here. On/off denotes the reasoning
   setting. This task measures agreement with the intended ordering; requesting
@@ -235,7 +281,11 @@ def main(argv=None) -> None:
     ranking, temperature, _, provenance = load_data(args.data_dir)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     with plt.rc_context({"font.family": "DejaVu Sans", "font.size": 9,
-                         "axes.titlesize": 10, "figure.titlesize": 10,
+                         "axes.titlesize": 9, "figure.titlesize": 10,
+                         "axes.labelcolor": "0.2", "text.color": "0.15",
+                         "xtick.color": "0.3", "ytick.color": "0.3",
+                         "axes.edgecolor": "0.55", "axes.linewidth": 0.6,
+                         "xtick.major.width": 0.6, "ytick.major.width": 0.6,
                          "axes.spines.top": False, "axes.spines.right": False,
                          "pdf.fonttype": 42, "ps.fonttype": 42}):
         temperature_figure(temperature, provenance, args.output_dir)

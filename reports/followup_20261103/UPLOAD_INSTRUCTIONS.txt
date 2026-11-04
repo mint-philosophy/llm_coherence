@@ -11,9 +11,14 @@ Files:
   captions.tex
 
 The original arXiv family colors are preserved. The exports are 6.3 inches wide
-(temperature: 2.6 inches high; ranking: 5.3 inches high), with 9-point labels.
+(temperature: 2.5 inches high; ranking: 3.8 inches high), with 9-point labels.
+The ranking figure groups all 23 configurations into 13 model rows. Open circles
+show reasoning off; filled triangles show reasoning on. Separate Off and On
+columns give valid rankings out of 100. Blank cells mean a setting was not
+evaluated, not that it failed. Its Kendall tau axis displays 0.6 to 1.0;
+the full possible range is -1 to 1, as stated in the caption.
 The supplied snippets use the available text width. Check readability if you
-choose a smaller width, particularly for the 23-row ranking figure.
+choose a smaller width, particularly for the ranking figure.
 
 DATA AND INTERPRETATION
 
