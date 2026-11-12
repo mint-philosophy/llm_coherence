@@ -37,6 +37,13 @@ MODEL_LABELS = {
 }
 
 
+ENDPOINT_LABELS = {
+    "https://api.openai.com/v1/responses": "OpenAI Responses API",
+    "https://api.anthropic.com/v1/messages": "Anthropic Messages API",
+    "https://openrouter.ai/api/v1/chat/completions": "OpenRouter chat completions",
+}
+
+
 def require(condition: bool, message: str) -> None:
     if not condition:
         raise ValueError(message)
@@ -121,6 +128,39 @@ def load_data(data_dir: Path):
     return ranking, temperature, curves, provenance
 
 
+def load_request_paths(data_dir: Path, ranking) -> pd.DataFrame:
+    """Which runner sent each scored ranking. Hash is checked in load_data."""
+    paths = pd.read_csv(data_dir / "ranking_request_paths.csv").fillna("")
+    require(set(paths.model_key) == set(ranking.model_key), "Request path model mismatch")
+    merged = paths.merge(ranking[["model_key", "n_responses"]], on="model_key")
+    require((merged.requested_ladders == merged.n_responses).all(), "Request path denominator mismatch")
+    require((merged.original_runner + merged.recovery_runner == merged.requested_ladders).all(),
+            "Request paths do not cover every request")
+    return paths.set_index("model_key")
+
+
+def export_temperature_details(temperature, curves, destination: Path) -> None:
+    """Flat curves pass strict monotonicity trivially, so report the non-flat share too."""
+    rows = []
+    for summary in temperature.itertuples():
+        block = curves[(curves.temperature == summary.temperature) & curves.paired_full_response_curve]
+        flat = block.flat_curve.to_numpy(dtype=bool)
+        monotone = block.strict_monotonicity.to_numpy(dtype=bool)
+        require(monotone[flat].all(), "Flat curve not counted as monotone")
+        require(np.isclose(flat.mean(), summary.flat_curve_fraction), "Flat curve share mismatch")
+        nonflat = int((~flat).sum())
+        rows.append({
+            "Temperature": summary.temperature,
+            "Complete curves": len(block),
+            "Strictly monotone": int(monotone.sum()),
+            "Flat curves": int(flat.sum()),
+            "Non-flat curves": nonflat,
+            "Non-flat and strictly monotone": int((monotone & ~flat).sum()),
+            "Non-flat strict monotonicity (%)": 100 * (monotone & ~flat).sum() / nonflat,
+        })
+    pd.DataFrame(rows).to_csv(destination, index=False, lineterminator="\n")
+
+
 def save_figure(fig, output_dir: Path, name: str) -> None:
     fig.savefig(output_dir / f"{name}.pdf", metadata={"CreationDate": None, "ModDate": None})
     fig.savefig(output_dir / f"{name}.png", dpi=300)
@@ -197,11 +237,12 @@ def ranking_figure(ranking, provenance, output_dir: Path) -> None:
     save_figure(fig, output_dir, "full_ladder_ranking")
 
 
-def export_ranking_details(ranking, destination: Path) -> None:
+def export_ranking_details(ranking, paths, destination: Path) -> None:
     """Keep the denominators and secondary agreement metric outside the main plot."""
     rows = []
     for row in ranking.itertuples():
         base = row.model_key.removesuffix("-thinking")
+        path = paths.loc[row.model_key]
         rows.append({
             "Model": MODEL_LABELS[base][0],
             "Reasoning mode": "On" if row.model_key.endswith("-thinking") else "Off",
@@ -214,6 +255,9 @@ def export_ranking_details(ranking, destination: Path) -> None:
             "Failed or unparsed": row.n_invalid_or_failed,
             "Formatting-only recoveries (separate check)": row.formatting_only_recovered_count,
             "Valid rankings including formatting recovery": row.valid_including_formatting_recovery,
+            "Requests via original runner (litellm)": path.original_runner,
+            "Requests via recovery runner": path.recovery_runner,
+            "Recovery endpoint": ENDPOINT_LABELS.get(path.recovery_endpoint, path.recovery_endpoint),
         })
     pd.DataFrame(rows).to_csv(destination, index=False, lineterminator="\n")
 
@@ -271,7 +315,8 @@ def main(argv=None) -> None:
     parser.add_argument("--output-dir", type=Path,
                         default=Path("reports/followup_20261103/figures"))
     args = parser.parse_args(argv)
-    ranking, temperature, _, provenance = load_data(args.data_dir)
+    ranking, temperature, curves, provenance = load_data(args.data_dir)
+    paths = load_request_paths(args.data_dir, ranking)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     with plt.rc_context({"font.family": "DejaVu Sans", "font.size": 9,
                          "axes.titlesize": 9, "figure.titlesize": 10,
@@ -293,7 +338,8 @@ def main(argv=None) -> None:
                              "axes.edgecolor": "black", "hatch.linewidth": 0.5}):
             ranking_figure(ranking, provenance, args.output_dir)
     (args.output_dir.parent / "captions.tex").write_text(CAPTIONS)
-    export_ranking_details(ranking, args.output_dir.parent / "ranking_details.csv")
+    export_ranking_details(ranking, paths, args.output_dir.parent / "ranking_details.csv")
+    export_temperature_details(temperature, curves, args.output_dir.parent / "temperature_details.csv")
     print(f"Validated 23 model summaries and 35 common curves at each temperature.\n"
           f"Wrote two PDF/PNG figures to {args.output_dir}")
 

@@ -5,7 +5,11 @@ import unittest
 from pathlib import Path
 from shutil import copytree
 
-from llm_coherence.reporting.followup_figures import load_data, validate_tables
+import pandas as pd
+
+from llm_coherence.reporting.followup_figures import (
+    export_temperature_details, load_data, load_request_paths, validate_tables,
+)
 
 
 DATA = Path(__file__).resolve().parents[1] / "reports/followup_20261103/data"
@@ -25,6 +29,24 @@ class FollowupFigureTests(unittest.TestCase):
         self.assertAlmostEqual(ministral.exact_match_fraction_parsed, 25 / 86)
         passed = (self.temperature.monotonicity_percent * 35 / 100).round().astype(int)
         self.assertEqual(passed.tolist(), [28, 26, 19, 15])
+
+    def test_nonflat_monotonicity(self):
+        # flat curves pass strict monotonicity for free and get rarer as temperature rises
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "temperature_details.csv"
+            export_temperature_details(self.temperature, self.curves, target)
+            rows = pd.read_csv(target)
+        self.assertEqual(rows["Flat curves"].tolist(), [9, 6, 5, 5])
+        self.assertEqual(rows["Non-flat curves"].tolist(), [26, 29, 30, 30])
+        self.assertEqual(rows["Non-flat and strictly monotone"].tolist(), [19, 20, 14, 10])
+
+    def test_request_paths_cover_every_ranking(self):
+        paths = load_request_paths(DATA, self.ranking)
+        self.assertEqual(int(paths.recovery_runner.sum()), 566)
+        for key in ("gpt-56-luna-thinking", "gpt-56-terra-thinking",
+                    "gpt-56-sol-thinking", "opus-46-thinking"):
+            self.assertEqual(int(paths.loc[key, "recovery_runner"]), 100)
+        self.assertEqual(int(paths.loc["gpt-56-luna", "recovery_runner"]), 0)
 
     def test_rejects_planned_denominator_for_ranking_fraction(self):
         self.ranking.loc[0, "exact_match_fraction_parsed"] = 32 / 100
