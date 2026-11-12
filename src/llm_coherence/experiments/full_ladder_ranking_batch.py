@@ -10,7 +10,9 @@ status and fetch only read. Not used for the November 3 results; those came from
 the live runner plus recovery.
 """
 import argparse
+from contextlib import contextmanager
 import csv
+import fcntl
 import json
 import math
 import os
@@ -94,11 +96,33 @@ def checked(response):
     return response
 
 
+@contextmanager
+def locked(output):
+    with (Path(output) / ".run.lock").open("a") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise RuntimeError("This output directory already has an active runner.") from None
+        yield
+
+
 def submit(output, max_cost, client):
     output = Path(output)
+    with locked(output):
+        return _submit(output, max_cost, client)
+
+
+def _submit(output, max_cost, client):
     manifest, _, batches = load(output)
     if not math.isfinite(max_cost) or max_cost < manifest["reserved_cost_usd"]:
         raise ValueError(f"--max-cost-usd must cover the reservation (${manifest['reserved_cost_usd']:.4f}).")
+    # a create whose reply never came back may still have made a billed batch
+    unconfirmed = [m for m, e in batches.items() if e.get("create_attempted_at") and not e.get("batch_id")]
+    if unconfirmed:
+        raise ValueError(
+            "A batch create may have reached the provider without being recorded for: "
+            + ", ".join(unconfirmed) + ". Check the provider's batch list, then save that id as "
+            "batch_id in batches.json, or delete create_attempted_at to retry.")
     for model, profile in manifest["source_manifest"]["models"].items():
         entry = batches.get(model, {})
         if entry.get("batch_id"):
@@ -114,6 +138,10 @@ def submit(output, max_cost, client):
                 entry["input_file_id"] = uploaded["id"]
                 batches[model] = entry
                 original.write_json(output / "batches.json", batches)
+        entry["create_attempted_at"] = original.ranking.now_iso()
+        batches[model] = entry
+        original.write_json(output / "batches.json", batches)
+        if provider == "openai":
             created = checked(client.post(f"{OPENAI}/v1/batches", headers=headers(provider), json={
                 "input_file_id": entry["input_file_id"], "endpoint": "/v1/responses",
                 "completion_window": "24h", "metadata": {"model_key": model}})).json()

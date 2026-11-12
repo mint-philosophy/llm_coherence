@@ -24,9 +24,10 @@ def no_calls(request):
 class FakeProviders:
     """Just enough of the OpenAI and Anthropic batch endpoints for offline tests."""
 
-    def __init__(self, openai_lines=None, anthropic_lines=None, ended=True):
+    def __init__(self, openai_lines=None, anthropic_lines=None, ended=True, fail_create=False, openai_batch=None):
         self.calls, self.uploads, self.anthropic_payloads = [], [], []
         self.openai_lines, self.anthropic_lines, self.ended = openai_lines, anthropic_lines, ended
+        self.fail_create, self.openai_batch = fail_create, openai_batch
 
     def __call__(self, request):
         path = request.url.path
@@ -35,11 +36,15 @@ class FakeProviders:
             self.uploads.append(request.content)
             return httpx.Response(200, json={"id": f"file-{len(self.uploads)}"})
         if request.method == "POST" and path == "/v1/batches":
+            if self.fail_create:  # e.g. the provider accepted it but the reply was a gateway error
+                return httpx.Response(502, text="<html>bad gateway</html>")
             return httpx.Response(200, json={"id": "batch_o1", "status": "validating"})
         if request.method == "POST" and path == "/v1/messages/batches":
             self.anthropic_payloads.append(json.loads(request.content))
             return httpx.Response(200, json={"id": "msgbatch_1", "processing_status": "in_progress"})
         if request.method == "GET" and path == "/v1/batches/batch_o1":
+            if self.openai_batch is not None:
+                return httpx.Response(200, json=self.openai_batch)
             return httpx.Response(200, json={"id": "batch_o1", "status": "completed" if self.ended else "in_progress",
                                              "output_file_id": "file-out", "error_file_id": None})
         if request.method == "GET" and path == "/v1/files/file-out/content":
@@ -121,6 +126,27 @@ class BatchRankingTests(unittest.TestCase):
                          [r["custom_id"] for r in requests if r["model_key"] == "opus-46-thinking"])
         with httpx.Client(transport=httpx.MockTransport(no_calls)) as client:
             batch.submit(self.out, manifest["reserved_cost_usd"], client)  # already submitted: no calls
+
+    def test_unconfirmed_create_blocks_a_blind_retry(self):
+        manifest, _ = self.prepared()
+        with httpx.Client(transport=httpx.MockTransport(FakeProviders(fail_create=True))) as client:
+            with self.assertRaisesRegex(RuntimeError, "HTTP 502"):
+                batch.submit(self.out, manifest["reserved_cost_usd"], client)
+        saved = json.loads((self.out / "batches.json").read_text())
+        self.assertIn("create_attempted_at", saved["gpt-56-luna-thinking"])
+        self.assertNotIn("batch_id", saved["gpt-56-luna-thinking"])
+        with httpx.Client(transport=httpx.MockTransport(no_calls)) as client:
+            with self.assertRaisesRegex(ValueError, "may have reached the provider"):
+                batch.submit(self.out, manifest["reserved_cost_usd"], client)
+
+    def test_submit_refuses_a_second_runner(self):
+        import fcntl
+        manifest, _ = self.prepared()
+        with (self.out / ".run.lock").open("a") as held:
+            fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            with httpx.Client(transport=httpx.MockTransport(no_calls)) as client:
+                with self.assertRaisesRegex(RuntimeError, "active runner"):
+                    batch.submit(self.out, manifest["reserved_cost_usd"], client)
 
     def submitted_with_results(self, ended=True):
         manifest, requests = self.prepared()
