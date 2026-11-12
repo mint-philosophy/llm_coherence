@@ -1,0 +1,65 @@
+OVERLEAF UPLOAD
+
+Use your existing shared Overleaf project.
+1. Upload the two PDFs from figures/ into its figures/ folder.
+2. Paste the corresponding figure environment from captions.tex where you discuss the experiment.
+3. Recompile in Overleaf. The PNGs are previews; use the vector PDFs in the paper.
+
+Files:
+  figures/ministral_temperature_monotonicity.pdf
+  figures/full_ladder_ranking.pdf
+  captions.tex
+
+GPT variants use the repository's model-specific palette: GPT-5.4 Nano is light
+blue, Mini is medium blue, and full GPT-5.4 is navy; GPT-5.6 Luna is purple,
+Terra is teal, and Sol is gold. Other models retain the original arXiv family
+colors. Matching shades pair each model's Off/On bars; On bars have stripes.
+The exports are 6.3 inches wide
+(temperature: 2.5 inches high; ranking: 3.95 inches high). The ranking figure
+uses regular 8-point DejaVu Sans to match the manuscript's isotonic-permutation
+and noisy-agent plots. Shaded rows, bold headings and embedded explanatory
+footers have been removed; those explanations remain in captions.tex.
+Use width=\linewidth in Overleaf for a consistent size alongside the other plots.
+PNG previews are exported at 300 dpi;
+the PDFs remain vector graphics for sharp text in Overleaf.
+The ranking figure groups all 23 configurations into 13 model rows. Each bar
+shows the percentage of valid rankings that put all seven tiers in the intended
+order. The reasoning setting and percentage are printed beside each bar.
+"On" means the model's additional reasoning setting was used; "Off" means that
+setting was not enabled. Exact settings differed across models.
+For exact denominators, formatting recoveries and mean Kendall tau, see the
+separate ranking_details.csv table. The underlying source data are in data/.
+The supplied snippets use the available text width. Check readability if you
+choose a smaller width, particularly for the ranking figure.
+
+DATA AND INTERPRETATION
+
+Temperature: 35 common complete curves at each temperature. Strict monotonicity
+is 28/35, 26/35, 19/35 and 15/35 at temperatures 0, 0.3, 0.7 and 1 respectively.
+There were 20,159 parsed responses out of 20,160 planned requests. One failed
+request leaves one curve incomplete; that curve is excluded at every temperature.
+The 12 ladders and three shared comparison statements are a descriptive pilot.
+
+Direct ranking: 23 primary API configurations, 100 canonical ladders each.
+Scores use 2,241 valid rankings out of 2,300 logical requests under the original
+parser. Per-model valid denominators are in ranking_details.csv. The source CSV
+also reports a separate sensitivity check recovering 33 formatting-only cases;
+those cases are not silently added to the plotted primary results.
+This is agreement with the intended ordering, not an independent transitivity test.
+GLM Base (log-probability scoring) is not part of this text-ranking task.
+
+REPRODUCE THE FIGURES (repository checkout with dependencies installed)
+
+PYTHONPATH=src python -m llm_coherence.reporting.followup_figures
+PYTHONPATH=src python -m unittest discover -s tests -v
+
+The generator verifies the curated CSV hashes, response denominators, model slate,
+and common complete-curve mask before exporting. data/provenance.json identifies
+the local source files and canonical ladder hash. data/ranking_audit.json and
+data/temperature_audit.json record the source response hashes. Raw model outputs
+and credentials are not included in this report. Reproducing the upstream raw
+response audits also requires the original local outputs and audit code; this
+PR reproduces the figures from the curated aggregate exports.
+
+CSV line endings are normalized to LF for version control. Both the original
+source hashes and the normalized-file hashes are recorded in provenance.json.

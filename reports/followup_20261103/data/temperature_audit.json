@@ -1,0 +1,25 @@
+{
+  "validation": "Independent reconstruction from tasks and raw A/B responses agreed with summary.csv",
+  "valid_responses": 20159,
+  "planned_responses": 20160,
+  "failed_responses": 1,
+  "failure": "HTTP 502 at temperature 0.7, Global economy_3077, reference 23, tier 4, BA order",
+  "common_full_response_curves": 35,
+  "planned_curves_per_temperature": 36,
+  "monotone_counts": {
+    "0.0": 28,
+    "0.3": 26,
+    "0.7": 19,
+    "1.0": 15
+  },
+  "provider_reported_cost_usd": 0.182381780000002,
+  "provider": "Mistral",
+  "interpretation": "Descriptive pilot on 12 ladders and three shared references; not an estimate of latent value coherence. The 35 curves are not independent replications.",
+  "sha256": {
+    "manifest.json": "17ab716e1e9331f55fd60d7460bce2667ac12a7bb90f4e41f8d4ac1e7f4f188d",
+    "tasks.json": "7d2072adb6f80a4366af06bd0cf862d8d3f9e581cd1fc5645419405ee39af727",
+    "responses.jsonl": "e71ffc3b4bedd6d8b06d9cc7827ff70599f81ce179881cf9e21449fa5a7c8e9b",
+    "summary.csv": "e417cb2bbecaba8e5fade28742fd0470a1b77d377801dc27d8bd1715c71e6f19",
+    "curves.csv": "9180e9b0821a73510fcdb3c45c815ef7c413a902a9676bbd383c1a53ec78570c"
+  }
+}

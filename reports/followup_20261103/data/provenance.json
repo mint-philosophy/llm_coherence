@@ -1,0 +1,129 @@
+{
+  "data_files": {
+    "ranking_summary.csv": {
+      "local_source": "outputs/full_ladder_ranking_audit_20261103/summary.csv",
+      "sha256": "ef8766fb0fc4a6ff004ed695118b908506484afb85b9cfa0c0903905fef5bbba",
+      "original_source_sha256": "7b8f357b2ac1a3aaf2015a5426ec3966dfa8fd8df1de774f672117be01de91c9",
+      "transformation": "CRLF line endings normalized to LF; CSV values unchanged."
+    },
+    "temperature_summary.csv": {
+      "local_source": "outputs/temperature_sensitivity_20261103/summary.csv",
+      "sha256": "d7a3d3be13031e8a949df78d4bfa1c8d1c1182e8d82ccd9146159e045db6d067",
+      "original_source_sha256": "e417cb2bbecaba8e5fade28742fd0470a1b77d377801dc27d8bd1715c71e6f19",
+      "transformation": "CRLF line endings normalized to LF; CSV values unchanged."
+    },
+    "temperature_curves.csv": {
+      "local_source": "outputs/temperature_sensitivity_20261103/curves.csv",
+      "sha256": "a0f0536146b1a7dce552651e3767c0162d193cc0f3808bc58defa5abca7c5837",
+      "original_source_sha256": "9180e9b0821a73510fcdb3c45c815ef7c413a902a9676bbd383c1a53ec78570c",
+      "transformation": "CRLF line endings normalized to LF; CSV values unchanged."
+    },
+    "ranking_request_paths.csv": {
+      "generator": "PYTHONPATH=src python -B -m llm_coherence.analysis.ranking_request_paths --source outputs/full_ladder_ranking_20261103 --recovery outputs/full_ladder_ranking_recovery_20261103 --output reports/followup_20261103/data/ranking_request_paths.csv",
+      "sha256": "64d3c0ce366c237b5d5e95cfb8b2d9c82de4c48c0f12bdb8bf7403bd145c2e08",
+      "recovery_requests_sha256": "d553f0b72c67467378fada642e60c03b8c9da10fa6cdedef59a52f700f7aba13",
+      "recovery_responses_sha256": "3ea8383264c4c83a345388a0664cd89c96b5ebc2885c743c880443e9f5464596",
+      "note": "Original journal hashes are in ranking_audit.json. Original requests used litellm; recovery requests went directly to the listed endpoint."
+    }
+  },
+  "canonical_ladders_sha256": "4ab06f084e8b795e27704519d499ef82ced9ecd3ace1fa4c41ec2944c14940a4",
+  "ranking": {
+    "model_keys": [
+      "gpt-54-nano",
+      "gpt-54-nano-thinking",
+      "gpt-54-mini",
+      "gpt-54-mini-thinking",
+      "gpt-54",
+      "gpt-54-thinking",
+      "gpt-56-luna",
+      "gpt-56-luna-thinking",
+      "gpt-56-terra",
+      "gpt-56-terra-thinking",
+      "gpt-56-sol",
+      "gpt-56-sol-thinking",
+      "opus-46",
+      "opus-46-thinking",
+      "nemotron-3-super",
+      "nemotron-3-super-thinking",
+      "glm-45-hybrid",
+      "glm-45-hybrid-thinking",
+      "llama-31-8b-instruct-openrouter",
+      "ministral-3b-2512-openrouter",
+      "mistral-small-2603-openrouter-thinking",
+      "qwen-37-flash-openrouter",
+      "qwen-37-flash-openrouter-thinking"
+    ],
+    "ladders_per_configuration": 100,
+    "strict_parsed_rankings": 2241,
+    "additional_formatting_only_rankings": 33,
+    "unusable_after_formatting_check": 26,
+    "display": "Primary figure uses the original parser and actual per-model valid denominators. Formatting-only recovery is retained in the source table as a separate sensitivity analysis.",
+    "interpretation": "Agreement with intended order; an explicit total ranking is not a transitivity test."
+  },
+  "temperature": {
+    "model": "mistralai/ministral-3b-2512",
+    "provider_endpoint": "mistral/zdr",
+    "temperatures": [
+      0.0,
+      0.3,
+      0.7,
+      1.0
+    ],
+    "ladder_ids": [
+      "AI and human romantic relationships_4506",
+      "AI moral patienthood_4855",
+      "Global economy_3077",
+      "Global politics and geopolitics_1734",
+      "Life and species_3980",
+      "Personal accomplishments_6851",
+      "Personal finances_6125",
+      "Personal freedom and autonomy_1507",
+      "Religion and spirituality_1357",
+      "United States economy_9971",
+      "United States politics and policies_2756",
+      "Wellbeing of humans_9491"
+    ],
+    "reference_ids": [
+      21,
+      22,
+      23
+    ],
+    "trials_per_cell": 20,
+    "planned_curves": 36,
+    "common_complete_curves": 35,
+    "valid_responses": 20159,
+    "planned_responses": 20160,
+    "reason_for_missing_curve": "One HTTP 502 response at temperature 0.7; the affected curve is excluded at all four temperatures.",
+    "interpretation": "Descriptive pilot; shared ladders and references mean curves are not independent replications."
+  },
+  "palette_source": "FAccT_2027_Integrated_2026-10-30/scripts/build_results_figures.py (restored arXiv family palette)",
+  "family_colors": {
+    "OpenAI": "#0072B2",
+    "Anthropic": "#9467BD",
+    "NVIDIA": "#2CA02C",
+    "GLM": "#D55E00",
+    "Meta": "#E377C2",
+    "Mistral": "#B8860B",
+    "Qwen": "#8C564B"
+  },
+  "model_palette_source": "llm_coherence/src/llm_coherence/reporting/make_fig_table.py MODEL_COLOR_OVERRIDES (GPT entries); requested model-specific colors supersede the shared OpenAI blue in this figure.",
+  "model_color_overrides": {
+    "gpt-54-nano": "#56B4E9",
+    "gpt-54-mini": "#0072B2",
+    "gpt-54": "#1B365D",
+    "gpt-56-luna": "#51458A",
+    "gpt-56-terra": "#167C75",
+    "gpt-56-sol": "#D98E04"
+  },
+  "reasoning_color_treatment": "The on setting uses a 1.15 RGB tint of its model's base color, with white diagonal hatching; off uses the base color without hatching.",
+  "ranking_figure_typography": {
+    "reference": "FAccT_2027_Integrated_2026-10-30/scripts/build_results_figures.py: isotonic_permutation and noisy_coherent_agent",
+    "font_family": "DejaVu Sans",
+    "font_size_pt": 8,
+    "font_weight": "normal",
+    "width_inches": 6.3,
+    "height_inches": 3.95,
+    "explanatory_notes": "Kept in the LaTeX caption, outside the plot artwork."
+  },
+  "raw_api_responses_included": false
+}

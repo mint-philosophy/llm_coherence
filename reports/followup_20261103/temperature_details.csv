@@ -1,0 +1,5 @@
+Temperature,Complete curves,Strictly monotone,Flat curves,Non-flat curves,Non-flat and strictly monotone,Non-flat strict monotonicity (%)
+0.0,35,28,9,26,19,73.07692307692308
+0.3,35,26,6,29,20,68.96551724137932
+0.7,35,19,5,30,14,46.666666666666664
+1.0,35,15,5,30,10,33.333333333333336

@@ -1,0 +1,145 @@
+temperature,ladder_id,comparison_id,paired_full_response_curve,parsed_responses,nonempty_at_all_tiers,strict_monotonicity,mean_adjacent_decrease,largest_decrease,flat_curve,saturated_curve,p1,p2,p3,p4,p5,p6,p7
+0.0,AI and human romantic relationships_4506,21,True,140,True,False,0.08333333333333333,0.5,False,False,0.0,1.0,0.5,1.0,1.0,1.0,1.0
+0.0,AI and human romantic relationships_4506,22,True,140,True,True,0.0,0,False,False,0.5,1.0,1.0,1.0,1.0,1.0,1.0
+0.0,AI and human romantic relationships_4506,23,True,140,True,True,0.0,0,False,False,0.5,1.0,1.0,1.0,1.0,1.0,1.0
+0.0,AI moral patienthood_4855,21,True,140,True,True,0.0,0,False,False,0.0,0.0,0.0,1.0,1.0,1.0,1.0
+0.0,AI moral patienthood_4855,22,True,140,True,True,0.0,0,False,False,0.0,0.0,1.0,1.0,1.0,1.0,1.0
+0.0,AI moral patienthood_4855,23,True,140,True,True,0.0,0,False,False,0.0,0.0,1.0,1.0,1.0,1.0,1.0
+0.0,Global economy_3077,21,True,140,True,True,0.0,0,True,True,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+0.0,Global economy_3077,22,True,140,True,False,0.17500000000000002,1.0,False,False,0.0,0.0,0.05,0.0,1.0,0.0,0.5
+0.0,Global economy_3077,23,False,140,True,True,0.0,0,True,True,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+0.0,Global politics and geopolitics_1734,21,True,140,True,True,0.0,0,False,False,0.0,0.0,0.55,1.0,1.0,1.0,1.0
+0.0,Global politics and geopolitics_1734,22,True,140,True,True,0.0,0,True,True,1.0,1.0,1.0,1.0,1.0,1.0,1.0
+0.0,Global politics and geopolitics_1734,23,True,140,True,True,0.0,0,True,True,1.0,1.0,1.0,1.0,1.0,1.0,1.0
+0.0,Life and species_3980,21,True,140,True,True,0.0,0,True,True,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+0.0,Life and species_3980,22,True,140,True,False,0.09166666666666667,0.55,False,False,0.0,0.0,1.0,0.45,1.0,1.0,1.0
+0.0,Life and species_3980,23,True,140,True,False,0.075,0.45,False,False,0.0,0.45,0.0,0.0,1.0,1.0,1.0
+0.0,Personal accomplishments_6851,21,True,140,True,True,0.0,0,False,False,0.0,0.0,0.0,0.0,0.0,0.0,1.0
+0.0,Personal accomplishments_6851,22,True,140,True,True,0.0,0,False,False,0.0,0.0,0.0,0.0,0.0,1.0,1.0
+0.0,Personal accomplishments_6851,23,True,140,True,True,0.0,0,False,False,0.0,0.0,0.0,0.5,0.5,1.0,1.0
+0.0,Personal finances_6125,21,True,140,True,True,0.0,0,True,True,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+0.0,Personal finances_6125,22,True,140,True,False,0.08333333333333333,0.5,False,False,0.5,0.5,0.5,0.0,1.0,1.0,1.0
+0.0,Personal finances_6125,23,True,140,True,False,0.15833333333333333,0.5,False,False,0.5,0.0,0.45,0.0,0.0,0.0,1.0
+0.0,Personal freedom and autonomy_1507,21,True,140,True,True,0.0,0,False,False,0.0,0.0,0.0,0.0,1.0,1.0,1.0
+0.0,Personal freedom and autonomy_1507,22,True,140,True,False,0.08333333333333333,0.5,False,False,0.0,0.0,0.5,0.0,1.0,1.0,1.0
+0.0,Personal freedom and autonomy_1507,23,True,140,True,True,0.0,0,False,False,0.0,0.0,0.0,0.0,1.0,1.0,1.0
+0.0,Religion and spirituality_1357,21,True,140,True,True,0.0,0,False,False,0.0,0.0,0.0,0.0,1.0,1.0,1.0
+0.0,Religion and spirituality_1357,22,True,140,True,True,0.0,0,False,False,0.0,0.0,0.0,0.0,1.0,1.0,1.0
+0.0,Religion and spirituality_1357,23,True,140,True,True,0.0,0,False,False,0.0,0.0,0.0,0.0,1.0,1.0,1.0
+0.0,United States economy_9971,21,True,140,True,True,0.0,0,True,True,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+0.0,United States economy_9971,22,True,140,True,True,0.0,0,False,False,0.0,0.0,0.0,0.0,0.0,0.4,1.0
+0.0,United States economy_9971,23,True,140,True,True,0.0,0,True,True,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+0.0,United States politics and policies_2756,21,True,140,True,True,0.0,0,False,False,0.0,0.0,0.0,0.5,0.5,0.5,0.5
+0.0,United States politics and policies_2756,22,True,140,True,True,0.0,0,False,False,0.55,1.0,1.0,1.0,1.0,1.0,1.0
+0.0,United States politics and policies_2756,23,True,140,True,True,0.0,0,False,False,0.5,0.5,0.5,1.0,1.0,1.0,1.0
+0.0,Wellbeing of humans_9491,21,True,140,True,True,0.0,0,False,False,0.5,0.5,0.5,0.5,0.5,0.5,1.0
+0.0,Wellbeing of humans_9491,22,True,140,True,True,0.0,0,True,True,1.0,1.0,1.0,1.0,1.0,1.0,1.0
+0.0,Wellbeing of humans_9491,23,True,140,True,True,0.0,0,True,True,1.0,1.0,1.0,1.0,1.0,1.0,1.0
+0.3,AI and human romantic relationships_4506,21,True,140,True,False,0.08333333333333333,0.5,False,False,0.0,1.0,0.5,0.95,1.0,1.0,1.0
+0.3,AI and human romantic relationships_4506,22,True,140,True,True,0.0,0,False,False,0.5,1.0,1.0,1.0,1.0,1.0,1.0
+0.3,AI and human romantic relationships_4506,23,True,140,True,True,0.0,0,False,False,0.35,1.0,1.0,1.0,1.0,1.0,1.0
+0.3,AI moral patienthood_4855,21,True,140,True,True,0.0,0,False,False,0.0,0.0,0.0,1.0,1.0,1.0,1.0
+0.3,AI moral patienthood_4855,22,True,140,True,True,0.0,0,False,False,0.0,0.05,1.0,1.0,1.0,1.0,1.0
+0.3,AI moral patienthood_4855,23,True,140,True,True,0.0,0,False,False,0.0,0.0,1.0,1.0,1.0,1.0,1.0
+0.3,Global economy_3077,21,True,140,True,True,0.0,0,True,True,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+0.3,Global economy_3077,22,True,140,True,False,0.17500000000000002,1.0,False,False,0.0,0.0,0.05,0.0,1.0,0.0,0.4
+0.3,Global economy_3077,23,False,140,True,True,0.0,0,True,True,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+0.3,Global politics and geopolitics_1734,21,True,140,True,True,0.0,0,False,False,0.0,0.0,0.5,1.0,1.0,1.0,1.0
+0.3,Global politics and geopolitics_1734,22,True,140,True,True,0.0,0,True,True,1.0,1.0,1.0,1.0,1.0,1.0,1.0
+0.3,Global politics and geopolitics_1734,23,True,140,True,True,0.0,0,False,False,0.65,1.0,1.0,1.0,1.0,1.0,1.0
+0.3,Life and species_3980,21,True,140,True,True,0.0,0,False,False,0.0,0.0,0.0,0.0,0.0,0.0,0.25
+0.3,Life and species_3980,22,True,140,True,False,0.09999999999999999,0.6,False,False,0.0,0.0,1.0,0.4,1.0,1.0,1.0
+0.3,Life and species_3980,23,True,140,True,False,0.08333333333333333,0.3,False,False,0.0,0.5,0.2,0.0,1.0,1.0,1.0
+0.3,Personal accomplishments_6851,21,True,140,True,True,0.0,0,False,False,0.0,0.0,0.0,0.0,0.0,0.0,1.0
+0.3,Personal accomplishments_6851,22,True,140,True,True,0.0,0,False,False,0.0,0.0,0.0,0.0,0.0,0.95,1.0
+0.3,Personal accomplishments_6851,23,True,140,True,False,0.00833333333333334,0.050000000000000044,False,False,0.0,0.0,0.0,0.5,0.5,1.0,0.95
+0.3,Personal finances_6125,21,True,140,True,False,0.008333333333333333,0.05,False,False,0.0,0.0,0.0,0.0,0.0,0.05,0.0
+0.3,Personal finances_6125,22,True,140,True,False,0.08333333333333333,0.5,False,False,0.5,0.5,0.5,0.0,1.0,1.0,1.0
+0.3,Personal finances_6125,23,True,140,True,False,0.15,0.5,False,False,0.5,0.1,0.5,0.0,0.3,0.3,0.85
+0.3,Personal freedom and autonomy_1507,21,True,140,True,True,0.0,0,False,False,0.0,0.0,0.0,0.0,1.0,1.0,1.0
+0.3,Personal freedom and autonomy_1507,22,True,140,True,False,0.08333333333333333,0.5,False,False,0.0,0.0,0.5,0.0,1.0,1.0,1.0
+0.3,Personal freedom and autonomy_1507,23,True,140,True,True,0.0,0,False,False,0.0,0.0,0.0,0.1,1.0,1.0,1.0
+0.3,Religion and spirituality_1357,21,True,140,True,True,0.0,0,False,False,0.0,0.0,0.0,0.0,1.0,1.0,1.0
+0.3,Religion and spirituality_1357,22,True,140,True,True,0.0,0,False,False,0.0,0.0,0.0,0.0,1.0,1.0,1.0
+0.3,Religion and spirituality_1357,23,True,140,True,True,0.0,0,False,False,0.0,0.0,0.0,0.0,1.0,1.0,1.0
+0.3,United States economy_9971,21,True,140,True,True,0.0,0,True,True,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+0.3,United States economy_9971,22,True,140,True,True,0.0,0,False,False,0.0,0.0,0.0,0.0,0.0,0.2,1.0
+0.3,United States economy_9971,23,True,140,True,True,0.0,0,True,True,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+0.3,United States politics and policies_2756,21,True,140,True,True,0.0,0,False,False,0.0,0.0,0.0,0.5,0.5,0.5,0.65
+0.3,United States politics and policies_2756,22,True,140,True,True,0.0,0,False,False,0.7,1.0,1.0,1.0,1.0,1.0,1.0
+0.3,United States politics and policies_2756,23,True,140,True,True,0.0,0,False,False,0.5,0.5,0.5,1.0,1.0,1.0,1.0
+0.3,Wellbeing of humans_9491,21,True,140,True,True,0.0,0,False,False,0.5,0.5,0.5,0.5,0.5,0.5,0.85
+0.3,Wellbeing of humans_9491,22,True,140,True,True,0.0,0,True,True,1.0,1.0,1.0,1.0,1.0,1.0,1.0
+0.3,Wellbeing of humans_9491,23,True,140,True,True,0.0,0,True,True,1.0,1.0,1.0,1.0,1.0,1.0,1.0
+0.7,AI and human romantic relationships_4506,21,True,140,True,False,0.125,0.75,False,False,0.0,1.0,0.25,0.85,1.0,1.0,1.0
+0.7,AI and human romantic relationships_4506,22,True,140,True,True,0.0,0,False,False,0.5,1.0,1.0,1.0,1.0,1.0,1.0
+0.7,AI and human romantic relationships_4506,23,True,140,True,True,0.0,0,False,False,0.3,1.0,1.0,1.0,1.0,1.0,1.0
+0.7,AI moral patienthood_4855,21,True,140,True,True,0.0,0,False,False,0.0,0.0,0.0,1.0,1.0,1.0,1.0
+0.7,AI moral patienthood_4855,22,True,140,True,True,0.0,0,False,False,0.0,0.05,1.0,1.0,1.0,1.0,1.0
+0.7,AI moral patienthood_4855,23,True,140,True,True,0.0,0,False,False,0.0,0.0,0.95,1.0,1.0,1.0,1.0
+0.7,Global economy_3077,21,True,140,True,True,0.0,0,True,True,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+0.7,Global economy_3077,22,True,140,True,False,0.17500000000000002,0.9,False,False,0.0,0.0,0.15,0.0,0.9,0.0,0.55
+0.7,Global economy_3077,23,False,139,True,False,0.016666666666666666,0.1,False,False,0.0,0.0,0.0,0.0,0.1,0.0,0.0
+0.7,Global politics and geopolitics_1734,21,True,140,True,True,0.0,0,False,False,0.0,0.0,0.7,1.0,1.0,1.0,1.0
+0.7,Global politics and geopolitics_1734,22,True,140,True,True,0.0,0,True,True,1.0,1.0,1.0,1.0,1.0,1.0,1.0
+0.7,Global politics and geopolitics_1734,23,True,140,True,True,0.0,0,False,False,0.65,1.0,1.0,1.0,1.0,1.0,1.0
+0.7,Life and species_3980,21,True,140,True,False,0.008333333333333333,0.05,False,False,0.0,0.0,0.0,0.0,0.05,0.0,0.15
+0.7,Life and species_3980,22,True,140,True,False,0.125,0.55,False,False,0.2,0.0,0.9,0.35,1.0,1.0,1.0
+0.7,Life and species_3980,23,True,140,True,False,0.09166666666666667,0.25,False,False,0.05,0.3,0.25,0.0,0.95,0.7,0.95
+0.7,Personal accomplishments_6851,21,True,140,True,True,0.0,0,False,False,0.0,0.0,0.0,0.0,0.0,0.0,0.9
+0.7,Personal accomplishments_6851,22,True,140,True,True,0.0,0,False,False,0.0,0.0,0.0,0.0,0.0,0.9,1.0
+0.7,Personal accomplishments_6851,23,True,140,True,False,0.008333333333333331,0.04999999999999999,False,False,0.0,0.0,0.0,0.45,0.4,0.85,1.0
+0.7,Personal finances_6125,21,True,140,True,False,0.016666666666666666,0.09999999999999999,False,False,0.0,0.0,0.0,0.0,0.1,0.15,0.05
+0.7,Personal finances_6125,22,True,140,True,False,0.08333333333333333,0.5,False,False,0.5,0.5,0.5,0.0,0.95,0.95,1.0
+0.7,Personal finances_6125,23,True,140,True,False,0.13333333333333333,0.45,False,False,0.5,0.2,0.45,0.0,0.3,0.25,0.8
+0.7,Personal freedom and autonomy_1507,21,True,140,True,False,0.016666666666666666,0.1,False,False,0.0,0.0,0.1,0.0,1.0,1.0,1.0
+0.7,Personal freedom and autonomy_1507,22,True,140,True,False,0.06666666666666667,0.35,False,False,0.0,0.0,0.45,0.1,1.0,0.95,1.0
+0.7,Personal freedom and autonomy_1507,23,True,140,True,False,0.016666666666666666,0.09999999999999999,False,False,0.0,0.0,0.15,0.05,1.0,1.0,1.0
+0.7,Religion and spirituality_1357,21,True,140,True,True,0.0,0,False,False,0.0,0.0,0.0,0.0,0.9,1.0,1.0
+0.7,Religion and spirituality_1357,22,True,140,True,False,0.016666666666666666,0.1,False,False,0.0,0.0,0.1,0.0,1.0,1.0,1.0
+0.7,Religion and spirituality_1357,23,True,140,True,True,0.0,0,False,False,0.0,0.0,0.0,0.0,1.0,1.0,1.0
+0.7,United States economy_9971,21,True,140,True,True,0.0,0,True,True,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+0.7,United States economy_9971,22,True,140,True,False,0.008333333333333333,0.05,False,False,0.0,0.0,0.05,0.0,0.1,0.3,0.9
+0.7,United States economy_9971,23,True,140,True,True,0.0,0,False,False,0.0,0.0,0.0,0.0,0.0,0.0,0.05
+0.7,United States politics and policies_2756,21,True,140,True,False,0.00833333333333334,0.050000000000000044,False,False,0.0,0.0,0.05,0.45,0.55,0.5,0.7
+0.7,United States politics and policies_2756,22,True,140,True,True,0.0,0,False,False,0.6,1.0,1.0,1.0,1.0,1.0,1.0
+0.7,United States politics and policies_2756,23,True,140,True,True,0.0,0,False,False,0.5,0.5,0.5,1.0,1.0,1.0,1.0
+0.7,Wellbeing of humans_9491,21,True,140,True,False,0.025000000000000005,0.15000000000000002,False,False,0.5,0.35,0.45,0.5,0.5,0.55,0.85
+0.7,Wellbeing of humans_9491,22,True,140,True,True,0.0,0,True,True,1.0,1.0,1.0,1.0,1.0,1.0,1.0
+0.7,Wellbeing of humans_9491,23,True,140,True,True,0.0,0,True,True,1.0,1.0,1.0,1.0,1.0,1.0,1.0
+1.0,AI and human romantic relationships_4506,21,True,140,True,False,0.125,0.75,False,False,0.1,1.0,0.25,0.65,1.0,1.0,1.0
+1.0,AI and human romantic relationships_4506,22,True,140,True,False,0.00833333333333334,0.050000000000000044,False,False,0.45,1.0,0.95,1.0,1.0,1.0,1.0
+1.0,AI and human romantic relationships_4506,23,True,140,True,True,0.0,0,False,False,0.3,1.0,1.0,1.0,1.0,1.0,1.0
+1.0,AI moral patienthood_4855,21,True,140,True,False,0.00833333333333334,0.050000000000000044,False,False,0.0,0.0,0.05,0.95,1.0,0.95,1.0
+1.0,AI moral patienthood_4855,22,True,140,True,True,0.0,0,False,False,0.0,0.15,1.0,1.0,1.0,1.0,1.0
+1.0,AI moral patienthood_4855,23,True,140,True,True,0.0,0,False,False,0.0,0.0,0.85,1.0,1.0,1.0,1.0
+1.0,Global economy_3077,21,True,140,True,True,0.0,0,True,True,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+1.0,Global economy_3077,22,True,140,True,False,0.10833333333333334,0.6,False,False,0.0,0.0,0.05,0.0,0.7,0.1,0.6
+1.0,Global economy_3077,23,False,140,True,False,0.008333333333333333,0.05,False,False,0.0,0.0,0.0,0.0,0.05,0.0,0.0
+1.0,Global politics and geopolitics_1734,21,True,140,True,True,0.0,0,False,False,0.0,0.0,0.5,0.9,1.0,1.0,1.0
+1.0,Global politics and geopolitics_1734,22,True,140,True,True,0.0,0,True,True,1.0,1.0,1.0,1.0,1.0,1.0,1.0
+1.0,Global politics and geopolitics_1734,23,True,140,True,True,0.0,0,False,False,0.75,1.0,1.0,1.0,1.0,1.0,1.0
+1.0,Life and species_3980,21,True,140,True,False,0.016666666666666666,0.1,False,False,0.0,0.0,0.1,0.0,0.0,0.0,0.25
+1.0,Life and species_3980,22,True,140,True,False,0.09166666666666667,0.55,False,False,0.1,0.1,0.9,0.35,1.0,1.0,1.0
+1.0,Life and species_3980,23,True,140,True,False,0.08333333333333333,0.3,False,False,0.0,0.4,0.3,0.0,0.9,0.8,0.95
+1.0,Personal accomplishments_6851,21,True,140,True,True,0.0,0,False,False,0.0,0.0,0.0,0.0,0.0,0.05,0.75
+1.0,Personal accomplishments_6851,22,True,140,True,False,0.008333333333333333,0.05,False,False,0.0,0.0,0.0,0.05,0.0,0.9,1.0
+1.0,Personal accomplishments_6851,23,True,140,True,False,0.00833333333333334,0.050000000000000044,False,False,0.0,0.0,0.0,0.4,0.45,0.9,0.85
+1.0,Personal finances_6125,21,True,140,True,False,0.025000000000000005,0.15000000000000002,False,False,0.0,0.0,0.0,0.0,0.1,0.2,0.05
+1.0,Personal finances_6125,22,True,140,True,False,0.09166666666666667,0.5,False,False,0.5,0.55,0.5,0.0,0.85,0.95,1.0
+1.0,Personal finances_6125,23,True,140,True,False,0.08333333333333333,0.3,False,False,0.4,0.25,0.3,0.0,0.4,0.35,0.45
+1.0,Personal freedom and autonomy_1507,21,True,140,True,False,0.016666666666666673,0.050000000000000044,False,False,0.0,0.0,0.15,0.1,0.9,0.85,1.0
+1.0,Personal freedom and autonomy_1507,22,True,140,True,False,0.06666666666666667,0.4,False,False,0.0,0.0,0.55,0.15,1.0,1.0,1.0
+1.0,Personal freedom and autonomy_1507,23,True,140,True,False,0.00833333333333334,0.050000000000000044,False,False,0.0,0.0,0.15,0.2,1.0,0.95,1.0
+1.0,Religion and spirituality_1357,21,True,140,True,True,0.0,0,False,False,0.0,0.0,0.0,0.0,0.9,1.0,1.0
+1.0,Religion and spirituality_1357,22,True,140,True,False,0.016666666666666666,0.1,False,False,0.0,0.0,0.1,0.0,1.0,1.0,1.0
+1.0,Religion and spirituality_1357,23,True,140,True,True,0.0,0,False,False,0.0,0.0,0.0,0.0,1.0,1.0,1.0
+1.0,United States economy_9971,21,True,140,True,True,0.0,0,True,True,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+1.0,United States economy_9971,22,True,140,True,False,0.016666666666666666,0.05,False,False,0.0,0.1,0.05,0.0,0.15,0.45,0.9
+1.0,United States economy_9971,23,True,140,True,True,0.0,0,True,True,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+1.0,United States politics and policies_2756,21,True,140,True,False,0.00833333333333334,0.050000000000000044,False,False,0.0,0.05,0.05,0.45,0.55,0.5,0.7
+1.0,United States politics and policies_2756,22,True,140,True,True,0.0,0,False,False,0.7,0.95,0.95,1.0,1.0,1.0,1.0
+1.0,United States politics and policies_2756,23,True,140,True,False,0.00833333333333334,0.050000000000000044,False,False,0.5,0.55,0.5,1.0,1.0,1.0,1.0
+1.0,Wellbeing of humans_9491,21,True,140,True,False,0.008333333333333331,0.04999999999999999,False,False,0.45,0.4,0.45,0.5,0.5,0.55,0.8
+1.0,Wellbeing of humans_9491,22,True,140,True,True,0.0,0,True,True,1.0,1.0,1.0,1.0,1.0,1.0,1.0
+1.0,Wellbeing of humans_9491,23,True,140,True,True,0.0,0,False,False,0.95,1.0,1.0,1.0,1.0,1.0,1.0

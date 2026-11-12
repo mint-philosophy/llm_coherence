@@ -1,0 +1,12 @@
+# Only these audited aggregates and publication exports belong in this report.
+!data/ranking_summary.csv
+!data/temperature_summary.csv
+!data/temperature_curves.csv
+!figures/full_ladder_ranking.pdf
+!figures/full_ladder_ranking.png
+!figures/ministral_temperature_monotonicity.pdf
+!figures/ministral_temperature_monotonicity.png
+!UPLOAD_INSTRUCTIONS.txt
+!ranking_details.csv
+!data/ranking_request_paths.csv
+!temperature_details.csv
