@@ -158,7 +158,7 @@ def _submit(output, max_cost, client):
 
 def status(output, client):
     _, _, batches = load(output)
-    report = {model: status_one(entry, client) for model, entry in batches.items()}
+    report = {model: status_one(entry, client) for model, entry in batches.items() if entry.get("batch_id")}
     for model, state in report.items():
         print(f"{model}: {state['state']}")
     return report
@@ -215,33 +215,56 @@ def result_row(request, line, task, batch_id):
     return row
 
 
+def has_results(provider, body):
+    if provider == "openai":
+        return bool(body.get("output_file_id") or body.get("error_file_id"))
+    return bool(body.get("results_url"))
+
+
 def fetch(output, client):
     output = Path(output)
+    with locked(output):
+        return _fetch(output, client)
+
+
+def _fetch(output, client):
     manifest, rows, batches = load(output)
     live = manifest["source_manifest"]
     tasks, _, regenerated = original.prepare(Path(manifest["input_path"]), list(live["models"]),
                                              live["seed"], manifest["limit"])
-    if regenerated["requests_sha256"] != live["requests_sha256"]:
-        raise ValueError("Ranking prompts changed since prepare.")
+    # instrument, selected profiles and prompts. Not whole-file hashes of config.py
+    # or agents.py, which change whenever any other model is added.
+    if any(regenerated[k] != live[k] for k in ("input_sha256", "models", "requests_sha256")):
+        raise ValueError("Ranking protocol changed since prepare (instrument, model profiles or prompts).")
     task_by_id = {t.ladder_id: t for t in tasks}
     summaries = []
     for model in live["models"]:
         path = output / model / "responses.jsonl"
-        entry = batches.get(model)
-        if not path.exists() and entry:
+        entry = batches.get(model) or {}
+        if not path.exists() and entry.get("batch_id"):
             state = status_one(entry, client)
             if not state["done"]:
                 print(f"{model}: {state['state']}; not fetched yet.")
                 continue
+            original.write_json(output / model / "batch_status.json", state["body"])
+            if not has_results(entry["provider"], state["body"]):
+                # e.g. failed validation: keep the reason, don't write 100 empty requests
+                print(f"{model}: batch {state['state']} with no results; see batch_status.json")
+                continue
             lines = download(entry, state["body"], client, output / model)
-            with path.open("x", encoding="utf-8") as handle:  # "x": never overwrite
-                for request in (r for r in rows if r["model_key"] == model):
-                    task = task_by_id[request["ladder_id"]]
-                    original.append_event(handle, {"event": "started", "ladder_id": task.ladder_id,
-                                                   "timestamp": entry["submitted_at"]})
-                    if request["custom_id"] in lines:  # missing means unresolved, left as started only
-                        original.append_event(handle, result_row(request, lines[request["custom_id"]],
-                                                                 task, entry["batch_id"]))
+            events = []
+            for request in (r for r in rows if r["model_key"] == model):
+                task = task_by_id[request["ladder_id"]]
+                events.append({"event": "started", "ladder_id": task.ladder_id, "timestamp": entry["submitted_at"]})
+                line = lines.get(request["custom_id"])
+                row = result_row(request, line, task, entry["batch_id"]) if line else None
+                if row is not None:  # None: never ran, stays unresolved like the live runner
+                    events.append(row)
+            # whole log or nothing, so a bad line can't leave a partial file that later fetches skip
+            temporary = path.with_name(path.name + ".tmp")
+            temporary.write_text("".join(json.dumps(e, ensure_ascii=False) + "\n" for e in events),
+                                 encoding="utf-8")
+            temporary.replace(path)
         if path.exists():
             started, results = original.read_events(path, set(task_by_id))
             summaries.append(original.summarize(model, tasks, started, results))

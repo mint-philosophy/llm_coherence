@@ -201,6 +201,42 @@ class BatchRankingTests(unittest.TestCase):
         self.assertEqual(summaries, [])
         self.assertFalse((self.out / "gpt-56-luna-thinking" / "responses.jsonl").exists())
 
+    def test_bad_result_line_leaves_no_partial_log(self):
+        real = batch.result_row
+        seen = []
+
+        def flaky(*args):
+            seen.append(1)
+            if len(seen) == 2:
+                raise KeyError("result")
+            return real(*args)
+
+        with patch.object(batch, "result_row", flaky):
+            with self.assertRaises(KeyError):
+                self.submitted_with_results()
+        self.assertFalse((self.out / "gpt-56-luna-thinking" / "responses.jsonl").exists())
+
+    def test_fetch_refuses_changed_protocol(self):
+        self.submitted_with_results(ended=False)
+        manifest = json.loads((self.out / "manifest.json").read_text())
+        manifest["source_manifest"]["input_sha256"] = "0" * 64
+        original.write_json(self.out / "manifest.json", manifest)
+        with httpx.Client(transport=httpx.MockTransport(no_calls)) as client:
+            with self.assertRaisesRegex(ValueError, "protocol changed"):
+                batch.fetch(self.out, client)
+
+    def test_failed_batch_keeps_status_and_writes_no_log(self):
+        manifest, _ = self.prepared()
+        failed = {"id": "batch_o1", "status": "failed", "output_file_id": None, "error_file_id": None,
+                  "errors": {"data": [{"code": "invalid_request", "message": "bad line"}]}}
+        fake = FakeProviders(anthropic_lines=[], ended=False, openai_batch=failed)
+        with httpx.Client(transport=httpx.MockTransport(fake)) as client:
+            batch.submit(self.out, manifest["reserved_cost_usd"], client)
+            self.assertEqual(batch.fetch(self.out, client), [])
+        status = json.loads((self.out / "gpt-56-luna-thinking" / "batch_status.json").read_text())
+        self.assertEqual(status["errors"]["data"][0]["code"], "invalid_request")
+        self.assertFalse((self.out / "gpt-56-luna-thinking" / "responses.jsonl").exists())
+
     def test_fetch_never_overwrites_saved_results(self):
         self.submitted_with_results()
         before = (self.out / "gpt-56-luna-thinking" / "responses.jsonl").read_bytes()
