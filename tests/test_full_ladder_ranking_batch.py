@@ -187,19 +187,36 @@ class BatchRankingTests(unittest.TestCase):
         self.assertEqual(by_model["gpt-56-luna-thinking"]["n_invalid_or_failed"], 1)
         self.assertEqual(by_model["gpt-56-luna-thinking"]["exact_match_count"], 1)
         self.assertEqual(by_model["opus-46-thinking"]["n_valid_rankings"], 1)
-        self.assertEqual(by_model["opus-46-thinking"]["n_invalid_or_failed"], 1)
+        # the expired request never ran: unresolved, not a failed answer
+        self.assertEqual(by_model["opus-46-thinking"]["n_invalid_or_failed"], 0)
+        self.assertEqual(by_model["opus-46-thinking"]["n_unresolved_requests"], 1)
         # the live runner's reader and summarizer accept the converted log unchanged
         started, results = original.read_events(self.out / "opus-46-thinking" / "responses.jsonl", set(tasks))
         self.assertEqual(original.summarize("opus-46-thinking", list(tasks.values()), started, results),
                          by_model["opus-46-thinking"])
-        statuses = sorted(r["outcome"]["status"] for r in results.values())
-        self.assertEqual(statuses, ["completed", "expired"])
+        self.assertEqual([r["outcome"]["status"] for r in results.values()], ["completed"])
         self.assertTrue((self.out / "opus-46-thinking" / "batch_results.raw.jsonl").exists())
 
     def test_fetch_waits_for_unfinished_batches(self):
         summaries, _, _ = self.submitted_with_results(ended=False)
         self.assertEqual(summaries, [])
         self.assertFalse((self.out / "gpt-56-luna-thinking" / "responses.jsonl").exists())
+
+    def test_result_row_outcomes(self):
+        _, requests = self.prepared()
+        tasks = {t.ladder_id: t for t in original.prepare(original.DEFAULT_INPUT, MODELS, limit=2)[0]}
+        luna = next(r for r in requests if r["model_key"] == "gpt-56-luna-thinking")
+        task = tasks[luna["ladder_id"]]
+        never_ran = {"custom_id": luna["custom_id"], "response": None,
+                     "error": {"code": "batch_expired", "message": "expired"}}
+        self.assertIsNone(batch.result_row(luna, never_ran, task, "b"))
+        server = {"custom_id": luna["custom_id"], "response": {"status_code": 500, "body": {"error": {"message": "x"}}},
+                  "error": None}
+        self.assertEqual(batch.result_row(luna, server, task, "b")["outcome"]["status"], "provider_error")
+        pricey = {"custom_id": luna["custom_id"], "error": None, "response": {"status_code": 200, "body": {
+            "status": "completed", "usage": {"input_tokens": 10, "output_tokens": 10, "cost": 99.0},
+            "output": [{"type": "message", "content": [{"type": "output_text", "text": "x"}]}]}}}
+        self.assertIn("budget_check_error", batch.result_row(luna, pricey, task, "b"))
 
     def test_bad_result_line_leaves_no_partial_log(self):
         real = batch.result_row

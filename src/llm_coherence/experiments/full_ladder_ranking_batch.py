@@ -26,6 +26,9 @@ from llm_coherence.experiments.full_ladder_ranking_recovery import native_reques
 OPENAI = "https://api.openai.com"
 ANTHROPIC = "https://api.anthropic.com"
 OPENAI_DONE = {"completed", "failed", "expired", "cancelled"}
+# error codes on OpenAI error-file lines for requests the batch never ran
+# (not yet checked against real output; anything else is a provider_error)
+OPENAI_NEVER_RAN = {"batch_expired", "batch_cancelled"}
 
 
 def prepare(output, models, input_path=original.DEFAULT_INPUT, seed=42, limit=None):
@@ -190,14 +193,17 @@ def result_row(request, line, task, batch_id):
         response = line.get("response") or {}
         body = response.get("body") or {}
         if response.get("status_code") != 200:
+            if (line.get("error") or {}).get("code") in OPENAI_NEVER_RAN:
+                return None
             row["outcome"] = {"status": "provider_error", "http_status": response.get("status_code"),
                               "error": json.dumps(line.get("error") or body.get("error"))[:500]}
             return row
     else:
         result = line["result"]
+        if result["type"] in ("expired", "canceled"):
+            return None  # never ran: unresolved, not a bad answer
         if result["type"] != "succeeded":
-            row["outcome"] = {"status": "provider_error" if result["type"] == "errored" else result["type"],
-                              "error": json.dumps(result.get("error"))[:500] if result.get("error") else None}
+            row["outcome"] = {"status": "provider_error", "error": json.dumps(result.get("error"))[:500]}
             return row
         body = result["message"]
     raw, state, reason, (inp, out) = response_fields(provider, body)
@@ -207,9 +213,14 @@ def result_row(request, line, task, batch_id):
     if parsed is not None:
         row.update(parse_success=True, parsed_ranking=parsed)
         row.update(original.ranking.score_ranking(task, parsed))
+    # Same checks as the live and recovery runners. Copied, not shared: the saved
+    # Nov 3 recovery run pins the recovery file's hash, so moving code into it
+    # would break `recovery analyze` on those results.
+    cost = (body.get("usage") or {}).get("cost")
     if (not isinstance(inp, int) or not isinstance(out, int)
             or inp > request["input_token_allowance"] or out > request["body"].get(
-                "max_output_tokens", request["body"].get("max_tokens", math.inf))):
+                "max_output_tokens", request["body"].get("max_tokens", math.inf))
+            or (cost is not None and float(cost) > request["reserved_cost_usd"] + 1e-8)):
         # already billed; record it so the audit can see it, nothing to stop
         row["budget_check_error"] = "Missing usage or exceeded reservation."
     return row
