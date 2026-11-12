@@ -17,6 +17,13 @@
       "sha256": "a0f0536146b1a7dce552651e3767c0162d193cc0f3808bc58defa5abca7c5837",
       "original_source_sha256": "9180e9b0821a73510fcdb3c45c815ef7c413a902a9676bbd383c1a53ec78570c",
       "transformation": "CRLF line endings normalized to LF; CSV values unchanged."
+    },
+    "ranking_request_paths.csv": {
+      "generator": "PYTHONPATH=src python -B -m llm_coherence.analysis.ranking_request_paths --source outputs/full_ladder_ranking_20261103 --recovery outputs/full_ladder_ranking_recovery_20261103 --output reports/followup_20261103/data/ranking_request_paths.csv",
+      "sha256": "64d3c0ce366c237b5d5e95cfb8b2d9c82de4c48c0f12bdb8bf7403bd145c2e08",
+      "recovery_requests_sha256": "d553f0b72c67467378fada642e60c03b8c9da10fa6cdedef59a52f700f7aba13",
+      "recovery_responses_sha256": "3ea8383264c4c83a345388a0664cd89c96b5ebc2885c743c880443e9f5464596",
+      "note": "Original journal hashes are in ranking_audit.json. Original requests used litellm; recovery requests went directly to the listed endpoint."
     }
   },
   "canonical_ladders_sha256": "4ab06f084e8b795e27704519d499ef82ced9ecd3ace1fa4c41ec2944c14940a4",
