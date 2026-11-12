@@ -104,6 +104,18 @@ class BatchRankingTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "empty"):
             batch.prepare(self.out, MODELS, limit=2)
 
+    def test_output_must_be_a_directory(self):
+        self.out.parent.mkdir(parents=True, exist_ok=True)
+        self.out.write_text("not a directory")
+        with self.assertRaisesRegex(ValueError, "must be a directory"):
+            batch.prepare(self.out, MODELS, limit=2)
+
+    def test_cli_rejects_selection_flags_after_prepare(self):
+        # submit --models X would otherwise submit every prepared model
+        for extra in (["--models", "gpt-56-luna-thinking"], ["--limit", "2"], ["--seed", "42"]):
+            with self.assertRaises(SystemExit), patch("sys.stderr"):
+                batch.main(["submit", "--output", str(self.out), "--api-key-dir", ".", *extra])
+
     def test_submit_refuses_low_budget_before_any_call(self):
         manifest, _ = self.prepared()
         with httpx.Client(transport=httpx.MockTransport(no_calls)) as client:

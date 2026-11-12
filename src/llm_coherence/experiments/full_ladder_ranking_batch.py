@@ -37,6 +37,8 @@ def prepare(output, models, input_path=original.DEFAULT_INPUT, seed=42, limit=No
         if profile["endpoint"]["model_type"] not in ("openai", "anthropic"):
             raise ValueError(f"{model}: OpenRouter has no batch API; use the live runner.")
     output = Path(output)
+    if output.exists() and not output.is_dir():
+        raise ValueError("--output must be a directory.")
     if output.exists() and any(output.iterdir()):
         raise ValueError("Use an empty output directory.")
     rows = []
@@ -305,9 +307,9 @@ def main(argv=None):
     selection.add_argument("--models", nargs="+", help="OpenAI/Anthropic model keys")
     selection.add_argument("--paper-batch-slate", action="store_true",
                            help="The 14 OpenAI and Anthropic configurations from the paper slate")
-    parser.add_argument("--input", type=Path, default=original.DEFAULT_INPUT)
-    parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--limit", type=int)
+    parser.add_argument("--input", type=Path, help=f"prepare only; default {original.DEFAULT_INPUT.name}")
+    parser.add_argument("--seed", type=int, help="prepare only; default 42")
+    parser.add_argument("--limit", type=int, help="prepare only")
     parser.add_argument("--api-key-dir", type=Path)
     parser.add_argument("--max-cost-usd", type=float)
     args = parser.parse_args(argv)
@@ -320,8 +322,13 @@ def main(argv=None):
             models = args.models
         else:
             parser.error("prepare needs --models or --paper-batch-slate")
-        prepare(output, models, args.input, args.seed, args.limit)
+        prepare(output, models, args.input or original.DEFAULT_INPUT,
+                42 if args.seed is None else args.seed, args.limit)
         return 0
+    # submit/status/fetch act on everything in the saved manifest, so selection flags would be ignored
+    if args.models or args.paper_batch_slate or any(x is not None for x in (args.input, args.seed, args.limit)):
+        parser.error("--models, --paper-batch-slate, --input, --seed and --limit only apply to prepare; "
+                     "later steps use the saved manifest.")
     if args.api_key_dir is None:
         parser.error(f"{args.mode} needs --api-key-dir")
     manifest, _, _ = load(output)
